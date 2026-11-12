@@ -258,7 +258,9 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(await evalTown(() => window.__town.nearLot('wk_s1', 3)), '找不到门口');
     await T('entity-card').waitFor({ timeout: 150000 });
     must(await page.getByText('尚未入驻平台', { exact: false }).count(), '缺少未入驻说明');
-    await T('entity-card').getByText(/收藏为线索|已收藏线索/).click();
+    const save = T('entity-card').getByText('⭐ 收藏为线索');
+    if (await save.count()) await save.click();
+    must(await T('entity-card').getByText('已收藏线索').count(), '收藏状态不对');
     await closeAll();
   });
   await step('空铺：走到门口显示招租名片', async () => {

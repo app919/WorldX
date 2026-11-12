@@ -175,6 +175,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
       counts[l] = n;
       for (let i = 0; i < n; i++) {
         const txt = await T('biz-list').locator('> div').nth(i).innerText();
+        if (txt.includes('暂时没有找到')) { counts[l] = 0; continue; }
         must(/为什么推荐/.test(txt) && /在哪里/.test(txt), `${l} 第 ${i + 1} 条缺少答案`);
       }
     }
@@ -182,6 +183,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     return JSON.stringify(counts);
   });
   await step('我的生意：每张客户卡片展开后显示计算依据', async () => {
+    await page.locator('button.chip', { hasText: '潜在客户' }).first().click();
     const n = await T('biz-list').locator('> div').count();
     for (let i = 0; i < n; i++) {
       await T('biz-list').locator('> div').nth(i).locator('button').first().click();

@@ -20,7 +20,7 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
         for (let k = 0; k < 36; k++) {
           const a = (k / 36) * Math.PI * 2;
           const p = { x: door.trigger.x + Math.cos(a) * r, z: door.trigger.z + Math.sin(a) * r };
-          if (nav.walkable(p) && (nav.findPath(p, door.trigger)?.length ?? 99) < 6) { playerRuntime.x = p.x; playerRuntime.z = p.z; playerRuntime.teleported = true; return true; }
+          if (nav.walkable(p) && (nav.findPath(p, door.trigger)?.length ?? 99) < 6) { playerRuntime.x = p.x; playerRuntime.z = p.z; playerRuntime.teleported = true; useTown.getState().walkTo(door.trigger); return true; }
         }
       }
       return false;
@@ -36,7 +36,7 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
         const a = (k / 36) * Math.PI * 2;
         const p = { x: lot.door.trigger.x + Math.cos(a) * r, z: lot.door.trigger.z + Math.sin(a) * r };
         const path = nav.walkable(p) ? nav.findPath(p, lot.door.trigger) : null;
-        if (path && path.length < 6) { playerRuntime.x = p.x; playerRuntime.z = p.z; playerRuntime.teleported = true; return true; }
+        if (path && path.length < 6) { playerRuntime.x = p.x; playerRuntime.z = p.z; playerRuntime.teleported = true; useTown.getState().walkTo(lot.door.trigger); return true; }
       }
       return false;
     },

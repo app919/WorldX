@@ -329,7 +329,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   });
   await step('消息：预约 15 / 30 / 60 分钟线上见面', async () => {
     const card = page.locator('div', { has: T('intro-u_xiaoman') }).last();
-    for (const d of ['15 分钟', '30 分钟', '60 分钟']) { await card.getByText(d).click(); await card.getByTestId('book-meeting').click(); }
+    for (const d of ['15 分钟', '30 分钟', '60 分钟']) { await card.locator('button.chip', { hasText: d }).click(); await card.getByTestId('book-meeting').click(); }
     must((await card.innerText()).split('📅').length - 1 >= 3, '预约记录不足 3 条');
   });
   await step('消息：提出合作记录 → 对方本人确认', async () => {

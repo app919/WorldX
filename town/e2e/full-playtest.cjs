@@ -312,8 +312,8 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('打招呼：从我的生意给梧桐豆子发奶油信封', async () => {
     await goTab('biz');
     const card = T('rel-e_wutong');
-    if (await card.getByText('打个招呼').count()) {
-      await card.getByText('打个招呼').click();
+    if (await card.getByTestId('hello-e_wutong').count()) {
+      await card.getByTestId('hello-e_wutong').click();
       await T('send-hello').click();
     }
   });

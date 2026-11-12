@@ -1,5 +1,6 @@
 import { ECONOMY_NOTICE } from '../domain/economy';
 import { useTown } from '../store/useTown';
+import { LOW_GFX, setLowGfx } from '../scene/quality';
 import { LIFE_TAGS } from './Onboarding';
 import { Btn, Card, Chip, Disclaimer, Drawer } from './kit';
 
@@ -88,6 +89,10 @@ export function MePanel() {
             {audit.length === 0 && <div>暂无</div>}
             {audit.map((a) => <div key={a.id}>{new Date(a.at).toLocaleTimeString('zh-CN')} · {a.actor} · {a.action}{a.target ? ` → ${a.target}` : ''}</div>)}
           </div>
+        </Card>
+        <Card className="!p-3">
+          <div className="text-sm font-black">画质</div>
+          <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={LOW_GFX} onChange={(e) => setLowGfx(e.target.checked)} /> 流畅模式（关闭阴影、降低分辨率，适合低端手机；切换后重新加载）</label>
         </Card>
         <Btn tone="cream" size="sm" onClick={reset}>重置演示数据</Btn>
       </div>

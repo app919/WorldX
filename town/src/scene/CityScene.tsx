@@ -14,6 +14,7 @@ import { ConnectionLines, Effects } from './Effects';
 import { lightingFor } from './lighting';
 import { applyNight } from './materials';
 import { compiledOf } from '../world';
+import { LOW_GFX } from './quality';
 import { playerRuntime, useTown } from '../store/useTown';
 
 /** 测试用：记录渲染统计（仅 ?e2e） */
@@ -98,14 +99,14 @@ export function CityScene() {
   useEffect(() => () => { document.body.style.cursor = ''; }, []);
   return (
     <Canvas
-      shadows="soft"
-      dpr={[1, 2]}
+      shadows={LOW_GFX ? false : 'soft'}
+      dpr={LOW_GFX ? 0.75 : [1, 2]}
       camera={{ fov: 30, near: 0.5, far: 500, position: [0, 30, 30] }}
       onPointerMissed={() => openCard(undefined)}
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: AgXToneMapping, toneMappingExposure: 1.15 }}
     >
       <color attach="background" args={['#DDEBF2']} />
-      <fog attach="fog" args={['#DDEBF2', 75, 150]} />
+      <fog attach="fog" args={['#DDEBF2', LOW_GFX ? 50 : 75, LOW_GFX ? 95 : 150]} />
       <Env />
       <Stats />
       <DayNight />

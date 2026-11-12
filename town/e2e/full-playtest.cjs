@@ -12,7 +12,7 @@ const { chromium, devices } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-const BASE = (process.env.BASE_URL || 'http://localhost:4173') + '/?e2e';
+const BASE = (process.env.BASE_URL || 'http://localhost:4173') + '/?e2e&lowgfx';
 const OUT = path.join(__dirname, 'playtest');
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
@@ -49,7 +49,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
 
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
-  page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  page = await browser.newPage({ viewport: { width: 1100, height: 720 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

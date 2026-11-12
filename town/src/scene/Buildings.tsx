@@ -21,6 +21,7 @@ import { extrudePolygon, worldBox } from './geo';
 import { signTex } from './textures';
 import { rng } from '../world/geom';
 import { playerRuntime, useTown } from '../store/useTown';
+import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 
 const FH = 1.35; // 层高（游戏单位）
@@ -83,7 +84,7 @@ function Cutaway({ cx, cz, reach, height, children }: { cx: number; cz: number; 
   useFrame((_, dt) => {
     if (!g.current) return;
     // 远处的建筑不绘制（距离剔除），保证大地图流畅
-    const far = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) > 95 + reach;
+    const far = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) > DRAW_DIST + reach;
     g.current.visible = !far;
     if (far) return;
     // 镜头在角色南侧上方（高 40、后退 22）：视线每水平后退 1 单位升高约 1.8 单位

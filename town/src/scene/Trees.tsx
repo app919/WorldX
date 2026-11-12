@@ -9,6 +9,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { BufferAttribute, BufferGeometry, Color, CylinderGeometry, IcosahedronGeometry, InstancedMesh, Matrix4, MeshStandardMaterial, Object3D, Quaternion, Vector3 } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rng } from '../world/geom';
+import { LOW_GFX } from './quality';
 import type { PropDef, TreeSpecies } from '../world/types';
 
 type Part = BufferGeometry;
@@ -37,7 +38,7 @@ function limb(a: Vector3, b: Vector3, r0: number, r1: number, bark: (i: number) 
 
 /** 一团叶子：带噪声起伏的二十面体，顶部偏亮、底部偏暗 */
 function clump(c: Vector3, r: number, squash: number, base: string, light: string, R: () => number, accent?: string): Part {
-  const ico = new IcosahedronGeometry(r, 2);
+  const ico = new IcosahedronGeometry(r, LOW_GFX ? 1 : 2);
   ico.deleteAttribute('uv'); ico.deleteAttribute('normal');
   const g = mergeVertices(ico); // 合并顶点后再加噪声，保证叶团是连续、圆润的
   const p = g.getAttribute('position');

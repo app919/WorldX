@@ -3,6 +3,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { playerRuntime } from '../store/useTown';
+import { DRAW_DIST } from './quality';
 import { RoundedBox } from '@react-three/drei';
 import { MeshStandardMaterial } from 'three';
 import type { PropDef } from '../world/types';
@@ -26,7 +27,7 @@ export function Props({ props }: { props: PropDef[] }) {
 
 function Chunk({ cx, cz, list }: { cx: number; cz: number; list: PropDef[] }) {
   const g = useRef<Group>(null);
-  useFrame(() => { if (g.current) g.current.visible = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) < 110; });
+  useFrame(() => { if (g.current) g.current.visible = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) < DRAW_DIST + 15; });
   return (
     <group ref={g}>
       {list.map((p, i) => (

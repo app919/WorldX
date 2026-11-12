@@ -8,7 +8,7 @@
  * 用法：npm run package
  */
 import { execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -26,13 +26,17 @@ cpSync(join(root, 'dist-single', 'index.html'), join(stage, '沪上软萌生意�
 
 console.log('2/4 复制源码…');
 const skip = new Set(['node_modules', 'dist', 'dist-single', 'release', 'e2e/screenshots', 'e2e/playtest', 'tsconfig.tsbuildinfo']);
-cpSync(root, join(stage, 'source'), {
-  recursive: true,
-  filter: (src) => {
-    const rel = src.slice(root.length + 1).replace(/\\/g, '/');
-    return ![...skip].some((s) => rel === s || rel.startsWith(`${s}/`));
-  },
-});
+// 逐个复制顶层条目（不能把项目目录整体复制进自己的子目录）
+for (const entry of readdirSync(root)) {
+  if (skip.has(entry)) continue;
+  cpSync(join(root, entry), join(stage, 'source', entry), {
+    recursive: true,
+    filter: (src) => {
+      const rel = src.slice(root.length + 1).replace(/\\/g, '/');
+      return ![...skip].some((s) => rel === s || rel.startsWith(`${s}/`));
+    },
+  });
+}
 
 console.log('3/4 写使用说明…');
 writeFileSync(join(stage, '使用说明.txt'), `沪上软萌生意街 · SHANGHAI OPC TOWN  v${pkg.version}

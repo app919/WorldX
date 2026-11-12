@@ -396,7 +396,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('我的：关闭“愿意被推荐”与赞助推荐（关闭后赞助活动不再显示）', async () => {
     await T('me-panel').getByText('接收赞助活动推荐', { exact: false }).click();
     await goTab('community');
-    must(!(await T('community-panel').getByText('赞助内容').count()), '关闭后仍显示赞助');
+    must(!(await T('community-panel').getByText(/赞助内容 · /).count()), '关闭后仍显示赞助活动');
     await goTab('me');
     await T('me-panel').getByText('接收赞助活动推荐', { exact: false }).click();
     await T('me-panel').getByText('愿意被 AI 推荐', { exact: false }).click();

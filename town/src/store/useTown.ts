@@ -331,7 +331,7 @@ export const useTown = create<TownState>()(
         setMarketing: (marketingOptIn) => set({ marketingOptIn }),
         markWalked: () => { if (!get().tutorial.walked) set((s) => ({ tutorial: { ...s.tutorial, walked: true } })); },
         reset() {
-          localStorage.removeItem('opc-town');
+          try { localStorage.removeItem('opc-town'); } catch { /* 存储不可用时忽略 */ }
           location.reload();
         },
       } as TownState;

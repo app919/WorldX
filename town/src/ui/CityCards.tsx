@@ -111,7 +111,7 @@ function LotCard({ id }: { id: string }) {
       <p className="text-sm">这里还空着。免费创建一个个人创业主页，就能在街上拥有自己的小店。</p>
       <div className="mt-3">
         {myOpc ? <div className="text-xs text-stone-600">你已经有一家小店「{myOpc.name}」啦（第一版每人一家）。</div>
-          : <Btn onClick={() => { useTown.setState({ selectedLot: undefined }); setWizard(true); sessionStorage.setItem('preferredLot', id); }} data-testid="open-wizard">🏪 五分钟开店</Btn>}
+          : <Btn onClick={() => { useTown.setState({ selectedLot: undefined }); setWizard(true); try { sessionStorage.setItem('preferredLot', id); } catch { /* ignore */ } }} data-testid="open-wizard">🏪 五分钟开店</Btn>}
       </div>
     </Panel>
   );

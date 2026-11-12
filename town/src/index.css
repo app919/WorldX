@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body, #root { height: 100%; margin: 0; overflow: hidden; background: #FBF6EC; }
+body { font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif; color: #4A3426; -webkit-tap-highlight-color: transparent; }
+
+@layer components {
+  .jelly { @apply rounded-2xl font-bold shadow-jelly transition-transform active:scale-95 hover:-translate-y-0.5 disabled:opacity-50 disabled:pointer-events-none; }
+  .glass { @apply bg-cream-50/90 backdrop-blur-md shadow-soft; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold; }
+  .input { @apply w-full rounded-xl border-2 border-cream-300 bg-white/80 px-3 py-2 text-sm outline-none focus:border-almond-400; }
+}
+
+@keyframes fxpop { 0% { transform: scale(0.2); opacity: 0; } 15% { transform: scale(1.25); opacity: 1; } 30% { transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: scale(0.9); } }
+.fx-pop { animation: fxpop 2.4s ease-out forwards; }
+
+@keyframes wobble-in { 0% { transform: translateY(16px) scale(0.96); opacity: 0; } 60% { transform: translateY(-3px) scale(1.01); opacity: 1; } 100% { transform: none; } }
+.wobble-in { animation: wobble-in 0.38s cubic-bezier(.3,1.4,.5,1) both; }
+
+.scroll-soft::-webkit-scrollbar { width: 6px; }
+.scroll-soft::-webkit-scrollbar-thumb { background: #E9DCC3; border-radius: 99px; }

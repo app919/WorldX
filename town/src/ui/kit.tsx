@@ -59,3 +59,18 @@ export function Avatar({ color, hair, label, size = 36 }: { color: string; hair?
     </div>
   );
 }
+
+/**
+ * 侧边抽屉（桌面）/ 底部弹出层（手机）：地图始终是视觉主体，面板不遮挡太多城市。
+ */
+export function Drawer({ title, subtitle, onClose, children, testId, wide }: { title: ReactNode; subtitle?: ReactNode; onClose?: () => void; children: ReactNode; testId?: string; wide?: boolean }) {
+  return (
+    <div className={`pointer-events-none absolute inset-x-0 bottom-[5.2rem] z-20 flex max-h-[58%] md:inset-x-auto md:bottom-24 md:right-3 md:top-24 md:max-h-none ${wide ? 'md:w-[30rem]' : 'md:w-[26rem]'}`}>
+      <Panel testId={testId} title={title} subtitle={subtitle} onClose={onClose} className="w-full rounded-b-none md:rounded-b-blob">{children}</Panel>
+    </div>
+  );
+}
+
+export function Pill({ children, tone = 'cream', title }: { children: ReactNode; tone?: Tone; title?: string }) {
+  return <span title={title} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${TONE[tone]}`}>{children}</span>;
+}

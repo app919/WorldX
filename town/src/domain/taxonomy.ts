@@ -39,6 +39,9 @@ export const INDUSTRIES: IndustryDef[] = [
   { id: 'education', label: '咨询与培训', related: { tech: 0.6, culture: 0.7, media: 0.5, marketing: 0.4 } },
   { id: 'service', label: '生活服务', related: { food: 0.5, tech: 0.4, marketing: 0.4 } },
   { id: 'space', label: '空间与场地', related: { culture: 0.6, education: 0.6, food: 0.6, brand_retail: 0.5 } },
+  { id: 'wedding', label: '婚庆与写真', related: { media: 0.9, design: 0.7, marketing: 0.6, culture: 0.5 } },
+  { id: 'fitness', label: '运动健康', related: { marketing: 0.6, media: 0.6, service: 0.6 } },
+  { id: 'community', label: '社区生活', related: { food: 0.8, service: 0.8, marketing: 0.6, media: 0.5 } },
 ];
 
 export const CAPABILITIES: CapabilityDef[] = [
@@ -46,21 +49,21 @@ export const CAPABILITIES: CapabilityDef[] = [
     id: 'video', label: '短视频制作', industry: 'media',
     keywords: ['短视频', '视频', '剪辑', '拍视频', 'vlog', '宣传片', '抖音'],
     upstream: ['photo', 'voice', 'copywriting'], peers: ['graphic', 'copywriting', 'photo'],
-    buyerIndustries: ['food', 'brand_retail', 'marketing', 'culture', 'education'],
+    buyerIndustries: ['food', 'brand_retail', 'marketing', 'culture', 'education', 'wedding', 'fitness', 'community'],
     collabs: ['产品宣传片', '短视频账号代运营', '门店探店视频'],
   },
   {
     id: 'ai_video', label: 'AI 宣传片', industry: 'media',
     keywords: ['ai 宣传片', 'ai宣传片', 'ai 视频', 'ai视频', 'aigc', '生成视频'],
     upstream: ['voice', 'copywriting', 'photo'], peers: ['graphic', 'copywriting'],
-    buyerIndustries: ['brand_retail', 'tech', 'food', 'marketing'],
+    buyerIndustries: ['brand_retail', 'tech', 'food', 'marketing', 'wedding', 'culture'],
     collabs: ['AI 产品宣传片', '品牌概念短片'],
   },
   {
     id: 'planning', label: '创意策划', industry: 'marketing',
     keywords: ['策划', '创意', '活动策划', 'campaign'],
     upstream: ['video', 'graphic', 'copywriting'], peers: ['video', 'graphic'],
-    buyerIndustries: ['brand_retail', 'food', 'culture'],
+    buyerIndustries: ['brand_retail', 'food', 'culture', 'community'],
     collabs: ['品牌活动策划', '联合提案'],
   },
   {
@@ -161,6 +164,42 @@ export const CAPABILITIES: CapabilityDef[] = [
     buyerIndustries: ['culture', 'education', 'brand_retail'],
     collabs: ['沙龙场地', '快闪店'],
   },
+  {
+    id: 'bakery', label: '点心与烘焙零售', industry: 'food',
+    keywords: ['点心', '糕点', '老字号', '生煎', '面馆'],
+    upstream: ['video', 'graphic', 'photo', 'copywriting'], peers: ['coffee'],
+    buyerIndustries: ['community', 'service'], collabs: ['节日礼盒', '社区团购'],
+  },
+  {
+    id: 'florist', label: '花艺', industry: 'brand_retail',
+    keywords: ['花店', '花艺', '鲜花'],
+    upstream: ['photo', 'video', 'graphic'], peers: ['coffee', 'wedding_photo'],
+    buyerIndustries: ['wedding', 'food', 'culture'], collabs: ['婚礼花艺', '活动布置'],
+  },
+  {
+    id: 'wedding_photo', label: '婚纱写真摄影', industry: 'wedding',
+    keywords: ['婚纱', '写真', '婚礼'],
+    upstream: ['ai_video', 'video', 'voice', 'graphic'], peers: ['florist'],
+    buyerIndustries: ['community'], collabs: ['婚礼跟拍', '情侣写真'],
+  },
+  {
+    id: 'fitness_coach', label: '健身课程', industry: 'fitness',
+    keywords: ['健身', '瑜伽', '普拉提', '私教'],
+    upstream: ['video', 'copywriting', 'software'], peers: [],
+    buyerIndustries: ['community'], collabs: ['社区健身课', '企业团课'],
+  },
+  {
+    id: 'bookstore', label: '书店与阅读空间', industry: 'culture',
+    keywords: ['书店', '阅读', '读书会'],
+    upstream: ['graphic', 'copywriting', 'video'], peers: ['coffee', 'venue_provider'],
+    buyerIndustries: ['community', 'education'], collabs: ['读书会', '作者见面会'],
+  },
+  {
+    id: 'grocery', label: '菜场与生鲜', industry: 'community',
+    keywords: ['菜场', '菜市场', '生鲜', '水果'],
+    upstream: ['video', 'software', 'community_ops'], peers: ['bakery'],
+    buyerIndustries: ['community'], collabs: ['社区团购', '线上订菜'],
+  },
 ];
 
 /** 非能力型的特殊需求（客户、渠道、资源） */
@@ -176,7 +215,7 @@ export const SPECIAL_NEEDS: Record<string, { label: string; keywords: string[] }
 /** 能提供“渠道”角色的能力 */
 export const CHANNEL_CAPS = new Set(['community_ops', 'planning']);
 /** 能提供“资源”角色的能力 */
-export const RESOURCE_CAPS = new Set(['venue_provider']);
+export const RESOURCE_CAPS = new Set(['venue_provider', 'bookstore']);
 
 const capIndex = new Map(CAPABILITIES.map((c) => [c.id, c]));
 const indIndex = new Map(INDUSTRIES.map((i) => [i.id, i]));
@@ -192,14 +231,15 @@ export function industryAffinity(a: string, b: string): number {
 }
 
 export const DISTRICT_LABEL: Record<string, string> = {
-  xuhui: '徐汇', jingan: '静安', huangpu: '黄浦', changning: '长宁', pudong: '浦东', other: '其他区域',
+  xuhui: '徐汇', jingan: '静安', huangpu: '黄浦', changning: '长宁', pudong: '浦东', hongkou: '虹口', other: '其他区域',
 };
 /** 相邻行政区（地域适配用，粗粒度） */
 export const DISTRICT_NEIGHBORS: Record<string, string[]> = {
   xuhui: ['jingan', 'changning', 'huangpu'],
-  jingan: ['xuhui', 'huangpu', 'changning'],
-  huangpu: ['xuhui', 'jingan', 'pudong'],
+  jingan: ['xuhui', 'huangpu', 'changning', 'hongkou'],
+  huangpu: ['xuhui', 'jingan', 'pudong', 'hongkou'],
+  hongkou: ['huangpu', 'jingan'],
   changning: ['xuhui', 'jingan'],
-  pudong: ['huangpu'],
+  pudong: ['huangpu', 'hongkou'],
   other: [],
 };

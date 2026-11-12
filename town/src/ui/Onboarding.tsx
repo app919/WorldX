@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { AvatarLook, LifeTag } from '../domain/types';
-import { SPAWN_POINTS } from '../data/buildings';
+import type { DistrictKey } from '../domain/commerce';
+import { DISTRICTS, DISTRICT_ORDER } from '../world';
 import { useTown } from '../store/useTown';
 import { Btn } from './kit';
 
@@ -22,55 +23,42 @@ export function Onboarding() {
   const [body, setBody] = useState<string | undefined>();
   const [name, setName] = useState('');
   const preset = LIFE_TAGS[pick];
-
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 grid place-items-center bg-gradient-to-b from-cream-100/70 to-sakura-200/60 p-4 backdrop-blur-sm">
+    <div className="pointer-events-auto fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-gradient-to-b from-cream-100/80 to-sakura-200/70 p-4 backdrop-blur-sm">
       <div className="wobble-in w-full max-w-xl rounded-[2rem] bg-cream-50 p-6 shadow-soft ring-1 ring-cream-200">
         <div className="text-center">
           <div className="text-xs font-bold tracking-[0.3em] text-sage-700">SHANGHAI OPC TOWN</div>
           <h1 className="mt-1 text-3xl font-black text-cocoa-800">沪上软萌生意街</h1>
-          <p className="mt-1 text-sm text-stone-600">一个让生意自然发生的城市生活游戏</p>
+          <p className="mt-1 text-sm text-stone-600">在上海，逛着逛着，就可能找到下一位客户。</p>
         </div>
-
         {step === 0 ? (
           <div className="mt-5" data-testid="onboard-step-avatar">
             <div className="mb-2 text-sm font-bold">① 选一个小人（只是生活标签，随时能换）</div>
             <div className="grid grid-cols-3 gap-2">
               {LIFE_TAGS.map((t, i) => (
-                <button
-                  key={t.tag}
-                  onClick={() => { setPick(i); setBody(undefined); }}
-                  className={`jelly flex flex-col items-center gap-1 rounded-2xl p-3 text-center ${i === pick ? 'bg-almond-300 ring-2 ring-almond-500' : 'bg-cream-100'}`}
-                >
+                <button key={t.tag} onClick={() => { setPick(i); setBody(undefined); }} className={`jelly flex flex-col items-center gap-1 rounded-2xl p-3 text-center ${i === pick ? 'bg-almond-300 ring-2 ring-almond-500' : 'bg-cream-100'}`}>
                   <span className="text-2xl">{t.emoji}</span>
                   <span className="text-sm text-cocoa-800">{t.label}</span>
                   <span className="text-[10px] font-normal text-stone-600">{t.desc}</span>
                 </button>
               ))}
             </div>
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs text-stone-600">衣服颜色</span>
-              {BODY_COLORS.map((c) => (
-                <button key={c} aria-label={c} onClick={() => setBody(c)} className={`h-6 w-6 rounded-full shadow-soft ${((body ?? preset.look.body) === c) ? 'ring-2 ring-cocoa-600 ring-offset-2' : ''}`} style={{ background: c }} />
-              ))}
+              {BODY_COLORS.map((c) => <button key={c} aria-label={c} onClick={() => setBody(c)} className={`h-6 w-6 rounded-full shadow-soft ${((body ?? preset.look.body) === c) ? 'ring-2 ring-cocoa-600 ring-offset-2' : ''}`} style={{ background: c }} />)}
             </div>
             <input className="input mt-3" placeholder="给小人起个昵称（可选）" value={name} maxLength={12} onChange={(e) => setName(e.target.value)} />
             <Btn size="lg" className="mt-4 w-full" onClick={() => setStep(1)}>下一步</Btn>
-            <p className="mt-2 text-center text-[11px] text-stone-400">不需要懂商业，不需要先注册公司。</p>
           </div>
         ) : (
           <div className="mt-5" data-testid="onboard-step-spawn">
-            <div className="mb-2 text-sm font-bold">② 选择出生地点</div>
+            <div className="mb-2 text-sm font-bold">② 选择你出发的街道</div>
             <div className="grid gap-2">
-              {SPAWN_POINTS.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => start(name.trim(), preset.tag, { ...preset.look, body: body ?? preset.look.body }, p.id)}
-                  className="jelly flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-left hover:bg-almond-300"
-                >
+              {DISTRICT_ORDER.map((d: DistrictKey) => (
+                <button key={d} onClick={() => start(name.trim(), preset.tag, { ...preset.look, body: body ?? preset.look.body }, d)} className="jelly flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-left hover:bg-almond-300">
                   <span>
-                    <span className="block text-base text-cocoa-800">{p.label}</span>
-                    <span className="block text-xs font-normal text-stone-600">{p.desc}</span>
+                    <span className="block text-base text-cocoa-800">{DISTRICTS[d].name}</span>
+                    <span className="block text-xs font-normal text-stone-600">{DISTRICTS[d].subtitle} · {DISTRICTS[d].ambience}</span>
                   </span>
                   <span className="text-xl">→</span>
                 </button>

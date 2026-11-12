@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { draftAgentKnowledge } from '../domain/agent';
 import type { EntityStatus, FacadeStyle, OpcProfile, Product, StartupStage } from '../domain/types';
-import { SHOP_LOTS } from '../data/buildings';
-import { RESIDENTS } from '../data/seed';
-import { ME, defaultAgent, lotOf, useTown } from '../store/useTown';
+import { COUNTERPARTIES, SHOPS } from '../data/seed';
+import { allLots, districtName } from '../world';
+import { ME, defaultAgent, useTown } from '../store/useTown';
 import { Btn, Chip, Disclaimer, Modal, Panel } from './kit';
 
 const CATEGORIES = ['AI技术服务', '设计与创意', '咨询与培训', '内容与传媒', '生活服务', '商品零售', '软件与开发', '其他服务'];
@@ -16,10 +16,6 @@ const FACADES: { v: FacadeStyle; l: string; e: string }[] = [
   { v: 'cafe', l: '奶油咖啡馆', e: '☕' }, { v: 'studio', l: '雾蓝工作室', e: '🎬' }, { v: 'shikumen', l: '石库门小铺', e: '🏮' }, { v: 'kiosk', l: '樱花小亭', e: '🌸' },
 ];
 
-function preferredLot(): string | null {
-  try { return sessionStorage.getItem('preferredLot'); } catch { return null; }
-}
-
 /** 五分钟开店（只在打开时挂载，保证每次都用最新的画像预填） */
 export function OpcWizard() {
   const open = useTown((s) => s.wizardOpen);
@@ -31,13 +27,15 @@ function WizardInner() {
   const openShop = useTown((s) => s.openShop);
   const profile = useTown((s) => s.profile);
   const avatar = useTown((s) => s.avatar);
+  const preferred = useTown((s) => s.preferredLot);
+  const district = useTown((s) => s.district);
   const freeLots = useMemo(() => {
-    const taken = new Set(RESIDENTS.filter((r) => r.opc).map((r) => lotOf(r.opc!)));
-    return SHOP_LOTS.filter((l) => !taken.has(l.id));
-  }, []);
+    const taken = new Set([...SHOPS.map((x) => x.lotId), ...COUNTERPARTIES.map((c) => c.place.lotId).filter(Boolean)]);
+    return allLots().filter((l) => !taken.has(l.door.lotId)).sort((a, b) => (a.district === district ? -1 : 0) - (b.district === district ? -1 : 0));
+  }, [district]);
   const [step, setStep] = useState(0);
   const [facade, setFacade] = useState<FacadeStyle>('studio');
-  const [lotId, setLotId] = useState<string>(() => preferredLot() ?? freeLots[0]?.id);
+  const [lotId, setLotId] = useState<string>(() => preferred ?? freeLots[0]?.door.lotId ?? '');
   const [name, setName] = useState('');
   const [tagline, setTagline] = useState(profile?.headline ?? '');
   const [category, setCategory] = useState('内容与传媒');
@@ -81,7 +79,7 @@ function WizardInner() {
               ))}
             </div>
             <select className="input" value={lotId} onChange={(e) => setLotId(e.target.value)}>
-              {freeLots.map((l) => <option key={l.id} value={l.id}>{l.road} · 铺位 {l.id}</option>)}
+              {freeLots.map((l) => <option key={l.door.lotId} value={l.door.lotId}>{districtName(l.district)} · {l.street} · 铺位 {l.door.lotId}</option>)}
             </select>
             <input className="input" placeholder={`店名（默认：${shopName}）`} value={name} maxLength={16} onChange={(e) => setName(e.target.value)} data-testid="shop-name" />
             <input className="input" placeholder="一句话介绍" value={tagline} maxLength={40} onChange={(e) => setTagline(e.target.value)} />

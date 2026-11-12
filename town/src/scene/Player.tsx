@@ -1,172 +1,183 @@
+/**
+ * 玩家角色控制器：
+ * - 键盘 / 摇杆移动时，每一步都经过导航网格校验：不能穿墙、穿树、穿花坛，不能离开人行道走上机动车道，
+ *   只能从斑马线过街；被挡住时沿墙滑动，撞到路灯 / 树会软软地弹一下（但不会穿模）。
+ * - 点击地面：A* 寻路，沿人行道和斑马线走过去。
+ * - 走到店门口的触发点才算“进店”。
+ */
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Group, Vector3 } from 'three';
 import { Chibi } from './Chibi';
-import { BOUNDS, COLLIDERS, streetAt } from './layout';
-import { GAME_LANDMARKS, SHOP_LOTS, cityWalkRoute } from '../data/buildings';
+import { compiledOf, navOf, streetOfDoor } from '../world';
+import { Zone } from '../world/nav';
 import { RESIDENTS } from '../data/seed';
-import { lotOf, playerRuntime, residentAnchor, useTown } from '../store/useTown';
+import { playerRuntime, residentAnchor, useTown } from '../store/useTown';
 import { input } from './input';
+import { dist } from '../world/geom';
 
-const WALK = 4.2;
-const RUN = 7.5;
-const RADIUS = 0.38;
+const WALK = 4.4;
+const RUN = 7.6;
 
 export function Player() {
   const avatar = useTown((s) => s.avatar)!;
+  const district = useTown((s) => s.district);
+  const walkPath = useTown((s) => s.walkPath);
   const group = useRef<Group>(null);
   const moving = useRef(0);
   const happy = useRef(0);
   const keys = useRef<Record<string, boolean>>({});
-  const routeIdx = useRef(0);
   const camDist = useRef(1);
-  const lastStreetCheck = useRef(0);
+  const tick = useRef(0);
   const lastSave = useRef(0);
   const nearby = useRef<Set<string>>(new Set());
+  const pathIdx = useRef(0);
+  const lastDoor = useRef<string | null>(null);
+  const roadHint = useRef(0);
   const { camera, gl } = useThree();
-  const camTarget = useRef(new Vector3());
+  const camTarget = useRef(new Vector3(avatar.position.x, 0, avatar.position.z));
+
+  useEffect(() => { pathIdx.current = 0; }, [walkPath]);
+  useEffect(() => {
+    playerRuntime.x = avatar.position.x; playerRuntime.z = avatar.position.z;
+    camTarget.current.set(avatar.position.x, 0, avatar.position.z);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [district]);
 
   useEffect(() => {
-    playerRuntime.x = avatar.position.x;
-    playerRuntime.z = avatar.position.z;
-    camTarget.current.set(avatar.position.x, 0, avatar.position.z);
     const down = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
+      const t = (e.target as HTMLElement)?.tagName;
+      if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
       keys.current[e.key.toLowerCase()] = true;
-      if (e.key === ' ') happy.current = -1; // 下一帧开始蹦蹦跳
+      if (e.key === ' ') happy.current = -1;
     };
     const up = (e: KeyboardEvent) => (keys.current[e.key.toLowerCase()] = false);
-    const wheel = (e: WheelEvent) => { camDist.current = Math.max(0.55, Math.min(1.8, camDist.current * (1 + Math.sign(e.deltaY) * 0.08))); };
+    const wheel = (e: WheelEvent) => { camDist.current = Math.max(0.5, Math.min(1.7, camDist.current * (1 + Math.sign(e.deltaY) * 0.08))); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     gl.domElement.addEventListener('wheel', wheel, { passive: true });
-    return () => {
-      window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
-      gl.domElement.removeEventListener('wheel', wheel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); gl.domElement.removeEventListener('wheel', wheel); };
+  }, [gl]);
 
   useFrame((state, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
     const s = useTown.getState();
+    const nav = navOf(s.district);
+    if (playerRuntime.teleported) { playerRuntime.teleported = false; camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); }
+    if (happy.current === -1) happy.current = performance.now() / 1000 + 1.2;
     const k = keys.current;
     let dx = (k['d'] || k['arrowright'] ? 1 : 0) - (k['a'] || k['arrowleft'] ? 1 : 0) + input.joyX;
     let dz = (k['s'] || k['arrowdown'] ? 1 : 0) - (k['w'] || k['arrowup'] ? 1 : 0) + input.joyY;
     const manual = Math.hypot(dx, dz) > 0.1;
-    let run = !!k['shift'] || input.run;
+    const run = !!k['shift'] || input.run;
 
-    if (manual) {
-      if (s.walkTarget || s.autoWalk) s.setAutoWalk(false);
-    } else if (s.walkTarget) {
-      dx = s.walkTarget.x - playerRuntime.x; dz = s.walkTarget.z - playerRuntime.z;
-      if (Math.hypot(dx, dz) < 0.3) { s.setWalkTarget(undefined); dx = dz = 0; }
-    } else if (s.autoWalk) {
-      const route = cityWalkRoute();
-      const t = route[routeIdx.current % route.length];
-      dx = t.x - playerRuntime.x; dz = t.z - playerRuntime.z;
-      if (Math.hypot(dx, dz) < 0.8) routeIdx.current++;
-      run = false;
+    if (manual && s.walkPath) s.clearPath();
+    if (!manual && s.walkPath) {
+      const tgt = s.walkPath[Math.min(pathIdx.current, s.walkPath.length - 1)];
+      dx = tgt.x - playerRuntime.x; dz = tgt.z - playerRuntime.z;
+      if (Math.hypot(dx, dz) < 0.25) {
+        pathIdx.current++;
+        if (pathIdx.current >= s.walkPath.length) { s.clearPath(); dx = dz = 0; }
+      }
     }
-
     const len = Math.hypot(dx, dz);
     const now = state.clock.elapsedTime;
-    if (happy.current === -1) happy.current = performance.now() / 1000 + 1.2;
     if (len > 0.05) {
       const speed = (run ? RUN : WALK) * Math.min(1, len);
-      let nx = playerRuntime.x + (dx / len) * speed * dt;
-      let nz = playerRuntime.z + (dz / len) * speed * dt;
-      // 简化碰撞：圆形推开；撞到路灯/树会软软地弹回来
-      for (const c of COLLIDERS) {
-        const ddx = nx - c.x, ddz = nz - c.z;
-        const d = Math.hypot(ddx, ddz);
-        const min = c.r + RADIUS;
-        if (d < min && d > 1e-4) {
-          if (c.soft && now > playerRuntime.bumpUntil) {
-            playerRuntime.bumpUntil = now + 0.6;
-            nx = c.x + (ddx / d) * (min + 0.45);
-            nz = c.z + (ddz / d) * (min + 0.45);
-            s.fxPush({ kind: 'bonk', from: { x: nx, z: nz } });
-            if (s.walkTarget) s.setWalkTarget(undefined);
-          } else {
-            nx = c.x + (ddx / d) * min;
-            nz = c.z + (ddz / d) * min;
-          }
-        }
+      const from = { x: playerRuntime.x, z: playerRuntime.z };
+      const to = { x: from.x + (dx / len) * speed * dt, z: from.z + (dz / len) * speed * dt };
+      const res = nav.move(from, to);
+      if (res.hit && manual && now > playerRuntime.bumpUntil) {
+        const z = nav.zoneAt(to);
+        if (z === Zone.Obstacle) { playerRuntime.bumpUntil = now + 0.7; s.fxPush({ kind: 'bonk', from: to }); }
+        if (z === Zone.Road && now > roadHint.current) { roadHint.current = now + 4; s.toast('这里是机动车道，请从斑马线过马路', 'info'); }
       }
-      playerRuntime.x = Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, nx));
-      playerRuntime.z = Math.max(BOUNDS.minZ, Math.min(BOUNDS.maxZ, nz));
+      playerRuntime.x = res.p.x; playerRuntime.z = res.p.z;
       playerRuntime.heading = Math.atan2(dx, dz);
       moving.current = run ? 2 : 1;
       if (!s.tutorial.walked) s.markWalked();
-    } else {
-      moving.current = 0;
-    }
+    } else moving.current = 0;
     playerRuntime.moving = moving.current > 0;
 
     if (group.current) {
-      group.current.position.set(playerRuntime.x, 0, playerRuntime.z);
-      const cur = group.current.rotation.y;
-      let diff = playerRuntime.heading - cur;
+      group.current.position.set(playerRuntime.x, 0.16, playerRuntime.z);
+      let diff = playerRuntime.heading - group.current.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      group.current.rotation.y = cur + diff * Math.min(1, dt * 10);
-      const squash = now < playerRuntime.bumpUntil ? 1 - Math.sin((playerRuntime.bumpUntil - now) * 10) * 0.12 : 1;
-      group.current.scale.set(1 / squash, squash, 1 / squash);
+      group.current.rotation.y += diff * Math.min(1, dt * 10);
+      const sq = now < playerRuntime.bumpUntil ? 1 - Math.sin((playerRuntime.bumpUntil - now) * 9) * 0.1 : 1;
+      group.current.scale.set(1 / sq, sq, 1 / sq);
     }
 
-    // 镜头：微缩模型视角，柔和跟随
+    // 镜头：俯视约 55°，柔和跟随
     camTarget.current.lerp(new Vector3(playerRuntime.x, 0, playerRuntime.z), Math.min(1, dt * 3));
-    const off = new Vector3(0, 28, 21).multiplyScalar(camDist.current);
+    const off = new Vector3(0, 40, 22).multiplyScalar(camDist.current);
     camera.position.lerp(camTarget.current.clone().add(off), Math.min(1, dt * 3));
     camera.lookAt(camTarget.current.x, 0.8, camTarget.current.z);
 
-    // 周期性检查：街道名、打卡、偶遇、咖啡香气
-    if (now - lastStreetCheck.current > 0.4) {
-      lastStreetCheck.current = now;
-      s.setStreet(streetAt(playerRuntime));
-      for (const b of GAME_LANDMARKS) {
-        if (Math.hypot(b.pos.x - playerRuntime.x, b.pos.z - playerRuntime.z) < Math.max(b.footprint.w, b.footprint.d) / 2 + 3) s.visit(b.id);
+    if (now - tick.current > 0.3) {
+      tick.current = now;
+      s.setStreet(streetOfDoor(s.district, playerRuntime));
+      // 进门：站到门口触发点
+      const cd = compiledOf(s.district);
+      const door = cd.doors.find((d) => dist(d.trigger, playerRuntime) < 0.75);
+      if (door && door.id !== lastDoor.current && !s.chatOpc && !s.card) {
+        lastDoor.current = door.id;
+        if (door.lotId) s.enterLot(door.lotId);
+        else if (door.label) {
+          const b = cd.def.buildings.find((x) => x.id === door.buildingId);
+          if (b?.archiveId) { s.openCard({ kind: 'landmark', id: b.archiveId }); s.visit(b.archiveId); }
+          else s.openCard({ kind: 'door', label: door.label });
+        }
       }
+      if (!door) lastDoor.current = null;
+      // 靠近地标打卡
+      for (const b of cd.def.buildings.filter((x) => x.archiveId)) {
+        const c = b.polygon ? b.polygon[4] : { x: b.box!.cx, z: b.box!.cz };
+        if (dist(c, playerRuntime) < 14) s.visit(b.archiveId!);
+      }
+      // 偶遇
       for (const r of RESIDENTS) {
-        const a = residentAnchor(r);
-        const key = `r:${r.id}`;
-        const near = Math.hypot(a.x - playerRuntime.x, a.z - playerRuntime.z) < 3.2;
+        if (r.district !== s.district) continue;
+        const a = residentAnchor(r).p;
+        const key = r.id, near = dist(a, playerRuntime) < 3;
         if (near && !nearby.current.has(key)) { nearby.current.add(key); s.makeFriend(r.id); happy.current = performance.now() / 1000 + 0.9; }
         if (!near) nearby.current.delete(key);
       }
-      for (const r of RESIDENTS) {
-        if (r.opc?.facade !== 'cafe') continue;
-        const lot = SHOP_LOTS.find((l) => l.id === lotOf(r.opc!));
-        if (!lot) continue;
-        const key = `cafe:${lot.id}`;
-        const near = Math.hypot(lot.pos.x - playerRuntime.x, lot.pos.z - playerRuntime.z) < 4;
-        if (near && !nearby.current.has(key)) { nearby.current.add(key); s.fxPush({ kind: 'aroma', from: lot.pos }); }
-        if (!near) nearby.current.delete(key);
-      }
     }
-    if (now - lastSave.current > 5) {
+    if (now - lastSave.current > 4) {
       lastSave.current = now;
       useTown.setState((st) => (st.avatar ? { avatar: { ...st.avatar, position: { x: playerRuntime.x, z: playerRuntime.z } } } : {}));
     }
   });
 
-  const walkTarget = useTown((s) => s.walkTarget);
   return (
     <>
-      <group ref={group} position={[avatar.position.x, 0, avatar.position.z]}>
+      <group ref={group} position={[avatar.position.x, 0.16, avatar.position.z]}>
         <Chibi look={avatar.look} movingRef={moving} happyRef={happy} />
-        <Html position={[0, 2.25, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+        <Html position={[0, 2.3, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
           <div className="whitespace-nowrap rounded-full bg-almond-300 px-2 py-0.5 text-[11px] font-bold text-cocoa-800 shadow-soft">我 · {avatar.nickname}</div>
         </Html>
       </group>
-      {walkTarget && (
-        <mesh position={[walkTarget.x, 0.12, walkTarget.z]} rotation-x={-Math.PI / 2}>
-          <ringGeometry args={[0.3, 0.45, 24]} />
-          <meshBasicMaterial color="#E8C77A" transparent opacity={0.85} />
-        </mesh>
-      )}
+      {walkPath && walkPath.length > 0 && <PathDots path={walkPath} />}
     </>
+  );
+}
+
+function PathDots({ path }: { path: { x: number; z: number }[] }) {
+  const pts: { x: number; z: number }[] = [];
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const L = dist(a, b);
+    for (let s = 0; s < L; s += 1.1) pts.push({ x: a.x + ((b.x - a.x) * s) / L, z: a.z + ((b.z - a.z) * s) / L });
+  }
+  const end = path[path.length - 1];
+  return (
+    <group>
+      {pts.map((p, i) => (
+        <mesh key={i} position={[p.x, 0.2, p.z]} rotation-x={-Math.PI / 2}><circleGeometry args={[0.12, 10]} /><meshBasicMaterial color="#E8C77A" /></mesh>
+      ))}
+      <mesh position={[end.x, 0.21, end.z]} rotation-x={-Math.PI / 2}><ringGeometry args={[0.3, 0.45, 24]} /><meshBasicMaterial color="#E8C77A" /></mesh>
+    </group>
   );
 }

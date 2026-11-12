@@ -1,7 +1,7 @@
 import { ECONOMY_NOTICE } from '../domain/economy';
 import { useTown } from '../store/useTown';
 import { LIFE_TAGS } from './Onboarding';
-import { Btn, Card, Chip, Disclaimer, Panel } from './kit';
+import { Btn, Card, Chip, Disclaimer, Drawer } from './kit';
 
 export function MePanel() {
   const avatar = useTown((s) => s.avatar)!;
@@ -21,7 +21,7 @@ export function MePanel() {
   const reset = useTown((s) => s.reset);
 
   return (
-    <Panel testId="me-panel" title={`🧸 ${avatar.nickname}`} subtitle="角色 · OPC · AI 分身 · 隐私设置" onClose={() => setTab('city')} className="h-full w-full">
+    <Drawer testId="me-panel" title={`🧸 ${avatar.nickname}`} subtitle="角色 · OPC · AI 分身 · 隐私设置" onClose={() => setTab('city')}>
       <div className="space-y-3">
         <Card className="!p-3">
           <div className="text-xs font-bold text-stone-600">我的生活标签（随时可换，不是职业审核）</div>
@@ -91,6 +91,6 @@ export function MePanel() {
         </Card>
         <Btn tone="cream" size="sm" onClick={reset}>重置演示数据</Btn>
       </div>
-    </Panel>
+    </Drawer>
   );
 }

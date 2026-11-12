@@ -8,21 +8,21 @@
  *   画像必须经用户确认；关系由结构化数据生成；Agent 回答必须带 citations。
  */
 import { agentRespond } from '../domain/agent';
-import { buildOpportunityMap } from '../domain/matching';
+import { buildBusinessMap, type BizRelation, type Counterparty } from '../domain/commerce';
 import { extractProfile, type ExtractionResult } from '../domain/profileExtractor';
-import type { AgentConfig, AgentReply, BusinessProfile, OpcProfile, Relationship } from '../domain/types';
+import type { AgentConfig, AgentReply, BusinessProfile, OpcProfile } from '../domain/types';
 
 export interface AiProvider {
   name: string;
   extract(text: string): Promise<ExtractionResult>;
-  match(me: BusinessProfile, others: BusinessProfile[]): Promise<Relationship[]>;
+  match(me: BusinessProfile, others: Counterparty[]): Promise<BizRelation[]>;
   agent(opc: OpcProfile, cfg: AgentConfig, question: string): Promise<AgentReply>;
 }
 
 export const RuleBasedProvider: AiProvider = {
   name: 'rule-based-v1',
   extract: async (text) => extractProfile(text),
-  match: async (me, others) => buildOpportunityMap(me, others),
+  match: async (me, others) => buildBusinessMap(me, others).all,
   agent: async (opc, cfg, q) => agentRespond(opc, cfg, q),
 };
 

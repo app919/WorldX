@@ -28,7 +28,8 @@ const DISTRICT_KW: Record<DistrictId, string[]> = {
   jingan: ['静安', '南京西路', '静安寺', '张园'],
   huangpu: ['黄浦', '外滩', '新天地', '豫园'],
   changning: ['长宁', '愚园路', '中山公园'],
-  pudong: ['浦东', '陆家嘴', '张江'],
+  pudong: ['浦东', '陆家嘴', '张江', '洋泾'],
+  hongkou: ['虹口', '四川北路', '甜爱路', '多伦路', '鲁迅公园'],
   other: [],
 };
 
@@ -128,7 +129,7 @@ export function extractProfile(text: string): ExtractionResult {
   if (capabilities.length) summary.push(`我能提供：${capabilities.map((c) => c.label).join('、')}`);
   if (needList.length) summary.push(`我需要：${needList.map((n) => n.label).join('、')}`);
   summary.push(`我希望：${[...intents].map((i) => ({ part_time: '兼职接单', project: '项目合作', long_term: '寻找稳定客户', team_up: '组队创业' })[i]).join('、')}`);
-  if (districts.length) summary.push(`我的地域：${districts.map((d) => ({ xuhui: '徐汇', jingan: '静安', huangpu: '黄浦', changning: '长宁', pudong: '浦东', other: '其他' })[d]).join('、')}`);
+  if (districts.length) summary.push(`我的地域：${districts.map((d) => ({ xuhui: '徐汇', jingan: '静安', huangpu: '黄浦', changning: '长宁', pudong: '浦东', hongkou: '虹口', other: '其他' })[d]).join('、')}`);
   summary.push(`合作方式：${{ remote: '远程', onsite: '线下', both: '远程、线下均可' }[mode]}`);
 
   return {

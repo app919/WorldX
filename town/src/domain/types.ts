@@ -7,7 +7,7 @@
 /** 玩家自选的生活标签 —— 不是职业审核，随时可换 */
 export type LifeTag = 'worker' | 'freelancer' | 'opc' | 'retiree' | 'student' | 'explorer';
 
-export type DistrictId = 'xuhui' | 'jingan' | 'huangpu' | 'changning' | 'pudong' | 'other';
+export type DistrictId = 'xuhui' | 'jingan' | 'huangpu' | 'changning' | 'pudong' | 'hongkou' | 'other';
 
 /** 商业主体状态：必须区分，不能让玩家误以为开虚拟店 = 获得法人资格 */
 export type EntityStatus =

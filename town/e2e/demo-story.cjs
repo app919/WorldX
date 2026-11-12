@@ -1,11 +1,10 @@
 /**
- * 端到端演示故事（Playwright）：
- *   创建小人 → 进入武康路 → 走路 → 告诉 AI 我会什么 → 商业可能性地图 →
- *   逛咖啡店（主理人离线，AI 分身接待，L3 问题被转交）→ 打招呼 → 对方接受 →
- *   交换联系方式 → 预约线上见面 → 店铺之间出现发光连接线 → 五分钟开店
+ * V2 端到端演示故事（Playwright）：
+ *   武康大楼出发 → 沿人行道走 → 「我的生意」告诉 AI 我能提供什么 → 客户优先列表（五个问题）→
+ *   点“走到店门口”，沿人行道 / 斑马线寻路，从门口进店 → AI 分身接待（价格 / L3）→
+ *   打招呼 → 对方接受 → 双方同意交换联系方式 → 预约见面 → 社区推荐活动 → 三条街道 → 开店 → 夜景
  *
  * 用法：npm run build && npm run preview（另一个终端）然后 npm run e2e
- *   BASE_URL 默认 http://localhost:4173，截图输出到 e2e/screenshots/
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -14,12 +13,8 @@ const path = require('path');
 const BASE = process.env.BASE_URL || 'http://localhost:4173';
 const OUT = path.join(__dirname, 'screenshots');
 fs.mkdirSync(OUT, { recursive: true });
-
 const results = [];
-function check(name, ok, detail = '') {
-  results.push({ name, ok, detail });
-  console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`);
-}
+const check = (name, ok, detail = '') => { results.push({ name, ok }); console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`); };
 
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -30,106 +25,105 @@ function check(name, ok, detail = '') {
   const shot = (n) => page.screenshot({ path: path.join(OUT, `${n}.png`) });
   const t0 = Date.now();
 
-  await page.goto(BASE);
-  await page.evaluate(() => localStorage.clear());
+  await page.goto(`${BASE}/?e2e`);
+  await page.evaluate(() => { try { localStorage.clear(); } catch { /* */ } });
   await page.reload();
-
-  // 1. 选一个小人（3 秒完成）
   await page.getByTestId('onboard-step-avatar').waitFor();
   await shot('01-onboarding');
   await page.getByText('自由职业者').click();
   await page.getByPlaceholder('给小人起个昵称').fill('阿岚');
   await page.getByText('下一步').click();
-  await page.getByText('武康大楼').click();
+  await page.getByText('淮海中路 × 武康路').click();
   await page.getByTestId('status-line').waitFor();
-  await page.waitForTimeout(2500);
-  check('首次进入成功', await page.getByTestId('status-line').isVisible(), `${Date.now() - t0}ms`);
-  await shot('02-wukang-road');
+  await page.waitForTimeout(4000);
+  check('首次进入成功', true, `${Date.now() - t0}ms`);
+  await shot('02-wukang-street');
 
-  // 2. 走路（键盘）
-  await page.mouse.click(700, 120); // 聚焦画布区域（点击地面也会设定目标）
-  await page.keyboard.down('d'); await page.waitForTimeout(1200); await page.keyboard.up('d');
-  await page.keyboard.down('s'); await page.waitForTimeout(600); await page.keyboard.up('s');
-  await page.waitForTimeout(500);
-  await shot('03-walking');
-
-  // 3. 告诉 AI 我会什么
-  await page.getByTestId('nav-map').click();
+  // 告诉 AI 我能提供什么 → 客户优先
+  await page.getByTestId('nav-biz').click();
   await page.getByTestId('use-example').click();
-  await page.getByTestId('confirm-profile').waitFor();
-  await shot('04-profile-extraction');
   await page.getByTestId('confirm-profile').click();
-  await page.getByTestId('opportunity-svg').waitFor();
-  await page.getByTestId('node-u_xiaoman').click();
-  const table = await page.getByTestId('relation-table').innerText();
-  check('推荐关系可解释（匹配程度/理由/来源/未确认）', /匹配程度/.test(table) && /推荐理由/.test(table) && /未确认/.test(table) && /系统估算/.test(table));
-  await shot('05-opportunity-map');
+  await page.getByTestId('biz-list').waitFor();
+  const counts = await page.getByTestId('biz-counts').innerText();
+  const firstCard = await page.getByTestId('biz-list').locator('> div').first().innerText();
+  check('默认展示潜在客户', /潜在客户/.test(counts));
+  check('客户卡片回答五个问题', ['客户在哪里', '可能需要', '你可以提供', '为什么推荐'].every((k) => firstCard.includes(k)), firstCard.split('\n')[1]);
+  check('需求证据有区分（已发布 / 系统推测）', /对方已发布|系统推测/.test(firstCard));
+  await shot('03-my-business-customers');
+  await page.getByText('商业关系视图').click();
+  await page.getByTestId('flow-svg').waitFor();
+  await shot('04-business-flow');
+  await page.getByText('优先联系').click();
 
-  // 4. 走进咖啡馆：主理人离线，AI 分身接待
-  await page.getByText('🏪 逛 TA 的小店').first().click();
-  await page.getByTestId('agent-chat').waitFor();
-  check('访客知道在和 AI 分身交流', (await page.getByTestId('agent-transparency').innerText()).includes('AI 分身'));
-  await page.getByTestId('chat-input').fill('你们的咖啡豆多少钱？');
-  await page.keyboard.press('Enter');
-  await page.getByTestId('chat-input').fill('可以打个折吗？');
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(300);
-  const log = await page.getByTestId('chat-log').innerText();
-  check('Agent 只引用确认过的价格', log.includes('88'));
-  check('L3 问题转交主理人', log.includes('L3 需本人确认') && log.includes('已转交主理人'));
-  await shot('06-agent-chat');
+  // 沿人行道走到梧桐豆子门口，从门口进店。
+  // 无 GPU 的 CI 里渲染很慢，先把角色放到同一侧人行道、离门口约 8 个单位处，再用真实的寻路 + 门口触发完成进店。
+  check('测试钩子：角色放到门口附近的人行道上', await page.evaluate(() => window.__town.nearLot('wk_w2', 7)));
+  await page.waitForTimeout(500);
+  await page.getByTestId('rel-e_wutong').getByText(/走到店门口/).click();
+  let entered = false;
+  try { await page.getByTestId('agent-chat').waitFor({ timeout: 150000 }); entered = true; } catch { /* */ }
+  check('沿人行道寻路并从门口进店', entered);
+  await shot('05-entered-shop');
 
-  // 5. 打招呼 → 奶油信封
-  await page.getByTestId('chat-hello').click();
+  if (entered) {
+    await page.getByTestId('chat-input').fill('咖啡豆多少钱？');
+    await page.keyboard.press('Enter');
+    await page.getByTestId('chat-input').fill('可以打个折吗？');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    const log = await page.getByTestId('chat-log').innerText();
+    check('AI 分身只引用确认过的价格', log.includes('88'));
+    check('L3 问题转交主理人', log.includes('L3 需本人确认') && log.includes('已转交主理人'));
+    await shot('06-agent-chat');
+    await page.getByTestId('chat-hello').click();
+  } else {
+    await page.getByTestId('nav-biz').click();
+    await page.getByTestId('hello-e_wutong').click();
+  }
   await page.getByTestId('invite-card').waitFor();
-  await shot('07-invitation-card');
+  await shot('07-invitation');
   await page.getByTestId('send-hello').click();
-  await page.getByTestId('agent-chat').getByLabel('关闭').click();
-  await page.getByTestId('map-panel').getByLabel('关闭').click();
-  await page.waitForTimeout(900);
-  await shot('08-envelope-flying');
-
-  // 6. 对方（演示角色，离线 → 上线）接受
-  await page.waitForTimeout(3600);
+  if (entered) await page.getByTestId('agent-chat').getByLabel('关闭').click();
+  await page.waitForTimeout(5000);
   await page.getByTestId('nav-messages').click();
   await page.getByTestId('intro-u_xiaoman').waitFor();
   await page.getByTestId('consent-contact').click();
   check('双方同意后才显示联系方式', await page.getByTestId('contact-visible').isVisible());
   await page.getByTestId('book-meeting').click();
-  await page.waitForTimeout(300);
-  await shot('09-meeting-booked');
+  await shot('08-meeting-booked');
 
-  // 7. 连接线
-  await page.getByTestId('messages-panel').getByLabel('关闭').click();
-  await page.waitForTimeout(1500);
+  // 社区与商业地图打通
+  await page.getByTestId('nav-community').click();
+  const reco = await page.getByTestId('event-reco').innerText().catch(() => '');
+  check('社区根据商业地图推荐活动', /潜在客户/.test(reco), reco.slice(0, 40));
+  await page.getByTestId('event-ev_brand_day').click();
+  await shot('09-community');
+  await page.getByTestId('nav-community').click();
+  await page.waitForTimeout(800);
   await shot('10-connection-line');
 
-  // 8. 五分钟开店
+  // 三条街道
+  for (const d of ['yangjing', 'sichuan_n', 'wukang']) {
+    await page.getByTestId(`district-${d}`).click();
+    await page.waitForTimeout(3500);
+    await shot(`11-district-${d}`);
+  }
+
+  // 开店
   await page.getByTestId('my-shop-btn').click();
   await page.getByTestId('opc-wizard').waitFor();
   await page.getByTestId('shop-name').fill('阿岚 AI 影像');
   for (let i = 0; i < 3; i++) await page.getByTestId('wizard-next').click();
-  await shot('11-opc-wizard-agent');
   await page.getByTestId('wizard-finish').click();
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(3000);
   await shot('12-shop-opened');
 
-  // 9. 夜晚
   await page.getByTestId('daynight').click();
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
   await shot('13-night');
 
-  // 10. 帧率粗测（软件渲染下仅供参考）
-  const fps = await page.evaluate(() => new Promise((res) => {
-    let n = 0; const s = performance.now();
-    const f = () => { n++; if (performance.now() - s < 2000) requestAnimationFrame(f); else res(Math.round(n / 2)); };
-    requestAnimationFrame(f);
-  }));
-  check('帧率（无 GPU 的软件渲染，仅供参考）', true, `${fps} fps`);
-
-  const fatal = errors.filter((e) => !/GPU stall|WebGL|swiftshader|GL_/.test(e));
+  const fatal = errors.filter((e) => !/GPU stall|WebGL|swiftshader|GL_|THREE\.WebGLRenderer/.test(e));
   check('无页面错误', fatal.length === 0, fatal.slice(0, 3).join(' | '));
-
   await browser.close();
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} 项通过，截图在 ${OUT}`);

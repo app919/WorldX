@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { transparencyNotice } from '../domain/agent';
-import { opcById, residentById, useTown } from '../store/useTown';
+import { shopById, useTown } from '../store/useTown';
+import { residentById } from '../data/seed';
 import { Btn, Chip, Disclaimer, Panel } from './kit';
 
 const ENTITY_LABEL = { personal_page: '个人创业主页（未注册主体）', opc_entity: 'OPC 经营主体（自述，未核验）', verified_company: '已认证企业' } as const;
@@ -17,7 +18,7 @@ export function AgentChat() {
   const chats = useTown((s) => (opcId ? s.chats[opcId] : undefined)) ?? [];
   const openHello = useTown((s) => s.openHello);
   const setTab = useTown((s) => s.setTab);
-  const intro = useTown((s) => s.intros.find((i) => i.toUserId === opcById(opcId ?? '', myOpc)?.ownerId));
+  const intro = useTown((s) => s.intros.find((i) => i.toUserId === shopById(opcId ?? '', myOpc)?.ownerId));
   const profile = useTown((s) => s.profile);
   const [q, setQ] = useState('');
   const end = useRef<HTMLDivElement>(null);
@@ -25,13 +26,13 @@ export function AgentChat() {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [chats.length]);
   if (!opcId) return null;
-  const opc = opcById(opcId, myOpc);
+  const opc = shopById(opcId, myOpc);
   if (!opc) return null;
   const mine = opc.id === myOpc?.id;
   const owner = residentById(opc.ownerId);
   const ownerOnline = mine ? !!myAgent?.ownerOnline : !!owner?.online;
   const send = (text: string) => { if (text.trim()) { ask(opc.id, text.trim()); setQ(''); } };
-  const quick = ['你们是做什么的？', '能做企业宣传片吗？', '多少钱？', '可以打个折吗？', '有案例吗？', '想预约聊聊'];
+  const quick = ['你们是做什么的？', '多少钱？', '可以打个折吗？', '有案例吗？', '想预约聊聊', '你是真人吗？'];
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center p-3 md:items-center md:justify-end">
@@ -60,7 +61,7 @@ export function AgentChat() {
           <div className="mt-2 flex gap-2">
             {intro ? <Btn size="sm" tone="sage" onClick={() => { close(undefined); setTab('messages'); }}>已联系 · 查看进度</Btn>
               : profile ? <Btn size="sm" onClick={() => openHello(owner.id)} data-testid="chat-hello">💌 给主理人打招呼</Btn>
-              : <Btn size="sm" tone="cream" onClick={() => { close(undefined); setTab('map'); }}>先让 AI 认识我</Btn>}
+              : <Btn size="sm" tone="cream" onClick={() => { close(undefined); setTab('biz'); }}>先让 AI 认识我</Btn>}
           </div>
         )}
 

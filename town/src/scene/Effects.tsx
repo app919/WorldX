@@ -2,8 +2,8 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, RoundedBox } from '@react-three/drei';
 import { CatmullRomCurve3, Group, QuadraticBezierCurve3, Vector3, MeshStandardMaterial, Color } from 'three';
-import { useTown, residentById, residentAnchor, myAnchor, type Fx } from '../store/useTown';
-import { playerRuntime } from '../store/useTown';
+import { useTown, residentAnchor, myAnchor, playerRuntime, type Fx } from '../store/useTown';
+import { residentById } from '../data/seed';
 
 /** 软萌反馈：小爱心、奶油信封、握手、金币星星、咖啡香气、啵！ */
 export function Effects() {
@@ -24,6 +24,7 @@ const FLOAT: Record<string, { text: string; cls: string }> = {
   handshake: { text: '🤝', cls: 'text-3xl' },
   aroma: { text: '☕ 咖啡香～', cls: 'text-sm font-bold text-cocoa-600 bg-cream-50/90 rounded-full px-2 py-0.5' },
   bonk: { text: '啵！', cls: 'text-sm font-black text-brick-500' },
+  door: { text: '🔔 叮咚', cls: 'text-xs font-bold text-cocoa-600 bg-cream-50/90 rounded-full px-2 py-0.5' },
 };
 
 function Floater({ f }: { f: Fx }) {
@@ -32,7 +33,7 @@ function Floater({ f }: { f: Fx }) {
     const t = (performance.now() - f.at) / 1000;
     if (!g.current) return;
     const base = f.kind === 'handshake' ? { x: playerRuntime.x, z: playerRuntime.z } : f.from;
-    g.current.position.set(base.x + (f.kind === 'aroma' ? Math.sin(t * 3) * 0.4 : 0), 2.2 + t * 0.9, base.z);
+    g.current.position.set(base.x + (f.kind === 'aroma' ? Math.sin(t * 3) * 0.4 : 0), 2.4 + t * 0.9, base.z);
   });
   const c = FLOAT[f.kind];
   return (
@@ -106,19 +107,24 @@ function Coins({ f }: { f: Fx }) {
   );
 }
 
-/** 商业连接线：店铺之间柔软发光的线（预约见面后出现） */
+/** 商业连接线：预约见面后，双方店铺之间出现柔软发光的线（同一街区内显示） */
 export function ConnectionLines() {
   const intros = useTown((s) => s.intros);
   const myOpc = useTown((s) => s.myOpc);
   const avatar = useTown((s) => s.avatar);
+  const district = useTown((s) => s.district);
   const links = intros.filter((i) => ['meeting_booked', 'collab_proposed', 'collab_confirmed', 'contact_exchanged', 'accepted'].includes(i.status));
+  const me = myAnchor({ myOpc, avatar });
   return (
     <group>
       {links.map((l) => {
         const other = residentById(l.fromUserId === 'me' ? l.toUserId : l.fromUserId);
-        if (!other) return null;
+        if (!other || !me) return null;
+        const o = residentAnchor(other);
         const strong = ['meeting_booked', 'collab_proposed', 'collab_confirmed'].includes(l.status);
-        return <Glow key={l.id} from={myAnchor({ myOpc, avatar })} to={residentAnchor(other)} strong={strong} confirmed={l.status === 'collab_confirmed'} />;
+        if (o.district !== district) return null;
+        const from = me.district === district ? me.p : { x: o.p.x - 14, z: o.p.z - 14 };
+        return <Glow key={l.id} from={from} to={o.p} strong={strong} confirmed={l.status === 'collab_confirmed'} />;
       })}
     </group>
   );

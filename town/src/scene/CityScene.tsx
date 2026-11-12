@@ -16,6 +16,16 @@ import { applyNight } from './materials';
 import { compiledOf } from '../world';
 import { playerRuntime, useTown } from '../store/useTown';
 
+/** 测试用：记录渲染统计（仅 ?e2e） */
+function Stats() {
+  const { gl } = useThree();
+  useFrame(() => {
+    const w = window as unknown as { __townStats?: unknown };
+    if (location.search.includes('e2e')) w.__townStats = { calls: gl.info.render.calls, triangles: gl.info.render.triangles };
+  });
+  return null;
+}
+
 /** 本地生成的柔和环境光照（无需外部 HDR），让玻璃与车漆有反射 */
 function Env() {
   const { gl, scene } = useThree();
@@ -95,8 +105,9 @@ export function CityScene() {
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: AgXToneMapping, toneMappingExposure: 1.15 }}
     >
       <color attach="background" args={['#DDEBF2']} />
-      <fog attach="fog" args={['#DDEBF2', 70, 170]} />
+      <fog attach="fog" args={['#DDEBF2', 75, 150]} />
       <Env />
+      <Stats />
       <DayNight />
       <District />
     </Canvas>

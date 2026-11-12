@@ -6,9 +6,9 @@
  * - 路灯与行道树错开；共享单车只停在划定的停放区；消防栓、垃圾桶靠路缘；
  * - 门口一定留出通道，不会被花坛或树挡住。
  */
-import type { BuildingDef, DistrictDef, PropDef, RoadDef, TreeSpecies } from './types';
+import type { BuildingDef, CrosswalkDef, DistrictDef, PropDef, RoadDef, TreeSpecies } from './types';
 import { add, inOBB, inPolygon, leftOf, mul, rng, segmentOBB, sub, dist, type OBB, type V2 } from './geom';
-import { roadDir, roadLen, roadPoint } from './helpers';
+import { frontage, roadDir, roadLen, roadPoint } from './helpers';
 
 export interface Door {
   id: string;
@@ -25,8 +25,10 @@ export interface Door {
 
 export interface Obstacle { kind: string; p?: V2; r?: number; box?: OBB }
 
+export type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 export interface CompiledDistrict {
-  def: DistrictDef;
+  /** 展开后的街区（含自动补全的建筑与斑马线、计算出的边界） */
+  def: DistrictDef & { bounds: Bounds };
   carriages: { road: RoadDef; box: OBB }[];
   sidewalks: { road: RoadDef; side: 'L' | 'R'; box: OBB }[];
   crosswalks: { road: RoadDef; box: OBB; center: V2 }[];
@@ -51,7 +53,118 @@ function polygonDoor(b: BuildingDef): { p: V2; out: V2 } {
   return { p: mid, out: { x: 0, z: 1 } };
 }
 
-export function compileDistrict(def: DistrictDef): CompiledDistrict {
+/** 道路中心线交点（含 T 字路口：端点落在另一条路上） */
+function junctions(roads: RoadDef[]) {
+  const out: { r: RoadDef; q: RoadDef; sr: number; sq: number; sin: number }[] = [];
+  for (let i = 0; i < roads.length; i++) for (let j = i + 1; j < roads.length; j++) {
+    const r = roads[i], q = roads[j];
+    const d1 = sub(r.b, r.a), d2 = sub(q.b, q.a);
+    const den = d1.x * d2.z - d1.z * d2.x;
+    if (Math.abs(den) < 1e-6) continue;
+    const t = ((q.a.x - r.a.x) * d2.z - (q.a.z - r.a.z) * d2.x) / den;
+    const u = ((q.a.x - r.a.x) * d1.z - (q.a.z - r.a.z) * d1.x) / den;
+    const eps = 0.02;
+    if (t < -eps || t > 1 + eps || u < -eps || u > 1 + eps) continue;
+    const sin = Math.abs(den) / (roadLen(r) * roadLen(q));
+    out.push({ r, q, sr: t * roadLen(r), sq: u * roadLen(q), sin });
+  }
+  return out;
+}
+
+/** 路口自动斑马线：在每条支路上，与另一条路人行道中线对齐的位置 */
+function autoCrosswalks(def: DistrictDef): CrosswalkDef[] {
+  const out: CrosswalkDef[] = [...def.crosswalks];
+  const add1 = (road: RoadDef, s: number, w: number) => {
+    const L = roadLen(road);
+    if (s < 3 || s > L - 3) return;
+    if (out.some((c) => c.road === road.id && Math.abs(c.t * L - s) < 7)) return;
+    out.push({ road: road.id, t: s / L, width: w });
+  };
+  for (const j of junctions(def.roads)) {
+    const dq = (j.r.carriage / 2 + j.r.sidewalk / 2) / Math.max(0.35, j.sin);
+    const dr = (j.q.carriage / 2 + j.q.sidewalk / 2) / Math.max(0.35, j.sin);
+    for (const sg of [-1, 1]) { add1(j.q, j.sq + sg * dq, 3); add1(j.r, j.sr + sg * dr, 3); }
+  }
+  return out;
+}
+
+function boundsOf(def: DistrictDef): Bounds {
+  if (def.bounds) return def.bounds;
+  const xs = def.roads.flatMap((r) => [r.a.x, r.b.x]), zs = def.roads.flatMap((r) => [r.a.z, r.b.z]);
+  const m = 26;
+  return { minX: Math.min(...xs) - m, maxX: Math.max(...xs) + m, minZ: Math.min(...zs) - m, maxZ: Math.max(...zs) + m };
+}
+
+/** 沿街自动补全建筑：不压路、不压人行道、不压已有建筑与区域，正立面朝街 */
+function fillFrontage(def: DistrictDef, bounds: Bounds): BuildingDef[] {
+  if (!def.filler) return [];
+  const R = rng(def.filler.seed);
+  const gap = def.filler.gap ?? 1.2;
+  const placed: BuildingDef[] = [...def.buildings];
+  const out: BuildingDef[] = [];
+  const zones = def.roads.map((r) => ({ r, o: segmentOBB(r.a, r.b, r.carriage + r.sidewalk * 2 + 0.5, r.sidewalk) }));
+  const samples = (o: OBB): V2[] => {
+    const c = Math.cos(o.rot), s = Math.sin(o.rot), pts: V2[] = [];
+    for (const a of [-0.5, -0.25, 0, 0.25, 0.5]) for (const b of [-0.5, -0.25, 0, 0.25, 0.5]) {
+      const lx = a * o.w, lz = b * o.d;
+      pts.push({ x: o.cx + lx * c + lz * s, z: o.cz - lx * s + lz * c });
+    }
+    return pts;
+  };
+  const free = (o: OBB, setback: number) => {
+    const pts = samples(o);
+    // 门前通道也要在空地上
+    const front = { x: o.cx + Math.sin(o.rot) * (o.d / 2 + setback / 2), z: o.cz + Math.cos(o.rot) * (o.d / 2 + setback / 2) };
+    const all = [...pts, front];
+    if (pts.some((p) => p.x < bounds.minX + 2 || p.x > bounds.maxX - 2 || p.z < bounds.minZ + 2 || p.z > bounds.maxZ - 2)) return false;
+    if (all.some((p) => zones.some((z) => inOBB(z.o, p)))) return false;
+    if (all.some((p) => placed.some((b) => buildingContains(b, p, 1.2)))) return false;
+    if (placed.some((b) => (b.box ? obbCornersOf(b.box) : b.polygon!).some((q) => inOBB(o, q, 1.2)))) return false;
+    if (all.some((p) => def.areas.some((a) => (a.box && inOBB(a.box, p, 0.8)) || (a.polygon && inPolygon(a.polygon, p))))) return false;
+    if (all.some((p) => def.props.some((q) => dist(q.p, p) < 1.5))) return false;
+    return true;
+  };
+  let n = 0;
+  for (const r of def.roads) {
+    const L = roadLen(r);
+    const kinds = def.filler.kinds.filter((k) => !k.roads || k.roads.includes(r.id));
+    if (!kinds.length) continue;
+    const total = kinds.reduce((a, k) => a + (k.weight ?? 1), 0);
+    for (const side of ['L', 'R'] as const) {
+      let s = 2;
+      while (s < L - 4) {
+        let pick = R() * total, k = kinds[0];
+        for (const kk of kinds) { pick -= kk.weight ?? 1; if (pick <= 0) { k = kk; break; } }
+        const w = k.w[0] + R() * (k.w[1] - k.w[0]);
+        const d = k.d[0] + R() * (k.d[1] - k.d[0]);
+        const sb = k.setback ?? 0.6;
+        const o = frontage(r, s + w / 2, side, w, d, sb);
+        if (s + w < L - 2 && free(o, sb)) {
+          const id = `${def.id}_f${n++}`;
+          const floors = Math.round(k.floors[0] + R() * (k.floors[1] - k.floors[0]));
+          const lot = k.lot ? `${def.id}_lot${n}` : undefined;
+          const doors = k.kind === 'shikumen_row'
+            ? [{ offset: -w / 4 }, { offset: w / 4, lotId: lot }]
+            : k.kind === 'workers_housing' ? [{ offset: -w / 4 }, { offset: w / 4 }] : [{ offset: 0, lotId: lot }];
+          const b: BuildingDef = { id, kind: k.kind, box: o, floors, palette: k.palettes[Math.floor(R() * k.palettes.length)], doors, setback: sb, seed: n * 7 + 3 };
+          placed.push(b); out.push(b);
+          s += w + gap;
+        } else s += 2.5;
+      }
+    }
+  }
+  return out;
+}
+
+const obbCornersOf = (o: OBB) => {
+  const c = Math.cos(o.rot), s = Math.sin(o.rot);
+  return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({ x: o.cx + (a * o.w / 2) * c + (b * o.d / 2) * s, z: o.cz - (a * o.w / 2) * s + (b * o.d / 2) * c }));
+};
+
+export function compileDistrict(raw: DistrictDef): CompiledDistrict {
+  const bounds = boundsOf(raw);
+  const withCw: DistrictDef = { ...raw, crosswalks: raw.autoCrosswalks === false ? raw.crosswalks : autoCrosswalks(raw) };
+  const def = { ...withCw, bounds, buildings: [...raw.buildings, ...fillFrontage(withCw, bounds)] };
   const carriages = def.roads.map((r) => ({ road: r, box: segmentOBB(r.a, r.b, r.carriage) }));
   const sidewalks = def.roads.flatMap((r) => {
     const u = roadDir(r);
@@ -61,13 +174,16 @@ export function compileDistrict(def: DistrictDef): CompiledDistrict {
       return { road: r, side, box: segmentOBB(add(r.a, mul(n, off)), add(r.b, mul(n, off)), r.sidewalk, r.sidewalk / 2) };
     });
   });
+  // 斑马线：两端都必须落在人行道上（且不在别的路的车道里），否则不生成——避免把人引到车道中间
+  const onSidewalk = (p: V2) => sidewalks.some((x) => inOBB(x.box, p)) && !carriages.some((c) => inOBB(c.box, p));
   const crosswalks = def.crosswalks.map((cw) => {
     const r = def.roads.find((x) => x.id === cw.road)!;
     const c = roadPoint(r, cw.t * roadLen(r));
     const n = leftOf(roadDir(r));
     const half = r.carriage / 2 + 0.4;
-    return { road: r, center: c, box: segmentOBB(add(c, mul(n, -half)), add(c, mul(n, half)), cw.width) };
-  });
+    const ok = onSidewalk(add(c, mul(n, r.carriage / 2 + 0.9))) && onSidewalk(add(c, mul(n, -(r.carriage / 2 + 0.9))));
+    return { ok, v: { road: r, center: c, box: segmentOBB(add(c, mul(n, -half)), add(c, mul(n, half)), cw.width) } };
+  }).filter((x) => x.ok).map((x) => x.v);
 
   // 门与门前通道
   const doors: Door[] = [];
@@ -92,7 +208,7 @@ export function compileDistrict(def: DistrictDef): CompiledDistrict {
   const inCarriage = (p: V2, pad = 0) => carriages.some((c) => inOBB(c.box, p, pad));
   const inCrosswalk = (p: V2, pad = 0) => crosswalks.some((c) => inOBB(c.box, p, pad));
   const inBuilding = (p: V2, pad = 0) => def.buildings.some((b) => buildingContains(b, p, pad));
-  const nearDoor = (p: V2, r: number) => doors.some((d) => dist(d.trigger, p) < r || dist(d.p, p) < r);
+  const nearDoor = (p: V2, r: number) => doors.some((d) => dist(d.trigger, p) < r || dist(d.p, p) < r) || paths.some((o) => inOBB(o, p, r * 0.7));
 
   // 程序化街道家具
   const props: PropDef[] = [...def.props];

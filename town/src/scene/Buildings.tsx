@@ -82,6 +82,10 @@ function Cutaway({ cx, cz, reach, height, children }: { cx: number; cz: number; 
   const g = useRef<Group>(null);
   useFrame((_, dt) => {
     if (!g.current) return;
+    // 远处的建筑不绘制（距离剔除），保证大地图流畅
+    const far = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) > 95 + reach;
+    g.current.visible = !far;
+    if (far) return;
     // 镜头在角色南侧上方（高 40、后退 22）：视线每水平后退 1 单位升高约 1.8 单位
     const dz = cz - playerRuntime.z, dx = Math.abs(cx - playerRuntime.x);
     const near = Math.max(0, dz - reach);

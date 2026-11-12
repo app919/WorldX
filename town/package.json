@@ -1,9 +1,9 @@
 {
   "name": "shanghai-opc-town",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "沪上软萌生意街 · SHANGHAI OPC TOWN — 一个让生意自然发生的城市生活游戏（Phase 1 可玩原型 + 核心故事 Demo）",
+  "description": "沪上软萌生意街 · SHANGHAI OPC TOWN — 在上海，逛着逛着，就可能找到下一位客户。",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,7 +11,9 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "node e2e/demo-story.cjs"
+    "e2e": "node e2e/demo-story.cjs",
+    "package": "node scripts/package.mjs",
+    "playtest": "node e2e/full-playtest.cjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.3",

@@ -51,7 +51,7 @@ export function TopBar() {
       <div className="pointer-events-auto relative flex flex-col items-end gap-2">
         <div className="glass flex items-center gap-2 rounded-blob px-3 py-2">
           <button onClick={toggleNight} title="昼夜切换" data-testid="daynight" className="jelly grid h-8 w-8 place-items-center bg-cream-100 text-lg">{isNight(hour) ? '🌙' : '☀️'}</button>
-          <button onClick={toggleTimeFlow} title={timeFlow ? '暂停时间' : '时间流动'} className="text-sm font-bold tabular-nums text-cocoa-600">{hourLabel(hour)} {timeFlow ? '' : '⏸'}</button>
+          <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '暂停时间' : '时间流动'} className="text-sm font-bold tabular-nums text-cocoa-600">{hourLabel(hour)} {timeFlow ? '' : '⏸'}</button>
         </div>
         <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="glass flex items-center gap-3 rounded-full px-3 py-1 text-xs font-bold" data-testid="wallet">
           <span>⭐ {wallet.stars}</span><span className="text-sage-700">🌱 {wallet.growth}</span><span className="text-stone-400">ⓘ</span>

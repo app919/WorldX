@@ -1,22 +1,39 @@
 /** 街道家具与生活资产：路灯、长椅、消防栓、垃圾桶、共享单车、花箱、邮筒、公交站、健身器材、摊位、停放车辆、情诗墙诗牌 */
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import type { Group } from 'three';
+import { playerRuntime } from '../store/useTown';
 import { RoundedBox } from '@react-three/drei';
 import { MeshStandardMaterial } from 'three';
 import type { PropDef } from '../world/types';
 import { mats } from './materials';
 import { signTex } from './textures';
 
+/** 街道家具按 30×30 的区块分组，远离角色的区块不绘制 */
 export function Props({ props }: { props: PropDef[] }) {
+  const chunks = useMemo(() => {
+    const m = new Map<string, { cx: number; cz: number; list: PropDef[] }>();
+    for (const p of props) {
+      if (p.kind === 'tree') continue;
+      const k = `${Math.floor(p.p.x / 30)}:${Math.floor(p.p.z / 30)}`;
+      if (!m.has(k)) m.set(k, { cx: Math.floor(p.p.x / 30) * 30 + 15, cz: Math.floor(p.p.z / 30) * 30 + 15, list: [] });
+      m.get(k)!.list.push(p);
+    }
+    return [...m.values()];
+  }, [props]);
+  return <group>{chunks.map((c) => <Chunk key={`${c.cx}:${c.cz}`} {...c} />)}</group>;
+}
+
+function Chunk({ cx, cz, list }: { cx: number; cz: number; list: PropDef[] }) {
+  const g = useRef<Group>(null);
+  useFrame(() => { if (g.current) g.current.visible = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) < 110; });
   return (
-    <group>
-      {props.map((p, i) => {
-        if (p.kind === 'tree') return null;
-        return (
-          <group key={i} position={[p.p.x, 0.16, p.p.z]} rotation-y={p.rot ?? 0}>
-            <PropModel p={p} />
-          </group>
-        );
-      })}
+    <group ref={g}>
+      {list.map((p, i) => (
+        <group key={i} position={[p.p.x, 0.16, p.p.z]} rotation-y={p.rot ?? 0}>
+          <PropModel p={p} />
+        </group>
+      ))}
     </group>
   );
 }

@@ -7,7 +7,7 @@
  *   2. 碰撞（本文件 blocked/slide）：决定角色不能穿过什么 —— 建筑、树池、路灯、消防栓、花箱、长椅、单车……
  *   3. 动画（scene/Chibi）：决定角色怎么走、跑、碰撞后软软回弹。
  */
-import { dist, inOBB, type V2 } from './geom';
+import { dist, inOBB, inPolygon, obbCorners, type OBB, type V2 } from './geom';
 import { buildingContains, type CompiledDistrict } from './build';
 
 export const enum Zone { Blocked = 0, Walk = 1, Crosswalk = 2, Road = 3, Building = 4, Obstacle = 5, Green = 6 }
@@ -28,9 +28,29 @@ export class NavGrid {
     this.minX = b.minX; this.minZ = b.minZ;
     this.w = Math.ceil((b.maxX - b.minX) / this.cell);
     this.h = Math.ceil((b.maxZ - b.minZ) / this.cell);
-    this.zone = new Uint8Array(this.w * this.h);
-    for (let j = 0; j < this.h; j++) for (let i = 0; i < this.w; i++) {
-      this.zone[j * this.w + i] = classify(cd, { x: this.minX + (i + 0.5) * this.cell, z: this.minZ + (j + 0.5) * this.cell });
+    this.zone = new Uint8Array(this.w * this.h).fill(Zone.Green);
+    // 按优先级从低到高“绘制”：绿化 → 人行道/广场/门前通道 → 机动车道 → 斑马线 → 障碍物 → 建筑
+    const paint = (test: (p: V2) => boolean, bb: { x0: number; x1: number; z0: number; z1: number }, z: Zone) => {
+      const i0 = Math.max(0, Math.floor((bb.x0 - this.minX) / this.cell)), i1 = Math.min(this.w - 1, Math.ceil((bb.x1 - this.minX) / this.cell));
+      const j0 = Math.max(0, Math.floor((bb.z0 - this.minZ) / this.cell)), j1 = Math.min(this.h - 1, Math.ceil((bb.z1 - this.minZ) / this.cell));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        if (test({ x: this.minX + (i + 0.5) * this.cell, z: this.minZ + (j + 0.5) * this.cell })) this.zone[j * this.w + i] = z;
+      }
+    };
+    const bbOf = (pts: V2[], pad = 0) => ({ x0: Math.min(...pts.map((p) => p.x)) - pad, x1: Math.max(...pts.map((p) => p.x)) + pad, z0: Math.min(...pts.map((p) => p.z)) - pad, z1: Math.max(...pts.map((p) => p.z)) + pad });
+    const obb = (o: OBB, z: Zone) => paint((p) => inOBB(o, p), bbOf(obbCorners(o)), z);
+    cd.sidewalks.forEach((x) => obb(x.box, Zone.Walk));
+    cd.def.areas.filter((a) => a.kind === 'plaza' && a.box).forEach((a) => obb(a.box!, Zone.Walk));
+    cd.paths.forEach((o) => obb(o, Zone.Walk));
+    cd.carriages.forEach((x) => obb(x.box, Zone.Road));
+    cd.crosswalks.forEach((x) => obb(x.box, Zone.Crosswalk));
+    for (const o of cd.obstacles) {
+      if (o.p && o.r) { const p0 = o.p, r = o.r; paint((p) => dist(p0, p) < r, { x0: p0.x - r, x1: p0.x + r, z0: p0.z - r, z1: p0.z + r }, Zone.Obstacle); }
+      if (o.box) obb(o.box, Zone.Obstacle);
+    }
+    for (const b of cd.def.buildings) {
+      if (b.polygon) paint((p) => inPolygon(b.polygon!, p), bbOf(b.polygon), Zone.Building);
+      else obb(b.box!, Zone.Building);
     }
     // 角色半径约 0.35：一个格子的腐蚀
     this.walk = new Uint8Array(this.w * this.h);

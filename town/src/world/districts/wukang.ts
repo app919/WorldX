@@ -15,12 +15,28 @@ const ANG = (32 * Math.PI) / 180; // 武康路与淮海中路夹角（示意）
 const WU = norm(v(Math.cos(ANG), -Math.sin(ANG)));
 
 const huaihai: RoadDef = {
-  id: 'huaihai', name: '淮海中路', a: v(-62, 0), b: v(104, 0), carriage: 12, sidewalk: 4.5, lanes: 4,
+  id: 'huaihai', name: '淮海中路', a: v(-150, 0), b: v(190, 0), carriage: 12, sidewalk: 4.5, lanes: 4,
   centerLine: 'double_yellow', trees: 'plane', treeSpacing: 6.5, paving: 'tile_grey',
 };
 const wukang: RoadDef = {
-  id: 'wukang', name: '武康路', a: J, b: add(J, mul(WU, 104)), carriage: 6.5, sidewalk: 3.6, lanes: 2,
+  id: 'wukang', name: '武康路', a: J, b: add(J, mul(WU, 190)), carriage: 6.5, sidewalk: 3.6, lanes: 2,
   centerLine: 'dashed', trees: 'plane', treeSpacing: 6, paving: 'brick_red',
+};
+
+// 五岔路口的另外两条路（方向为示意）
+const tianping: RoadDef = {
+  id: 'tianping', name: '天平路', a: J, b: add(J, mul(norm(v(-0.28, 1)), 120)), carriage: 7, sidewalk: 3.4, lanes: 2,
+  centerLine: 'dashed', trees: 'plane', treeSpacing: 6.5, paving: 'tile_grey',
+};
+const xingguo: RoadDef = {
+  id: 'xingguo', name: '兴国路', a: J, b: add(J, mul(norm(v(-0.62, -0.78)), 130)), carriage: 7, sidewalk: 3.4, lanes: 2,
+  centerLine: 'dashed', trees: 'plane', treeSpacing: 6.5, paving: 'tile_grey',
+};
+// 武康路北段向东的安福路（示意）
+const ANFU_A = add(J, mul(WU, 150));
+const anfu: RoadDef = {
+  id: 'anfu', name: '安福路', a: ANFU_A, b: add(ANFU_A, v(150, 6)), carriage: 6, sidewalk: 3.2, lanes: 2,
+  centerLine: 'none', oneWay: true, trees: 'plane', treeSpacing: 5.5, paving: 'brick_red',
 };
 
 /** 武康大楼占地：两条建筑控制线（人行道外沿 + 0.4 退界）在锐角处相交，转角做圆润的船头 */
@@ -54,16 +70,29 @@ export const WUKANG: DistrictDef = {
   name: '武康大楼',
   subtitle: '淮海中路 × 武康路 · 徐汇区',
   geoRef: { lat: 31.2049, lng: 121.4372, note: '路口近似位置；路网角度与周边建筑为示意' },
-  bounds: { minX: -62, maxX: 104, minZ: -66, maxZ: 46 },
   ground: 'grass',
-  ambience: '梧桐、老洋房、城市漫步',
-  roads: [huaihai, wukang],
+  ambience: '梧桐、老洋房、五岔路口、城市漫步',
+  roads: [huaihai, wukang, tianping, xingguo, anfu],
   crosswalks: [
-    { road: 'huaihai', t: 50 / 166, width: 3.2 },
-    { road: 'huaihai', t: 112 / 166, width: 3.2 },
-    { road: 'wukang', t: 16 / 104, width: 3 },
-    { road: 'wukang', t: 74 / 104, width: 3 },
+    { road: 'huaihai', t: 138 / 340, width: 3.2 },
+    { road: 'huaihai', t: 200 / 340, width: 3.2 },
+    { road: 'huaihai', t: 270 / 340, width: 3.2 },
+    { road: 'huaihai', t: 60 / 340, width: 3.2 },
+    { road: 'wukang', t: 74 / 190, width: 3 },
+    { road: 'wukang', t: 115 / 190, width: 3 },
+    { road: 'anfu', t: 80 / 150, width: 2.8 },
+    { road: 'tianping', t: 70 / 120, width: 3 },
+    { road: 'xingguo', t: 75 / 130, width: 3 },
   ],
+  filler: {
+    seed: 11,
+    kinds: [
+      { kind: 'shop', w: [8, 10], d: [6.5, 8], floors: [2, 3], palettes: ['cream', 'brick', 'pink', 'blue', 'white'], lot: true, weight: 3 },
+      { kind: 'garden_villa', w: [11, 13], d: [8, 10], floors: [2, 3], palettes: ['cream', 'white', 'pink'], setback: 4, weight: 2 },
+      { kind: 'artdeco', w: [14, 17], d: [9, 11], floors: [4, 6], palettes: ['cream', 'grey'], roads: ['huaihai'], weight: 1.5 },
+      { kind: 'shikumen_row', w: [11, 13], d: [8, 9], floors: [2, 2], palettes: ['grey'], lot: true, roads: ['wukang', 'anfu', 'tianping', 'xingguo'], weight: 1 },
+    ],
+  },
   areas: [
     // 宋庆龄故居花园围墙（不可通行）
     { id: 'soong_garden', kind: 'lawn', box: { cx: 22, cz: 25, w: 26, d: 26, rot: 0 } },
@@ -76,22 +105,22 @@ export const WUKANG: DistrictDef = {
       archiveId: 'wukang_mansion', doors: [{ offset: 0, label: '武康大楼（参观外立面）' }],
     },
     {
-      id: 'soong', kind: 'garden_villa', box: frontage(huaihai, 84, 'R', 14, 10, 9), floors: 2, name: '宋庆龄故居',
+      id: 'soong', kind: 'garden_villa', box: frontage(huaihai, 172, 'R', 14, 10, 9), floors: 2, name: '宋庆龄故居',
       archiveId: 'soong_residence', palette: 'white', doors: [{ offset: 0, label: '宋庆龄故居（参观）' }], setback: 9,
     },
     // 淮海中路南侧（东段）：沿街小店
-    { id: 'hs1', kind: 'shop', box: frontage(huaihai, 118, 'R', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: -1.5, lotId: 'wk_s1' }], seed: 1 },
-    { id: 'hs2', kind: 'shop', box: frontage(huaihai, 128.5, 'R', 9, 7), floors: 2, palette: 'brick', doors: [{ offset: 1.5, lotId: 'wk_s2' }], seed: 2 },
-    { id: 'hs3', kind: 'artdeco', box: frontage(huaihai, 145, 'R', 16, 10), floors: 5, palette: 'cream', doors: [{ offset: 0 }], seed: 3 },
+    { id: 'hs1', kind: 'shop', box: frontage(huaihai, 206, 'R', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: -1.5, lotId: 'wk_s1' }], seed: 1 },
+    { id: 'hs2', kind: 'shop', box: frontage(huaihai, 216.5, 'R', 9, 7), floors: 2, palette: 'brick', doors: [{ offset: 1.5, lotId: 'wk_s2' }], seed: 2 },
+    { id: 'hs3', kind: 'artdeco', box: frontage(huaihai, 233, 'R', 16, 10), floors: 5, palette: 'cream', doors: [{ offset: 0 }], seed: 3 },
     // 淮海中路南侧（西段）：花园洋房
-    { id: 'hw1', kind: 'garden_villa', box: frontage(huaihai, 22, 'R', 12, 9, 5), floors: 3, palette: 'pink', doors: [{ offset: 0 }], setback: 5, seed: 4 },
-    { id: 'hw2', kind: 'shop', box: frontage(huaihai, 40, 'R', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: 0, lotId: 'wk_s3' }], seed: 5 },
+    { id: 'hw1', kind: 'garden_villa', box: frontage(huaihai, 110, 'R', 12, 9, 5), floors: 3, palette: 'pink', doors: [{ offset: 0 }], setback: 5, seed: 4 },
+    { id: 'hw2', kind: 'shop', box: frontage(huaihai, 128, 'R', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: 0, lotId: 'wk_s3' }], seed: 5 },
     // 淮海中路北侧（西段）
-    { id: 'hn1', kind: 'artdeco', box: frontage(huaihai, 20, 'L', 16, 10), floors: 4, palette: 'grey', doors: [{ offset: 0 }], seed: 6 },
-    { id: 'hn2', kind: 'shop', box: frontage(huaihai, 37, 'L', 9, 7), floors: 2, palette: 'blue', doors: [{ offset: 0, lotId: 'wk_n3' }], seed: 7 },
+    { id: 'hn1', kind: 'artdeco', box: frontage(huaihai, 108, 'L', 16, 10), floors: 4, palette: 'grey', doors: [{ offset: 0 }], seed: 6 },
+    { id: 'hn2', kind: 'shop', box: frontage(huaihai, 90, 'L', 9, 7), floors: 2, palette: 'blue', doors: [{ offset: 0, lotId: 'wk_n3' }], seed: 7 },
     // 淮海中路北侧（大楼以东）
-    { id: 'hn3', kind: 'shop', box: frontage(huaihai, mansionBackX + 62 + 6, 'L', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: 0, lotId: 'wk_n1' }], seed: 8 },
-    { id: 'hn4', kind: 'shop', box: frontage(huaihai, mansionBackX + 62 + 16.5, 'L', 9, 7), floors: 3, palette: 'brick', doors: [{ offset: 0, lotId: 'wk_n2' }], seed: 9 },
+    { id: 'hn3', kind: 'shop', box: frontage(huaihai, mansionBackX + 150 + 6, 'L', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: 0, lotId: 'wk_n1' }], seed: 8 },
+    { id: 'hn4', kind: 'shop', box: frontage(huaihai, mansionBackX + 150 + 16.5, 'L', 9, 7), floors: 3, palette: 'brick', doors: [{ offset: 0, lotId: 'wk_n2' }], seed: 9 },
     // 武康路西北侧：老洋房与小店
     { id: 'ww1', kind: 'garden_villa', box: frontage(wukang, 26, 'L', 12, 9, 5), floors: 3, palette: 'cream', doors: [{ offset: 0 }], setback: 5, seed: 10 },
     { id: 'ww2', kind: 'shop', box: frontage(wukang, 42, 'L', 9, 7), floors: 2, palette: 'brick', doors: [{ offset: 0, lotId: 'wk_w1' }], seed: 11 },

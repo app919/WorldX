@@ -81,13 +81,32 @@ export interface PropDef {
   color?: string;
 }
 
+/** 沿街自动补全建筑的规则（扩大地图时使用） */
+export interface FillerKind {
+  kind: BuildingKind;
+  w: [number, number];
+  d: [number, number];
+  floors: [number, number];
+  palettes: NonNullable<BuildingDef['palette']>[];
+  setback?: number;
+  /** 是否作为可开店铺位 */
+  lot?: boolean;
+  /** 只用于这些道路 */
+  roads?: string[];
+  weight?: number;
+}
+
 export interface DistrictDef {
   id: DistrictKey;
   name: string;
   subtitle: string;
   /** 参考中心点（WGS84 近似值，仅用于说明，布局为示意） */
   geoRef: { lat: number; lng: number; note: string };
-  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** 地图边界；不填则按道路范围自动计算 */
+  bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** 在路口自动生成斑马线（默认开启） */
+  autoCrosswalks?: boolean;
+  filler?: { seed: number; kinds: FillerKind[]; gap?: number };
   roads: RoadDef[];
   crosswalks: CrosswalkDef[];
   /** 路口转角、街角广场等额外的可步行区域 */

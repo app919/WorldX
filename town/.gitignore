@@ -3,3 +3,5 @@ dist/
 e2e/screenshots/
 *.tsbuildinfo
 dist-single/
+release/
+e2e/playtest/

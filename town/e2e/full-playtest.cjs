@@ -403,6 +403,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('me-panel').getByText('愿意被 AI 推荐', { exact: false }).click();
   });
   await step('我的：审计日志记录了商业操作', async () => {
+    await goTab('me');
     const t = await T('audit-log').innerText();
     for (const a of ['intro.sent', 'contact.', 'meeting.booked', 'collab.', 'opc.opened', 'agent.reply']) must(t.includes(a), `缺少 ${a}`);
   });

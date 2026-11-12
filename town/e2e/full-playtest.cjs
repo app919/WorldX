@@ -212,7 +212,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   });
   await step('我的生意：在街区地图上标出客户（3D 标注可点击回到详情）', async () => {
     await toCity();
-    await evalTown(() => window.__town.nearLot('wk_w2', 6));
+    await evalTown(() => window.__town.nearLot('wk_w2', 6, false));
     await page.waitForTimeout(2500);
     const m = T('marker-e_wutong');
     must(await m.count(), '地图上没有梧桐豆子的客户标注');
@@ -223,6 +223,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await page.getByText('在街区地图上标出').click();
   });
   await step('我的生意：“去其他街区看看”会切换街区并走向店门口', async () => {
+    await goTab('biz');
     const btn = T('rel-e_wedding').getByText(/去.*看看|走到店门口/);
     await btn.click();
     const d = await evalTown(() => window.__town.useTown.getState().district);

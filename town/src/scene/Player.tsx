@@ -122,7 +122,7 @@ export function Player() {
     const sinceLocate = (performance.now() - playerRuntime.locateAt) / 1000;
     if (sinceLocate < 0.1) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); camDist.current = 1; }
     const pulse = sinceLocate < 3 ? 1 + Math.abs(Math.sin(sinceLocate * 6)) * 1.6 : 1 + Math.sin(now * 3) * 0.08;
-    if (ring.current) { ring.current.scale.setScalar(pulse); (ring.current.material as MeshBasicMaterial).opacity = sinceLocate < 3 ? 0.95 : 0.7; }
+    if (ring.current) { ring.current.scale.setScalar(pulse); (ring.current.material as MeshBasicMaterial).opacity = sinceLocate < 3 ? 1 : 0.85; }
     if (beacon.current) { beacon.current.visible = sinceLocate < 3.5; beacon.current.position.y = 3.6 + Math.abs(Math.sin(now * 5)) * 0.6; }
     // 镜头：俯视约 55°，柔和跟随
     camTarget.current.lerp(new Vector3(playerRuntime.x, 0, playerRuntime.z), Math.min(1, dt * 3));
@@ -207,7 +207,7 @@ export function Player() {
         {/* 脚下定位光圈：永远画在最上层，被树和楼挡住也能看到自己在哪 */}
         <mesh ref={ring} position-y={0.05} rotation-x={-Math.PI / 2} renderOrder={1000}>
           <ringGeometry args={[0.62, 0.86, 40]} />
-          <meshBasicMaterial color="#FF8A3D" transparent opacity={0.7} depthTest={false} depthWrite={false} toneMapped={false} fog={false} />
+          <meshBasicMaterial color="#FF6A00" transparent opacity={0.85} depthTest={false} depthWrite={false} toneMapped={false} fog={false} />
         </mesh>
         <group ref={beacon} visible={false}>
           <mesh rotation-x={Math.PI} renderOrder={1001}>

@@ -147,7 +147,7 @@ export function ShiftGame() {
         <div className="mt-3 text-xs font-bold text-stone-600">托盘：{tray.length ? tray.map((id, k) => <button key={k} onClick={() => setTray(tray.filter((_, x) => x !== k))} className="mx-0.5">{label(id)?.emoji}</button>) : '（点下面的东西放进来，点托盘里的拿出来）'}</div>
         <div className="mt-2 grid grid-cols-4 gap-2">
           {ing.map((x) => (
-            <button key={x.id} data-testid={`ing-${x.id}`} onClick={() => setTray([...tray, x.id])} className="jelly flex flex-col items-center bg-cream-50 py-2 text-xs ring-1 ring-cream-300">
+            <button key={x.id} data-testid={`ing-${x.id}`} onClick={() => setTray((t) => [...t, x.id])} className="jelly flex flex-col items-center bg-cream-50 py-2 text-xs ring-1 ring-cream-300">
               <span className="text-2xl">{x.emoji}</span>{x.label}
             </button>
           ))}

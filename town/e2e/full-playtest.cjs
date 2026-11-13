@@ -20,6 +20,7 @@ const results = [];
 let page;
 
 async function step(name, fn) {
+  if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return;
   const t = Date.now();
   try {
     const detail = await fn();
@@ -452,11 +453,15 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await evalTown((l) => window.__town.nearLot(l), lot);
     await T('shift-game').waitFor({ timeout: 20000 });
     for (let k = 0; k < 4; k++) {
-      const need = (await T('order-need').getAttribute('data-need')).split(',');
-      for (const id of need) await T(`ing-${id}`).click();
+      // 低画质测试浏览器里 Playwright 的点击较慢，直接触发 DOM 点击，避免 60 秒的班次计时先结束
+      await page.evaluate(() => {
+        const need = document.querySelector('[data-testid=order-need]').getAttribute('data-need').split(',');
+        for (const id of need) document.querySelector(`[data-testid=ing-${id}]`).click();
+      });
+      await page.waitForTimeout(120);
       if (k === 0) await page.screenshot({ path: path.join(OUT, '14-shift.png') });
-      await T('serve').click();
-      await page.waitForTimeout(150);
+      await page.evaluate(() => document.querySelector('[data-testid=serve]').click());
+      await page.waitForTimeout(250);
     }
     await page.waitForTimeout(400);
     const cash1 = await evalTown(() => window.__town.useWork.getState().purse.cash);

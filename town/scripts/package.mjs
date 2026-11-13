@@ -1,7 +1,7 @@
 /**
  * 打包可下载的游戏：
- *   release/沪上软萌生意街-<版本>.zip
- *     ├─ 沪上软萌生意街.html   双击即可在浏览器里离线游玩（单文件，所有代码与资源已内嵌）
+ *   release/三邻邦-<版本>.zip
+ *     ├─ 三邻邦.html   双击即可在浏览器里离线游玩（单文件，所有代码与资源已内嵌）
  *     ├─ 使用说明.txt
  *     └─ source/              完整源码（不含 node_modules），可二次开发
  *
@@ -15,14 +15,14 @@ const root = resolve(import.meta.dirname, '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const out = join(root, 'release');
 const stage = join(out, 'stage');
-const name = `沪上软萌生意街-v${pkg.version}`;
+const name = `三邻邦-v${pkg.version}`;
 
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
 console.log('1/4 构建单文件版本…');
 execSync('npx tsc -b && npx vite build -c vite.single.config.ts', { cwd: root, stdio: 'inherit' });
-cpSync(join(root, 'dist-single', 'index.html'), join(stage, '沪上软萌生意街.html'));
+cpSync(join(root, 'dist-single', 'index.html'), join(stage, '三邻邦.html'));
 
 console.log('2/4 复制源码…');
 const skip = new Set(['node_modules', 'dist', 'dist-single', 'release', 'e2e/screenshots', 'e2e/playtest', 'tsconfig.tsbuildinfo']);
@@ -39,11 +39,11 @@ for (const entry of readdirSync(root)) {
 }
 
 console.log('3/4 写使用说明…');
-writeFileSync(join(stage, '使用说明.txt'), `沪上软萌生意街 · SHANGHAI OPC TOWN  v${pkg.version}
+writeFileSync(join(stage, '使用说明.txt'), `三邻邦 · SANLINBANG  v${pkg.version}
 在上海，逛着逛着，就可能找到下一位客户。
 
 【直接玩】
-  双击「沪上软萌生意街.html」，用 Chrome / Edge / Safari 等现代浏览器打开即可，无需联网、无需安装。
+  双击「三邻邦.html」，用 Chrome / Edge / Safari 等现代浏览器打开即可，无需联网、无需安装。
   进度保存在当前浏览器里；换浏览器或清除浏览数据后会重新开始。
 
 【操作】

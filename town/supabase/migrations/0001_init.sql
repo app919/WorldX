@@ -1,4 +1,4 @@
--- 沪上软萌生意街 · 核心数据模型（PostgreSQL / Supabase）
+-- 三邻邦 · 核心数据模型（PostgreSQL / Supabase）
 -- 与 town/src/domain/types.ts 一一对应。当前 Demo 使用浏览器本地存储，接入 Supabase 时执行本迁移。
 -- 原则：商业关系由结构化数据生成；联系方式受授权保护；关键操作写审计日志；虚拟积分与真实订单分表。
 

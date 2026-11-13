@@ -19,6 +19,7 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
     useTown,
     useWork,
     playerRuntime,
+    props: (d: string) => compiledOf(d as 'wukang').props.map((p) => ({ kind: p.kind, x: p.p.x, z: p.p.z })),
     parks: (d: string) => compiledOf(d as 'wukang').parks.map((p) => ({ id: p.id, label: p.label, cx: p.box.cx, cz: p.box.cz })),
     /** 把角色放到某扇门附近（按门 id，例如 wukang_mansion#0） */
     nearDoor(doorId: string, r = 4, walk = true) {

@@ -291,6 +291,103 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(await evalTown(() => !!window.__town.useTown.getState().myOpc), '开店失败');
     await page.screenshot({ path: path.join(OUT, '06-opened.png') });
   });
+  // —— v0.5：产业链黄页 + 上下游速配 + 服务商抢位 + 机会广场 ——
+  for (const ind of ['ecommerce', 'heritage', 'education']) {
+    await step(`产业链：「${ind}」完整上下游（上游 / 中游 / 下游 / 服务支撑 + 流向）`, async () => {
+      await closeAll();
+      await evalTown(() => window.__town.useTown.getState().setTab('chain'));
+      await T('chain-panel').waitFor();
+      await T(`industry-${ind}`).click();
+      await page.waitForTimeout(400);
+      const n = await page.locator('[data-testid^=stage-]').count();
+      must(n >= 7, `环节数 ${n}`);
+      await page.screenshot({ path: path.join(OUT, `17-chain-${ind}.png`) });
+      return `${n} 个环节`;
+    });
+  }
+  await step('产业链：把我放到链上（自动 / 手动登记），速配出上游、下游、同行与服务商', async () => {
+    await T('industry-ecommerce').click();
+    await T('stage-ec_content').click();
+    await T('stage-detail').waitFor();
+    if (await T('join-stage').count()) await T('join-stage').click();
+    await page.waitForTimeout(300);
+    must(await T('me-in-ec_content').count() > 0, '链路图上没有标出“我”');
+    const txt = await T('speed-match').innerText();
+    must(txt.includes('上游') && txt.includes('下游'), '速配缺少上下游');
+    await page.screenshot({ path: path.join(OUT, '18-speed-match.png') });
+    return txt.split('\n').length + ' 行速配结果';
+  });
+  await step('产业链：企业服务商抢位（每环节 2 个），满了只能候补', async () => {
+    await T('stage-ec_live').click();
+    await T('slot-claim-open').click();
+    await T('slot-provider').fill('三邻邦测试服务商');
+    await T('slot-offer').fill('直播间设备租赁 8 折');
+    await T('slot-claim').click();
+    await page.waitForTimeout(300);
+    must((await T('slot-box').innerText()).includes('我的展位'), '没有抢到展位');
+    await T('stage-ec_service').click();
+    await T('slot-claim-open').click();
+    await T('slot-offer').fill('记账报税');
+    await T('slot-claim').click();
+    await page.waitForTimeout(300);
+    must(!(await T('slot-box').innerText()).includes('我的展位'), '满员环节不应抢到');
+  });
+  await step('机会广场：投标招标项目（报价 / 工期 / 方案）', async () => {
+    await evalTown(() => window.__town.useTown.getState().setTab('opps'));
+    await T('opp-panel').waitFor();
+    await T('opp-tab-tender').click();
+    const card = T('opp-op_t1');
+    await card.getByTestId('bid-open').click();
+    await card.getByTestId('bid-quote').fill('5200');
+    await card.getByTestId('bid-plan').fill('先出分镜和样片，确认后两周内交付全部视频与直播间视觉。');
+    await card.getByTestId('bid-submit').click();
+    await page.waitForTimeout(3000);
+    const t = await card.innerText();
+    must(t.includes('已投标'), '投标没有提交');
+    return t.includes('候选') ? '进入候选' : '已提交';
+  });
+  await step('机会广场：访客接单推广（推广码 → 提交作品 → 商家验收）', async () => {
+    await T('opp-tab-promo').click();
+    const card = T('opp-op_p1');
+    await card.getByTestId('promo-take').click();
+    await card.getByTestId('promo-link').fill('https://example.com/my-video');
+    await card.getByTestId('promo-submit').click();
+    await page.waitForTimeout(2600);
+    must((await card.innerText()).includes('已验收'), '推广没有验收');
+  });
+  await step('机会广场：灵活用工投递 → 商家邀约', async () => {
+    await T('opp-tab-gig').click();
+    const card = T('opp-op_g1');
+    await card.getByTestId('gig-apply').click();
+    await page.waitForTimeout(3000);
+    must((await card.innerText()).includes('邀约'), '没有收到邀约');
+  });
+  await step('机会广场：商家发布招标（含违规内容拦截）→ 收到投标 → 选标', async () => {
+    await T('opp-tab-tender').click();
+    await T('opp-post-open').click();
+    await T('post-title').fill('七夕礼盒短视频，需先交保证金');
+    await T('post-submit').click();
+    must((await T('post-errors').innerText()).includes('不允许'), '没有拦截违规内容');
+    await T('post-title').fill('七夕礼盒短视频 3 条招标');
+    await T('post-submit').click();
+    await page.waitForTimeout(2200);
+    await T('opp-tab-mine').click();
+    await T('incoming-bid').first().waitFor({ timeout: 8000 });
+    await T('award').first().click();
+    await page.waitForTimeout(300);
+    must((await T('opp-mine').innerText()).includes('已中标'), '选标失败');
+    await page.screenshot({ path: path.join(OUT, '19-opps.png') });
+  });
+  await step('街区公告栏：每个街区都有，点击打开机会广场；店铺显示产业链位置', async () => {
+    await evalTown(() => window.__town.useTown.getState().setTab('city'));
+    const ok = await evalTown(() => ['wukang', 'yangjing', 'sichuan_n'].every((d) => window.__town.props(d).some((p) => p.kind === 'notice_board')));
+    must(ok, '有街区缺公告栏');
+    await evalTown(() => window.__town.nearLot('wk_w2'));
+    await T('agent-chat').waitFor({ timeout: 20000 });
+    must(await T('shop-chain').count() > 0, '店铺没有显示产业链位置');
+    await T('agent-chat').getByLabel('关闭').click();
+  });
+
   await step('我的小店：进入自己的店，试用自己的 AI 分身', async () => {
     await closeAll(); await toCity();
     await T('my-shop-btn').click();
@@ -413,7 +510,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('0.4.0'), `版本号是 ${v}`);
+    must(v.includes('0.5.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {

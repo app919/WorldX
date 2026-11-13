@@ -10,6 +10,8 @@ import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
 import { MiniMap } from './ui/MiniMap';
+import { ChainPanel } from './ui/Chain';
+import { OppPanel } from './ui/Opportunities';
 import { ActiveJobBar, Counter, JobBoard, ShiftGame } from './ui/Work';
 
 const CityScene = lazy(() => import('./scene/CityScene').then((m) => ({ default: m.CityScene })));
@@ -34,6 +36,8 @@ export default function App() {
             <Controls />
             <CityCards />
             {tab === 'biz' && <MyBusiness />}
+            {tab === 'chain' && <ChainPanel />}
+            {tab === 'opps' && <OppPanel />}
             {tab === 'community' && <CommunityPanel />}
             {tab === 'messages' && <MessagesPanel />}
             {tab === 'me' && <MePanel />}

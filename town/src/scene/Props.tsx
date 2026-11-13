@@ -2,7 +2,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MeshStandardMaterial, type Group } from 'three';
-import { playerRuntime } from '../store/useTown';
+import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { RoundedBox } from '@react-three/drei';
 import type { PropDef } from '../world/types';
@@ -102,6 +102,8 @@ function PropModel({ p }: { p: PropDef }) {
         </group>
       );
     }
+    case 'notice_board':
+      return <NoticeBoard />;
     case 'park_sign':
       return <ParkSign text={p.text ?? '公园'} />;
     case 'mailbox':
@@ -238,6 +240,31 @@ export function Car({ color, seed = 1, wheelsRef, brakeRef }: { color: string; s
       <mesh position={[0, 0.5, -L / 2 - 0.02]} rotation-y={Math.PI}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
       {/* 后视镜 */}
       {[1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.08), 1.0, 0.75]} material={paint}><boxGeometry args={[0.16, 0.12, 0.2]} /></mesh>)}
+    </group>
+  );
+}
+
+/** 三邻邦公告栏：木框软木板 + 彩色便签，点击打开机会广场 */
+function NoticeBoard() {
+  const setTab = useTown((s) => s.setTab);
+  const head = useMemo(() => signTex('📋 三邻邦公告栏 · 招标 / 接单 / 兼职', '#2F5D8A', '#FFFFFF', 768, 96), []);
+  const notes = ['#FFE08A', '#FFC2C7', '#BFE3C0', '#BFD7F2', '#FFD3A8', '#E6D3F5'];
+  return (
+    <group
+      onClick={(e) => { e.stopPropagation(); setTab('opps'); }}
+      onPointerOver={() => (document.body.style.cursor = 'pointer')}
+      onPointerOut={() => (document.body.style.cursor = '')}
+    >
+      {[-0.9, 0.9].map((x) => <mesh key={x} position={[x, 1.1, 0]} castShadow><boxGeometry args={[0.12, 2.2, 0.12]} /><meshStandardMaterial color="#6B4E35" /></mesh>)}
+      <mesh position={[0, 1.45, 0]} castShadow><boxGeometry args={[1.9, 1.15, 0.1]} /><meshStandardMaterial color="#C9A27A" roughness={0.95} /></mesh>
+      <mesh position={[0, 2.18, 0.02]}><boxGeometry args={[2.0, 0.32, 0.14]} /><meshStandardMaterial color="#2F5D8A" /></mesh>
+      <mesh position={[0, 2.18, 0.095]}><planeGeometry args={[1.94, 0.28]} /><meshBasicMaterial map={head} toneMapped={false} /></mesh>
+      {notes.map((c, i) => (
+        <mesh key={i} position={[-0.6 + (i % 3) * 0.6, 1.72 - Math.floor(i / 3) * 0.5, 0.06]} rotation-z={((i * 37) % 9 - 4) * 0.03}>
+          <planeGeometry args={[0.42, 0.36]} /><meshStandardMaterial color={c} />
+        </mesh>
+      ))}
+      <mesh position={[0, 2.42, 0]}><boxGeometry args={[2.1, 0.08, 0.36]} /><meshStandardMaterial color="#6B4E35" /></mesh>
     </group>
   );
 }

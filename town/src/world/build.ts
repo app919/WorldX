@@ -376,6 +376,23 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
     }
   }
 
+  // 三邻邦公告栏：出生点附近的人行道外侧（靠建筑一侧），点击打开机会广场
+  {
+    let best: { p: V2; rot: number; d: number } | null = null;
+    for (const sw of sidewalks) {
+      const r = sw.road, u = roadDir(r), L = roadLen(r);
+      const n = sw.side === 'L' ? leftOf(u) : mul(leftOf(u), -1);
+      for (let s = TUNNEL + 4; s < L - TUNNEL - 4; s += 2) {
+        const p = add(roadPoint(r, s), mul(n, r.carriage / 2 + r.sidewalk - 0.45));
+        const d = dist(p, def.spawn);
+        if (d < 6 || d > 40 || (best && d >= best.d)) continue;
+        if (!signOk(p) || inBuilding(p, 0.8) || def.roads.some((o) => o !== r && inOBB(segmentOBB(o.a, o.b, o.carriage + o.sidewalk * 2), p, 1))) continue;
+        best = { p, rot: Math.atan2(n.x, n.z) + Math.PI, d };
+      }
+    }
+    if (best) props.push({ kind: 'notice_board', p: best.p, rot: best.rot, text: '三邻邦公告栏' });
+  }
+
   // 停车位里的车
   for (const a of def.areas.filter((x) => x.kind === 'parking' && x.box)) {
     const o = a.box!;
@@ -393,6 +410,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
     const r = p.kind === 'tree' ? 0.36 : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45 : p.kind === 'park_sign' ? 0.4
       : p.kind === 'fitness' ? 0.9 : p.kind === 'stall' ? 1.4 : p.kind === 'shrub' ? 0.7 : p.kind === 'umbrella_table' ? 1.0 : 0;
     if (r) obstacles.push({ kind: p.kind, p: p.p, r });
+    if (p.kind === 'notice_board') obstacles.push({ kind: 'notice_board', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.5, rot: p.rot ?? 0 } });
     if (p.kind === 'bench') obstacles.push({ kind: 'bench', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.8, rot: p.rot ?? 0 } });
     if (p.kind === 'planter') obstacles.push({ kind: 'planter', box: { cx: p.p.x, cz: p.p.z, w: 0.9, d: 2.4, rot: p.rot ?? 0 } });
     if (p.kind === 'bike') obstacles.push({ kind: 'bike', box: { cx: p.p.x, cz: p.p.z, w: 0.5, d: 1.5, rot: p.rot ?? 0 } });

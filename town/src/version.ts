@@ -1,2 +1,2 @@
-export const APP_VERSION = '0.4.0';
-export const APP_BUILD_NOTE = '车辆转弯走曲线、隧道进出 · 公园绿地 · 打工挣钞票与消费 · 找到我';
+export const APP_VERSION = '0.5.0';
+export const APP_BUILD_NOTE = '更名「三邻邦」· 产业链黄页与上下游速配（电商直播出海 / 非遗手艺 / 教育培训）· 服务商抢位 · 机会广场（招标 / 推广接单 / 灵活用工）';

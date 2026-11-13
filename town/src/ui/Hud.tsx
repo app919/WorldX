@@ -92,6 +92,8 @@ export function DistrictSwitcher() {
 const NAV: { tab: Tab; label: string; icon: string }[] = [
   { tab: 'city', label: '我的上海', icon: '🏙️' },
   { tab: 'biz', label: '我的生意', icon: '💼' },
+  { tab: 'chain', label: '产业链', icon: '🔗' },
+  { tab: 'opps', label: '机会', icon: '📋' },
   { tab: 'community', label: '我的社区', icon: '☕' },
   { tab: 'messages', label: '消息', icon: '💌' },
   { tab: 'me', label: '我的', icon: '🧸' },
@@ -104,10 +106,10 @@ export function BottomNav() {
   const unread = useTown((s) => s.inbox.filter((i) => !i.read).length);
   return (
     <nav className="pointer-events-auto absolute inset-x-0 bottom-0 z-30 flex justify-center p-3">
-      <div className="glass flex w-full max-w-md justify-between rounded-[1.6rem] px-2 py-1.5">
+      <div className="glass flex w-full max-w-xl justify-between rounded-[1.6rem] px-1.5 py-1.5">
         {NAV.map((n) => (
           <button key={n.tab} data-testid={`nav-${n.tab}`} onClick={() => setTab(tab === n.tab && n.tab !== 'city' ? 'city' : n.tab)}
-            className={`relative flex flex-1 flex-col items-center rounded-2xl py-1.5 text-[11px] font-bold transition ${tab === n.tab ? 'bg-almond-300 text-cocoa-800 shadow-jelly' : 'text-stone-600'}`}>
+            className={`relative flex min-w-0 flex-1 flex-col items-center whitespace-nowrap rounded-2xl py-1.5 text-[10px] font-bold transition sm:text-[11px] ${tab === n.tab ? 'bg-almond-300 text-cocoa-800 shadow-jelly' : 'text-stone-600'}`}>
             <span className="text-lg leading-none">{n.icon}</span>{n.label}
             {n.tab === 'messages' && unread > 0 && (
               <span className={`absolute right-2 top-0.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] text-white ${needsMe ? 'bg-brick-400' : 'bg-stone-400'}`}>{unread}</span>

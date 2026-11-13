@@ -200,6 +200,12 @@ export const CAPABILITIES: CapabilityDef[] = [
     upstream: ['video', 'software', 'community_ops'], peers: ['bakery'],
     buyerIndustries: ['community'], collabs: ['社区团购', '线上订菜'],
   },
+  // —— 产业链演示新增（电商直播出海 / 非遗手艺 / 教育培训）——
+  { id: 'livestream', label: '直播带货', industry: 'marketing', keywords: ['直播', '带货', '主播', '场控', 'mcn'], upstream: ['video', 'photo', 'graphic'], peers: ['community_ops', 'planning'], buyerIndustries: ['brand_retail', 'food', 'culture'], collabs: ['直播带货', '直播间代运营'] },
+  { id: 'crossborder', label: '跨境出海', industry: 'brand_retail', keywords: ['跨境', '出海', '海外', '外贸', '亚马逊', 'tiktok shop'], upstream: ['copywriting', 'voice', 'photo'], peers: ['livestream'], buyerIndustries: ['brand_retail', 'food', 'culture', 'hardware'], collabs: ['海外店铺代运营', '多语种内容'] },
+  { id: 'craft', label: '非遗手艺', industry: 'culture', keywords: ['非遗', '手艺', '刺绣', '剪纸', '竹编', '手作', '传承'], upstream: ['graphic', 'photo', 'video'], peers: ['bakery'], buyerIndustries: ['culture', 'brand_retail', 'education'], collabs: ['手作体验课', '文创联名'] },
+  { id: 'teaching', label: '讲师 / 培训', industry: 'education', keywords: ['讲师', '培训', '授课', '老师', '课程', '内训'], upstream: ['video', 'voice', 'copywriting'], peers: ['consulting'], buyerIndustries: ['education', 'tech', 'community'], collabs: ['企业内训', '社区课程'] },
+  { id: 'logistics', label: '仓储物流', industry: 'service', keywords: ['物流', '仓储', '快递', '配送', '海外仓', '打包'], upstream: ['software'], peers: ['driving'], buyerIndustries: ['brand_retail', 'food'], collabs: ['一件代发', '同城配送'] },
 ];
 
 /** 非能力型的特殊需求（客户、渠道、资源） */

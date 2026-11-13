@@ -16,7 +16,7 @@ import { EVENTS, type TownEvent } from '../data/events';
 import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
 
 export const ME = 'me';
-export type Tab = 'city' | 'biz' | 'community' | 'messages' | 'me';
+export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'community' | 'messages' | 'me';
 
 export type InboxKind = 'chat' | 'agent' | 'invite' | 'collab' | 'meeting' | 'event' | 'order' | 'system';
 export const INBOX_LABEL: Record<InboxKind, string> = {
@@ -189,7 +189,7 @@ export const useTown = create<TownState>()(
           const spawn = navOf(district).nearestWalkable(DISTRICTS[district].spawn) ?? DISTRICTS[district].spawn;
           set({ avatar: { id: uid('av'), userId: ME, nickname: nickname || '小萌新', lifeTag, look, position: spawn, district }, district, phase: 'playing' });
           set((s) => ({ wallet: reward(s.wallet, 'daily_login') }));
-          inbox({ kind: 'system', title: '欢迎来到沪上软萌生意街', body: '在上海，逛着逛着，就可能找到下一位客户。走在人行道上，从斑马线过马路，从门口进店。', needsMe: false });
+          inbox({ kind: 'system', title: '欢迎来到三邻邦', body: '在上海，逛着逛着，就可能找到下一位客户。走在人行道上，从斑马线过马路，从门口进店。', needsMe: false });
         },
         setTab: (tab) => set({ tab, card: undefined }),
         goDistrict(d, at) {

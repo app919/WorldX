@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { transparencyNotice } from '../domain/agent';
 import { shopById, useTown } from '../store/useTown';
-import { residentById } from '../data/seed';
+import { COUNTERPARTIES, residentById } from '../data/seed';
+import { INDUSTRY_CHAINS } from '../data/chains';
+import { useOpp } from '../store/useOpp';
 import { Btn, Chip, Disclaimer, Panel } from './kit';
 import { placeOfLot, useWork } from '../store/useWork';
 
@@ -22,6 +24,7 @@ export function AgentChat() {
   const intro = useTown((s) => s.intros.find((i) => i.toUserId === shopById(opcId ?? '', myOpc)?.ownerId));
   const profile = useTown((s) => s.profile);
   const openCounter = useWork((s) => s.openCounter);
+  const setIndustry = useOpp((s) => s.setIndustry);
   const [q, setQ] = useState('');
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -33,6 +36,8 @@ export function AgentChat() {
   const mine = opc.id === myOpc?.id;
   const owner = residentById(opc.ownerId);
   const ownerOnline = mine ? !!myAgent?.ownerOnline : !!owner?.online;
+  const ent = COUNTERPARTIES.find((c) => c.ownerId === opc.ownerId);
+  const chainPos = ent ? INDUSTRY_CHAINS.flatMap((ind) => ind.members.filter((m) => m.entityId === ent.id).map((m) => ({ id: `${ind.id}_${m.stage}`, ind: ind.id, stage: m.stage, label: `${ind.name.split(' · ')[0]} · ${ind.stages.find((s) => s.id === m.stage)?.name}` }))) : [];
   const send = (text: string) => { if (text.trim()) { ask(opc.id, text.trim()); setQ(''); } };
   const quick = ['你们是做什么的？', '多少钱？', '可以打个折吗？', '有案例吗？', '想预约聊聊', '你是真人吗？'];
 
@@ -61,6 +66,14 @@ export function AgentChat() {
         {!mine && placeOfLot(opc.lotId) && (
           <div className="mt-2 flex gap-2">
             <Btn size="sm" tone="sage" data-testid="open-counter" onClick={() => { close(undefined); openCounter(opc.lotId); }}>🛍️ 买点东西 / 💼 打短工</Btn>
+          </div>
+        )}
+        {chainPos.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1 text-xs" data-testid="shop-chain">
+            <b>产业链位置：</b>
+            {chainPos.map((m) => (
+              <button key={m.id} className="chip bg-haze-300 !py-0 text-[10px]" onClick={() => { close(undefined); setIndustry(m.ind, m.stage); setTab('chain'); }}>🔗 {m.label}</button>
+            ))}
           </div>
         )}
         {opc.openNeeds.length > 0 && <div className="mt-2 text-xs"><b>正在寻找：</b>{opc.openNeeds.join('、')}</div>}

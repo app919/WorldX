@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { DmList } from './DirectMessages';
+import { useServer } from '../store/useServer';
 import { DEFAULT_HELLO, STATUS_LABEL, canSeeContact } from '../domain/introductions';
 import { BIZ_LABEL, relationsWith } from '../domain/commerce';
 import type { Introduction } from '../domain/types';
@@ -53,18 +55,20 @@ export function MessagesPanel() {
   const collected = useTown((s) => s.collectedNeeds);
   const setTab = useTown((s) => s.setTab);
   const markRead = useTown((s) => s.markRead);
-  const [view, setView] = useState<'connect' | InboxKind | 'all'>('connect');
+  const online = useServer((s) => s.mode === 'online');
+  const [view, setView] = useState<'dm' | 'connect' | InboxKind | 'all'>(online ? 'dm' : 'connect');
   const needsMe = intros.filter((i) => i.status === 'accepted' && !i.contactConsent[i.fromUserId === ME ? 'from' : 'to']).length + inbox.filter((i) => i.needsMe && !i.read).length;
   return (
     <Drawer wide testId="messages-panel" title="💌 消息" subtitle={needsMe ? `${needsMe} 件需要你本人处理` : '商务连接、AI 接待、会议与活动'} onClose={() => { markRead(); setTab('city'); }}>
       <div className="mb-3 flex flex-wrap gap-1.5">
+        {online && <button data-testid="msg-tab-dm" onClick={() => setView('dm')} className={`chip ${view === 'dm' ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>💬 私信</button>}
         <button onClick={() => setView('connect')} className={`chip ${view === 'connect' ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>商务连接 {intros.length}</button>
         {KINDS.map((k) => {
           const n = k === 'all' ? inbox.filter((i) => !i.read).length : inbox.filter((i) => i.kind === k && !i.read).length;
           return <button key={k} onClick={() => { setView(k); }} className={`chip ${view === k ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>{k === 'all' ? '全部通知' : INBOX_LABEL[k]}{n ? ` ${n}` : ''}</button>;
         })}
       </div>
-      {view === 'connect' ? (
+      {view === 'dm' ? <DmList /> : view === 'connect' ? (
         <div className="space-y-3">
           {intros.length === 0 && <div className="text-sm text-stone-600">还没有打过招呼。去「我的生意」看看谁可能是你的客户。</div>}
           {intros.map((i) => <IntroCard key={i.id} intro={i} meetings={meetings.filter((m) => m.introductionId === i.id)} />)}

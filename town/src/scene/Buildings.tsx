@@ -25,6 +25,7 @@ import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { isGolden } from '../domain/lots';
 import { useLots } from '../store/useLots';
+import { shopAtLot, useServer } from '../store/useServer';
 
 const FH = 1.35; // 层高（游戏单位）
 const GF = 1.8; // 商铺底层层高
@@ -58,6 +59,7 @@ export function Windows({ list, frame, glass }: { list: WinSpec[]; frame?: Mater
 export function Buildings({ def }: { def: DistrictDef }) {
   const myOpc = useTown((s) => s.myOpc);
   useLots((s) => s.sponsors);
+  useServer((s) => s.shops);
   return (
     <group>
       {def.buildings.map((b) => {
@@ -96,6 +98,9 @@ function Cutaway({ cx, cz, reach, children }: { cx: number; cz: number; reach: n
 function signFor(lotId?: string, mine?: string, mineLicensed?: boolean): { text: string; bg: string; fg: string; empty: boolean } | undefined {
   if (!lotId) return undefined;
   if (mine) return { text: `${mineLicensed ? '企|' : ''}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false };
+  // 真实用户开的店（来自后端）
+  const remote = shopAtLot(lotId);
+  if (remote) return { text: `${remote.licensed ? '企|' : ''}${remote.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false };
   const shop = SHOPS.find((s) => s.lotId === lotId);
   if (shop) return { text: `${shop.entityStatus !== 'personal_page' ? '企|' : ''}${shop.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false };
   const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);

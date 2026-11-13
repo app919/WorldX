@@ -110,7 +110,8 @@ const BULLET = /^\s*(?:[•●◆■▪\-*·]|\d+[.、)）]|[一二三四五六�
 export function summarizeByRules(text: string, kind: DocKind, filename: string): Summary {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   const paras = text.split(/\n\s*\n/).map((p) => p.replace(/\n/g, '').trim()).filter((p) => p.length > 12);
-  const sentences = text.replace(/\n/g, '').split(/(?<=[。！？!?])/).map((s) => s.trim()).filter((s) => s.length >= 8);
+  // 按行再按句号切分（不把标题行和正文拼在一起）
+  const sentences = lines.flatMap((l) => l.replace(BULLET, '').split(/(?<=[。！？!?])/)).map((s) => s.trim()).filter((s) => s.length >= 8);
   const title = lines.find((l) => l.length >= 2 && l.length <= 24 && !BULLET.test(l)) ?? filename.replace(/\.[^.]+$/, '');
   const oneLiner = cut(sentences.find((s) => s !== title && s.length <= 60) ?? sentences[0] ?? title, 40);
   const about = cut(paras.slice(0, 2).join(' ') || sentences.slice(0, 3).join(''), 200);

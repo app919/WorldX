@@ -25,7 +25,7 @@ execSync('npx tsc -b && npx vite build -c vite.single.config.ts', { cwd: root, s
 cpSync(join(root, 'dist-single', 'index.html'), join(stage, '三邻邦.html'));
 
 console.log('2/4 复制源码…');
-const skip = new Set(['node_modules', 'dist', 'dist-single', 'release', 'e2e/screenshots', 'e2e/playtest', 'tsconfig.tsbuildinfo']);
+const skip = new Set(['node_modules', 'dist', 'dist-single', 'dist-v9', 'release', 'e2e/screenshots', 'e2e/playtest', 'e2e/backend-flow', 'server/data', 'tsconfig.tsbuildinfo']);
 // 逐个复制顶层条目（不能把项目目录整体复制进自己的子目录）
 for (const entry of readdirSync(root)) {
   if (skip.has(entry)) continue;
@@ -41,6 +41,7 @@ for (const entry of readdirSync(root)) {
 // 测试链路、需求核对与最近一次自检报告（截图 + 结果）
 cpSync(join(root, 'docs', 'TEST_GUIDE.md'), join(stage, '测试链路与检验标准.md'));
 cpSync(join(root, 'docs', 'REQUIREMENTS_CHECK.md'), join(stage, '需求核对.md'));
+cpSync(join(root, 'docs', 'BACKEND.md'), join(stage, '后端与部署说明.md'));
 if (existsSync(join(root, 'e2e', 'playtest'))) cpSync(join(root, 'e2e', 'playtest'), join(stage, '自检报告'), { recursive: true });
 console.log('3/4 写使用说明…');
 writeFileSync(join(stage, '使用说明.txt'), `三邻邦（OPC Town）  v${pkg.version}

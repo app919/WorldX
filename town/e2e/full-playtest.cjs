@@ -710,7 +710,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('0.9.0'), `版本号是 ${v}`);
+    must(v.includes('1.0.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {

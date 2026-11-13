@@ -1,4 +1,6 @@
 import { ECONOMY_NOTICE } from '../domain/economy';
+import { useServer } from '../store/useServer';
+import { api, clearLocalState } from '../net/api';
 import { useCenter } from '../store/useCenter';
 import { useWork } from '../store/useWork';
 import { useTown } from '../store/useTown';
@@ -20,6 +22,7 @@ export function MePanel() {
   const openChat = useTown((s) => s.openChat);
   const marketing = useTown((s) => s.marketingOptIn);
   const lifeOn = useWork((s) => s.enabled);
+  const account = useServer((s) => s.me);
   const opsOn = useCenter((s) => s.opsMode);
   const setOps = useCenter((s) => s.setOps);
   const setLife = useWork((s) => s.setEnabled);
@@ -108,7 +111,14 @@ export function MePanel() {
           <div className="text-sm font-black">街区生活（小游戏）</div>
           <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" data-testid="life-toggle" checked={lifeOn} onChange={(e) => setLife(e.target.checked)} /> 开启「打工挣游戏钞票 / 小店消费 / 公园歇脚」。这是街区里的休闲玩法，游戏钞票不能兑换、不能用于商业撮合，与需求大厅的真实机会完全分开。</label>
         </Card>
-        <Btn tone="cream" size="sm" onClick={reset}>重置演示数据</Btn>
+        {account && (
+          <Card className="!p-3">
+            <div className="text-sm font-black">账号</div>
+            <div className="mt-1 text-xs text-stone-600" data-testid="account">手机号：{account.phoneMasked ?? '未绑定'} · 微信：{account.wechatBound ? '已绑定' : '未绑定'}{account.role === 'admin' && <> · <a className="font-bold text-almond-600 underline" href="/admin.html" target="_blank" rel="noreferrer">管理后台</a></>}</div>
+            <Btn tone="cream" size="sm" className="mt-2" data-testid="logout" onClick={async () => { await api('/api/auth/logout', { method: 'POST', json: {} }).catch(() => {}); clearLocalState(); location.reload(); }}>退出登录</Btn>
+          </Card>
+        )}
+        {!account && <Btn tone="cream" size="sm" onClick={reset}>重置演示数据</Btn>}
       </div>
     </Drawer>
   );

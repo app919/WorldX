@@ -14,6 +14,7 @@ import { agentRespond } from '../domain/agent';
 import { COUNTERPARTIES, RESIDENTS, SHOPS, entityById, residentById } from '../data/seed';
 import { EVENTS, type TownEvent } from '../data/events';
 import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
+import { shopAtLot, useServer } from './useServer';
 
 export const ME = 'me';
 export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'center' | 'community' | 'messages' | 'me';
@@ -244,6 +245,9 @@ export const useTown = create<TownState>()(
         enterLot(lotId) {
           const s = get();
           if (s.myOpc?.lotId === lotId) return s.openChat(s.myOpc.id);
+          // 真实用户开的店：打开店铺页（可以发私信）
+          const remote = shopAtLot(lotId);
+          if (remote) { s.fxPush({ kind: 'door', from: playerRuntime }); return useServer.getState().openShop(remote.id); }
           const shop = SHOPS.find((x) => x.lotId === lotId);
           if (shop) { s.fxPush({ kind: 'door', from: playerRuntime }); return s.openChat(shop.id); }
           const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);

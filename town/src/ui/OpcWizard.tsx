@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useServer, type Intro, type PublicShop } from '../store/useServer';
+import { api } from '../net/api';
+import { remoteToOpc } from '../net/shopMap';
 import { draftAgentKnowledge } from '../domain/agent';
 import type { FacadeStyle, OpcProfile, Product, StartupStage } from '../domain/types';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
@@ -34,6 +37,7 @@ function WizardInner() {
   const freeLots = useMemo(() => {
     const taken = new Set([...SHOPS.map((x) => x.lotId), ...COUNTERPARTIES.map((c) => c.place.lotId).filter(Boolean)]);
     // 黄金位留给赞助商：OPC 只能在 60% 的招租位开店
+    for (const s of useServer.getState().shops) taken.add(s.lotId);
     return allLots().filter((l) => !taken.has(l.door.lotId) && !isGolden(l.door.lotId!)).sort((a, b) => (a.district === district ? -1 : 0) - (b.district === district ? -1 : 0));
   }, [district]);
   const [step, setStep] = useState(0);
@@ -48,6 +52,12 @@ function WizardInner() {
   const [uscc, setUscc] = useState('');
   const [err, setErr] = useState<string[]>([]);
   const register = useLots((s) => s.register);
+  // 正式模式（连接后端）：手机号在登录时已验证；实名、铺位、执照由服务端最终校验
+  const online = useServer((s) => s.mode === 'online');
+  const me = useServer((s) => s.me);
+  const [bindCode, setBindCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [docs, setDocs] = useState<Record<'company' | 'product', DocState | undefined>>({ company: undefined, product: undefined });
   const registry = useLots((s) => s.registry);
   const [name, setName] = useState('');
   const [tagline, setTagline] = useState(profile?.headline ?? '');
@@ -65,6 +75,13 @@ function WizardInner() {
   const close = () => { setWizard(false); setStep(0); };
   /** 每一步的校验：第 1 步实名（姓名 + 手机号唯一 + 验证码），第 3 步营业执照 */
   const check = (k: number): string[] => {
+    if (k === 0 && online) {
+      const e: string[] = [];
+      if (ownerName.trim().length < 2) e.push('请填写店主真实姓名');
+      if (!me?.phoneMasked) e.push('开店需要先绑定手机号（每人只能开一家店）');
+      if (!lotId) e.push('请选择一个招租铺位');
+      return e;
+    }
     if (k === 0) {
       const e = checkOwner({ name: ownerName, phone }, registry());
       if (!smsCode) e.push('请先获取并填写短信验证码');
@@ -81,7 +98,27 @@ function WizardInner() {
     return [];
   };
   const next = () => { const e = check(step); setErr(e); if (!e.length) setStep(step + 1); };
+  const finishOnline = async () => {
+    const e = [...check(0), ...check(2)];
+    if (Object.values(docs).some((d) => d?.status === 'parsing')) e.push('资料还在解析中，请稍等');
+    if (e.length) { setErr(e); return; }
+    setBusy(true);
+    try {
+      const { shop } = await api<{ shop: PublicShop }>('/api/shops', { method: 'POST', json: {
+        lotId, name: shopName, tagline, category, facade, ownerName: ownerName.trim(),
+        license: hasLicense ? { company: company.trim(), code: uscc.trim().toUpperCase() } : null,
+        products: products.filter((p) => p.name.trim()).map((p) => ({ name: p.name.trim(), description: p.description, priceFrom: p.priceFrom, unit: p.unit, priceConfirmed: p.priceConfirmed })),
+        needs, faqs: (faqs ?? draft.faqs).map((f) => ({ q: f.q.slice(0, 60), a: f.a.slice(0, 300) })),
+        companyDocId: docs.company?.status === 'done' ? docs.company.id : undefined, productDocId: docs.product?.status === 'done' ? docs.product.id : undefined,
+      } });
+      const opc = remoteToOpc(shop, me!.id);
+      openShop(opc, { ...defaultAgent(opc.id, true), enabledLevels: { L1: true, L2: l2 } });
+      useServer.getState().loadShops().catch(() => {});
+      setStep(0);
+    } catch (x) { setErr([(x as Error).message]); } finally { setBusy(false); }
+  };
   const finish = () => {
+    if (online) { finishOnline(); return; }
     const e = [...check(0), ...check(2)];
     if (e.length) { setErr(e); return; }
     const r = register({ name: ownerName, phone });
@@ -107,6 +144,25 @@ function WizardInner() {
         {step === 0 && (
           <div className="space-y-3">
             <div className="text-sm font-bold">店主实名（每人只能开一家店：姓名与手机号唯一）</div>
+            {online ? (
+              <div className="grid gap-1.5" data-testid="owner-online">
+                <input className="input" data-testid="owner-name" placeholder="店主真实姓名（不会公开展示）" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+                {me?.phoneMasked ? <div className="text-[11px] text-stone-500">已验证手机号 {me.phoneMasked}（不会在店铺里展示）</div> : (
+                  <div className="grid gap-1.5 rounded-xl bg-cream-100 p-2" data-testid="bind-phone">
+                    <div className="text-[11px] text-stone-600">你用微信登录，开店前请绑定手机号：</div>
+                    <div className="flex gap-1.5">
+                      <input className="input" data-testid="bind-phone-input" placeholder="手机号" inputMode="numeric" maxLength={11} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} />
+                      <Btn size="sm" tone="cream" onClick={async () => { try { const r = await api<{ devCode?: string }>('/api/auth/sms/send', { method: 'POST', json: { phone, purpose: 'bind' } }); if (r.devCode) setBindCode(r.devCode); setErr([]); } catch (x) { setErr([(x as Error).message]); } }}>获取验证码</Btn>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input className="input" placeholder="验证码" maxLength={6} value={sms} onChange={(e) => setSms(e.target.value)} />
+                      <Btn size="sm" onClick={async () => { try { await api('/api/auth/phone/bind', { method: 'POST', json: { phone, code: sms } }); await useServer.getState().refreshMe(); setErr([]); } catch (x) { setErr([(x as Error).message]); } }}>绑定</Btn>
+                    </div>
+                    {bindCode && <div className="text-[11px] text-stone-500">开发环境验证码：{bindCode}</div>}
+                  </div>
+                )}
+              </div>
+            ) : (<>
             <div className="grid grid-cols-2 gap-1.5">
               <input className="input" data-testid="owner-name" placeholder="店主姓名" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
               <input className="input" data-testid="owner-phone" placeholder="手机号" inputMode="numeric" maxLength={11} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} />
@@ -116,6 +172,7 @@ function WizardInner() {
               <Btn size="sm" tone="cream" data-testid="owner-sms-send" onClick={() => { if (!validPhone(phone)) { setErr(['请先填写 11 位手机号']); return; } const c = String(100000 + Math.floor(Math.random() * 899999)); setSmsCode(c); setErr([]); }}>获取验证码</Btn>
             </div>
             {smsCode && <div className="text-[11px] text-stone-500" data-testid="sms-demo">演示：验证码已发送到 {maskPhone(phone)}，本次验证码 <b data-testid="sms-code">{smsCode}</b></div>}
+            </>)}
             <div className="text-sm font-bold">选一个店铺外观和街区位置</div>
             <div className="grid grid-cols-4 gap-2">
               {FACADES.map((f) => (
@@ -151,6 +208,13 @@ function WizardInner() {
               </div>
             ))}
             {products.length < 10 && <Btn size="sm" tone="cream" onClick={() => setProducts([...products, { id: `p${products.length + 1}`, opcId: '', name: '', description: '', priceConfirmed: false }])}>+ 再加一款</Btn>}
+            {online && (
+              <div className="space-y-2" data-testid="doc-uploads">
+                <div className="text-xs font-bold">上传资料（可选）：PPT / PDF / Word，系统自动提炼成店铺展示内容</div>
+                {(['company', 'product'] as const).map((k) => <DocUpload key={k} kind={k} state={docs[k]} onChange={(d) => setDocs((x) => ({ ...x, [k]: d }))} />)}
+                <div className="text-[10px] text-stone-400">只提取文字，图片和二维码不会展示；资料里的手机号、微信号、邮箱会被自动隐藏。原文件不对外公开。</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -201,9 +265,54 @@ function WizardInner() {
         <div className="mt-4 flex justify-between">
           <Btn tone="cream" onClick={() => (step ? setStep(step - 1) : close())}>{step ? '上一步' : '取消'}</Btn>
           {step < 3 ? <Btn onClick={next} data-testid="wizard-next">下一步</Btn>
-            : <Btn tone="sage" onClick={finish} data-testid="wizard-finish">🎉 确认开张</Btn>}
+            : <Btn tone="sage" onClick={finish} disabled={busy} data-testid="wizard-finish">{busy ? '开张中…' : '🎉 确认开张'}</Btn>}
         </div>
       </Panel>
     </Modal>
+  );
+}
+
+interface DocState { id: string; filename: string; status: 'uploading' | 'parsing' | 'done' | 'failed'; summary?: Intro; error?: string; method?: string }
+
+/** 上传一份资料并轮询解析结果，展示提炼出的内容供确认 */
+function DocUpload({ kind, state, onChange }: { kind: 'company' | 'product'; state?: DocState; onChange: (d: DocState | undefined) => void }) {
+  const label = kind === 'company' ? '公司简介' : '产品简介';
+  const upload = async (file: File) => {
+    onChange({ id: '', filename: file.name, status: 'uploading' });
+    const fd = new FormData();
+    fd.append('kind', kind);
+    fd.append('file', file);
+    try {
+      const r = await fetch('/api/uploads/shop-doc', { method: 'POST', body: fd, credentials: 'include' });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? '上传失败');
+      onChange({ id: j.id, filename: file.name, status: 'parsing' });
+      for (let i = 0; i < 120; i++) {
+        await new Promise((res) => setTimeout(res, 1000));
+        const { doc } = await api<{ doc: { status: DocState['status']; summary?: Intro; error?: string; method?: string } }>(`/api/uploads/shop-doc/${j.id}`);
+        if (doc.status !== 'parsing') { onChange({ id: j.id, filename: file.name, status: doc.status, summary: doc.summary, error: doc.error, method: doc.method }); return; }
+      }
+      onChange({ id: j.id, filename: file.name, status: 'failed', error: '解析超时，请重试' });
+    } catch (e) { onChange({ id: '', filename: file.name, status: 'failed', error: (e as Error).message }); }
+  };
+  return (
+    <div className="rounded-xl bg-cream-100 p-2 text-xs" data-testid={`doc-${kind}`}>
+      <div className="flex items-center justify-between gap-2">
+        <b>{label}</b>
+        <label className="cursor-pointer rounded-full bg-almond-300 px-2 py-0.5 font-bold">
+          {state ? '重新上传' : '选择文件'}
+          <input type="file" className="hidden" data-testid={`doc-input-${kind}`} accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
+        </label>
+      </div>
+      {state && <div className="mt-1 text-stone-600">{state.filename} · {{ uploading: '上传中…', parsing: '解析中…', done: '已提炼 ✓', failed: '失败' }[state.status]}{state.error ? `：${state.error}` : ''}</div>}
+      {state?.summary && (
+        <div className="mt-1 rounded-lg bg-cream-50 p-2" data-testid={`doc-summary-${kind}`}>
+          <b>{state.summary.title}</b> · {state.summary.oneLiner}
+          {state.summary.highlights.length > 0 && <div className="text-stone-500">亮点：{state.summary.highlights.join('；')}</div>}
+          {state.summary.products.length > 0 && <div className="text-stone-500">产品：{state.summary.products.map((p) => p.name).join('、')}</div>}
+          <button className="mt-1 text-stone-400 underline" onClick={() => onChange(undefined)}>不使用这份资料</button>
+        </div>
+      )}
+    </div>
   );
 }

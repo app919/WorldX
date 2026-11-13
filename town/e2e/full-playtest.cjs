@@ -44,6 +44,9 @@ const closeAll = async () => {
   if (await card.count()) await card.first().click().catch(() => {});
 };
 const evalTown = (fn, arg) => page.evaluate(fn, arg);
+/** 生成一个合法的统一社会信用代码（GB 32100-2015 校验位） */
+const USCC_CHARS = '0123456789ABCDEFGHJKLMNPQRTUWXY';
+const uscc = (first17) => { const w = [1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28]; const sum = first17.split('').reduce((a, ch, i) => a + USCC_CHARS.indexOf(ch) * w[i], 0); const c = 31 - (sum % 31); return first17 + USCC_CHARS[c === 31 ? 0 : c]; };
 const goTab = async (tab) => { const s = await evalTown(() => window.__town.useTown.getState().tab); if (s !== tab) await T(`nav-${tab}`).click(); };
 const toCity = async () => { await evalTown(() => window.__town.useTown.getState().setTab('city')); };
 const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now(); while (Date.now() - t < ms) { if (await pred()) return true; await page.waitForTimeout(every); } return false; };
@@ -264,11 +267,38 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(await T('entity-card').getByText('已收藏线索').count(), '收藏状态不对');
     await closeAll();
   });
-  await step('空铺：走到门口显示招租名片', async () => {
-    const lot = await evalTown(() => window.__town.doors('wukang').find((d) => d.lotId && d.lotId.startsWith('wukang_lot'))?.lotId);
+  await step('铺位规则：每个街区 60% OPC 招租位 + 40% 黄金赞助位，已有店铺不占黄金位', async () => {
+    const r = await evalTown(() => ['wukang', 'yangjing', 'sichuan_n'].map((d) => { const p = window.__town.lotPlan(d); return { d, total: p.total, golden: p.golden.length, opc: p.opc.length }; }));
+    for (const x of r) must(x.golden === Math.round(x.total * 0.4) && x.golden + x.opc === x.total, `${x.d} 比例不对 ${JSON.stringify(x)}`);
+    return r.map((x) => `${x.d}: OPC ${x.opc} / 黄金 ${x.golden} / 共 ${x.total}`).join('；');
+  });
+  await step('黄金位：走到门口显示赞助招商 → 资质校验 → 提交 → 审核 → 付款 → 上线（招牌带「赞」角标）', async () => {
+    const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); const s = window.__town.useLots.getState(); return p.golden.find((id) => !s.sponsorOf(id) && window.__town.doors('wukang').some((d) => d.lotId === id)); });
+    must(lot, '没有空的黄金位');
+    await evalTown((l) => window.__town.nearLot(l, 3), lot);
+    await T('golden-card').waitFor({ timeout: 150000 });
+    await T('sponsor-open').click();
+    await T('sp-company').fill('三邻邦测试科技有限公司');
+    await T('sp-code').fill('91310000MA1FL0000A');
+    await T('sp-contact').fill('测试');
+    await T('sp-phone').fill('13900001111');
+    await T('sp-submit').click();
+    must((await T('sp-errors').innerText()).includes('统一社会信用代码'), '没有校验信用代码');
+    await T('sp-code').fill(uscc('91310000MA1FL0000'));
+    await T('sp-submit').click();
+    await page.waitForTimeout(3600);
+    const st = await T('sponsor-status').innerText();
+    must(st.includes('已上线'), `赞助状态：${st}`);
+    await page.screenshot({ path: path.join(OUT, '05b-golden.png') });
+    await T('golden-card').getByLabel('关闭').click();
+    return lot;
+  });
+  await step('空铺：走到 OPC 招租位门口显示招租名片（含 60/40 说明）', async () => {
+    const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); return window.__town.doors('wukang').find((d) => d.lotId && d.lotId.startsWith('wukang_lot') && p.opc.includes(d.lotId))?.lotId; });
     must(lot, '没有空铺');
     await evalTown((l) => window.__town.nearLot(l, 3), lot);
     await T('lot-card').waitFor({ timeout: 150000 });
+    must((await T('lot-plan').innerText()).includes('60%'), '没有 60/40 说明');
     return lot;
   });
   await step('开店：在空铺开店（外观 / 铺位 / 商品 / 需求 / 主体 / AI 分身权限）', async () => {
@@ -276,6 +306,21 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('opc-wizard').waitFor();
     await page.getByText('奶油咖啡馆').click();
     await T('shop-name').fill('阿岚 AI 影像');
+    // 实名：已登记的手机号 / 姓名不能重复开店
+    await T('owner-name').fill('林小满');
+    await T('owner-phone').fill('13800000001');
+    await T('owner-sms-send').click();
+    await T('owner-sms').fill(await T('sms-code').innerText());
+    await T('wizard-next').click();
+    const dup = await T('wizard-errors').innerText();
+    must(dup.includes('手机号已经开过店') && dup.includes('姓名已经登记'), `没有拦截重复开店：${dup}`);
+    await T('owner-name').fill('阿岚');
+    await T('owner-phone').fill('13912345678');
+    await T('owner-sms-send').click();
+    await T('owner-sms').fill('000000');
+    await T('wizard-next').click();
+    must((await T('wizard-errors').innerText()).includes('验证码不正确'), '没有校验验证码');
+    await T('owner-sms').fill(await T('sms-code').innerText());
     await T('wizard-next').click();
     await page.getByText('AI技术服务').click();
     await page.getByText('+ 再加一款').click();
@@ -283,12 +328,20 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('wizard-next').click();
     await page.getByText('渠道', { exact: true }).click();
     await page.getByText('正在找合伙人').click();
-    await page.getByText('我已有经营主体', { exact: false }).click();
+    await T('license-yes').click();
+    await T('license-company').fill('上海阿岚影像工作室');
+    await T('license-code').fill('92310000MA1AL0000A');
+    await T('wizard-next').click();
+    must((await T('wizard-errors').innerText()).includes('统一社会信用代码'), '没有校验执照');
+    await T('license-code').fill(uscc('92310104MA1AL0000'));
     await T('wizard-next').click();
     must(await page.getByText('L3 决策').isVisible(), '缺少 L3 说明');
     await T('wizard-finish').click();
     await page.waitForTimeout(2500);
-    must(await evalTown(() => !!window.__town.useTown.getState().myOpc), '开店失败');
+    const opc = await evalTown(() => window.__town.useTown.getState().myOpc);
+    must(!!opc, '开店失败');
+    must(opc.license && opc.owner && opc.owner.phoneMasked === '139****5678', `店主 / 执照信息不对：${JSON.stringify(opc.owner)}`);
+    must(!(await evalTown(() => window.__town.lotPlan('wukang').golden)).includes(opc.lotId), '开在了黄金位');
     await page.screenshot({ path: path.join(OUT, '06-opened.png') });
   });
   // —— v0.5：产业链黄页 + 上下游速配 + 服务商抢位 + 机会广场 ——
@@ -437,10 +490,18 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('agent-chat').getByLabel('关闭').click();
   });
 
+  await step('每人一家店：开店后再到空铺，只提示已有小店，不能再开', async () => {
+    const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); const mine = window.__town.useTown.getState().myOpc.lotId; return window.__town.doors('wukang').filter((d) => d.lotId && d.lotId.startsWith('wukang_lot') && p.opc.includes(d.lotId) && d.lotId !== mine)[1]?.lotId; });
+    await evalTown((l) => window.__town.nearLot(l, 3), lot);
+    await T('lot-card').waitFor({ timeout: 150000 });
+    must(await T('open-wizard').count() === 0 && (await T('lot-card').innerText()).includes('已经有一家小店'), '没有限制每人一家');
+    await T('lot-card').getByLabel('关闭').click();
+  });
   await step('我的小店：进入自己的店，试用自己的 AI 分身', async () => {
     await closeAll(); await toCity();
     await T('my-shop-btn').click();
     await T('agent-chat').waitFor({ timeout: 30000 });
+    must(await T('badge-company').count() > 0, '有营业执照的店铺没有「企」角标');
     await T('agent-chat').getByText('多少钱？', { exact: true }).click();
     await closeAll();
   });
@@ -559,7 +620,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('0.6.0'), `版本号是 ${v}`);
+    must(v.includes('0.7.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {

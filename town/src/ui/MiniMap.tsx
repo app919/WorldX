@@ -3,7 +3,8 @@
  * 点击小地图上的位置，角色会沿人行道寻路走过去。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { compiledOf } from '../world';
+import { allLots, compiledOf } from '../world';
+import { lotPlan } from '../domain/lots';
 import { playerRuntime, useTown } from '../store/useTown';
 import { placeOfLot, useWork } from '../store/useWork';
 import { jobTargetLot } from '../scene/JobTarget';
@@ -18,6 +19,8 @@ export function MiniMap() {
   const me = useRef<SVGGElement>(null);
   const cd = useMemo(() => compiledOf(district), [district]);
   const active = useWork((s) => s.active);
+  const lots = useMemo(() => allLots().filter((l) => l.district === district), [district]);
+  const goldenSet = useMemo(() => new Set(lotPlan(district).golden), [district]);
   const tl = jobTargetLot(active);
   const target = tl ? placeOfLot(tl) : undefined;
   const b = cd.def.bounds;
@@ -42,7 +45,7 @@ export function MiniMap() {
   return (
     <div className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 overflow-hidden rounded-2xl p-1.5 md:bottom-24 md:left-3 md:right-auto md:top-auto" data-testid="minimap">
       <div className="flex items-center justify-between px-1 pb-1 text-[10px] font-bold text-stone-600">
-        <span>{cd.def.name} · 上北下南</span>
+        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span></span>
         <span className="flex items-center gap-2">
           <button data-testid="find-me" onClick={() => { playerRuntime.locateAt = performance.now(); }} className="rounded-full bg-[#FF8A3D] px-2 py-0.5 text-[10px] font-black text-white">📍 找到我 (F)</button>
           <button onClick={() => setOpen(false)} aria-label="收起小地图">✕</button>
@@ -79,6 +82,10 @@ export function MiniMap() {
             </text>
           );
         })}
+        {/* 铺位：金色 = 黄金赞助位（40%），绿色 = OPC 招租位（60%） */}
+        {lots.map((l) => (
+          <circle key={l.door.lotId} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={1.5} fill={goldenSet.has(l.door.lotId!) ? '#D4A017' : '#5E8C6A'} opacity={0.9} />
+        ))}
         {cd.tunnels.map((t, i) => (
           <circle key={`tn${i}`} cx={sx(t.box.cx)} cy={sz(t.box.cz)} r={2.2} fill="#3E4048" />
         ))}

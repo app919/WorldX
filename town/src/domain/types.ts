@@ -97,6 +97,10 @@ export interface OpcProfile {
   id: string;
   ownerId: string;
   name: string;
+  /** 店主实名信息（姓名 + 手机号唯一，每人只能开一家店；手机号只保存脱敏形式用于展示） */
+  owner?: { name: string; phoneMasked: string };
+  /** 营业执照（有执照的店铺显示「企」角标） */
+  license?: { company: string; code: string };
   tagline: string;
   category: string; // 开店第一步：你能提供什么
   entityStatus: EntityStatus;

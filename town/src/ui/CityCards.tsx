@@ -1,4 +1,7 @@
 import { archiveById } from '../data/archives';
+import { useState } from 'react';
+import { SPONSOR_TIERS, isGolden, lotPlan } from '../domain/lots';
+import { useLots } from '../store/useLots';
 import { placeOfLot, useWork } from '../store/useWork';
 import { COUNTERPARTIES, entityById, residentById, shopOfEntity } from '../data/seed';
 import { BIZ_LABEL, ENTITY_KIND_LABEL, relationsWith } from '../domain/commerce';
@@ -121,13 +124,64 @@ function LotCard({ id }: { id: string }) {
   const myOpc = useTown((s) => s.myOpc);
   const setWizard = useTown((s) => s.setWizard);
   const nearby = COUNTERPARTIES.filter((c) => c.place.district === lot.district && c.kind !== 'individual').length;
+  const plan = lotPlan(lot.district);
+  if (isGolden(id)) return <GoldenCard id={id} />;
   return (
     <Panel testId="lot-card" title="空铺 · 招租" subtitle={`${districtName(lot.district)} · ${lot.street} · 铺位 ${id}`} onClose={() => openCard(undefined)} className="w-full max-w-md">
-      <p className="text-sm">这里还空着。免费创建个人创业主页，就能在这条街拥有自己的小店。这条街上已有 {nearby} 个经营主体。</p>
+      <p className="text-sm">这里是 <b>OPC 招租位</b>，还空着。无论有没有营业执照都可以开店（有执照的店铺显示「企」角标）。这条街上已有 {nearby} 个经营主体。</p>
+      <div className="mt-2 text-xs text-stone-600" data-testid="lot-plan">本街区共 {plan.total} 个铺位：OPC 招租位 {plan.opc.length} 个（60%）· 黄金赞助位 {plan.golden.length} 个（40%）</div>
       <div className="mt-3">
         {myOpc ? <div className="text-xs text-stone-600">你已经有一家小店「{myOpc.name}」（第一版每人一家）。</div>
           : <Btn onClick={() => { openCard(undefined); setWizard(true, id); }} data-testid="open-wizard">🏪 在这里开店</Btn>}
       </div>
+    </Panel>
+  );
+}
+
+/** 黄金位：赞助商专属，OPC 不能在这里开店 */
+function GoldenCard({ id }: { id: string }) {
+  const lot = allLots().find((l) => l.door.lotId === id)!;
+  const openCard = useTown((s) => s.openCard);
+  const sponsor = useLots((s) => s.sponsorOf(id));
+  const apply = useLots((s) => s.applySponsor);
+  const plan = lotPlan(lot.district);
+  const [open, setOpen] = useState(false);
+  const [tier, setTier] = useState<'season' | 'year'>('season');
+  const [company, setCompany] = useState('');
+  const [code, setCode] = useState('');
+  const [contact, setContact] = useState('');
+  const [phone, setPhone] = useState('');
+  const [err, setErr] = useState<string[]>([]);
+  const STATUS = { live: '已上线', reviewing: '资质审核中', awaiting_payment: '待对公付款' } as const;
+  return (
+    <Panel testId="golden-card" title={sponsor ? `🏅 ${sponsor.name}` : '🏅 黄金位 · 赞助招商'} subtitle={`${districtName(lot.district)} · ${lot.street} · 铺位 ${id}`} onClose={() => openCard(undefined)} className="w-full max-w-md">
+      <div className="text-xs text-stone-600" data-testid="lot-plan">本街区 {plan.total} 个铺位中，40%（{plan.golden.length} 个）是黄金位：离街区入口近、在主街或路口，留给赞助商付资金赞助；赞助资金用于街区运营与社区活动。OPC 请到「OPC 招租」铺位开店。</div>
+      {sponsor ? (
+        <div className="mt-2 rounded-2xl bg-almond-300/50 p-3 text-sm">
+          <b>{sponsor.name}</b> · {SPONSOR_TIERS.find((t) => t.id === sponsor.tier)?.name} · <span data-testid="sponsor-status">{STATUS[sponsor.status]}</span>
+          <div className="text-xs text-stone-600">赞助期至 {new Date(sponsor.until).toLocaleDateString()}{sponsor.demo ? '（演示赞助商）' : ''}；招牌显示「赞」角标，明确标注为赞助。</div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-2 grid gap-2">
+            {SPONSOR_TIERS.map((t) => (
+              <button key={t.id} onClick={() => setTier(t.id)} className={`rounded-2xl p-2.5 text-left text-xs ring-1 ${tier === t.id ? 'bg-almond-300 ring-almond-500' : 'bg-cream-100 ring-cream-300'}`}>
+                <b>{t.name} · ¥{t.price.toLocaleString()}</b>（{t.months} 个月）<div className="text-stone-600">{t.perks.join(' · ')}</div>
+              </button>
+            ))}
+          </div>
+          {!open ? <Btn className="mt-3" data-testid="sponsor-open" onClick={() => setOpen(true)}>💰 申请赞助这个黄金位</Btn> : (
+            <div className="mt-3 grid gap-1.5" data-testid="sponsor-form">
+              <input className="input" data-testid="sp-company" placeholder="赞助企业全称" value={company} onChange={(e) => setCompany(e.target.value)} />
+              <input className="input" data-testid="sp-code" placeholder="统一社会信用代码（18 位）" maxLength={18} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+              <div className="grid grid-cols-2 gap-1.5"><input className="input" data-testid="sp-contact" placeholder="联系人" value={contact} onChange={(e) => setContact(e.target.value)} /><input className="input" data-testid="sp-phone" placeholder="手机号" maxLength={11} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} /></div>
+              {err.length > 0 && <div className="text-xs text-brick-500" data-testid="sp-errors">{err.join('；')}</div>}
+              <Btn data-testid="sp-submit" onClick={() => setErr(apply({ lotId: id, company, code, contact, phone, tier }))}>提交赞助申请</Btn>
+              <Disclaimer>流程：提交申请 → 平台审核企业资质 → 签约并对公付款 → 黄金位上线。演示版不会真实扣款。</Disclaimer>
+            </div>
+          )}
+        </>
+      )}
     </Panel>
   );
 }

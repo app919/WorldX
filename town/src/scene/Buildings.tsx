@@ -23,6 +23,8 @@ import { rng } from '../world/geom';
 import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
+import { isGolden } from '../domain/lots';
+import { useLots } from '../store/useLots';
 
 const FH = 1.35; // 层高（游戏单位）
 const GF = 1.8; // 商铺底层层高
@@ -55,6 +57,7 @@ export function Windows({ list, frame, glass }: { list: WinSpec[]; frame?: Mater
 
 export function Buildings({ def }: { def: DistrictDef }) {
   const myOpc = useTown((s) => s.myOpc);
+  useLots((s) => s.sponsors);
   return (
     <group>
       {def.buildings.map((b) => {
@@ -63,7 +66,7 @@ export function Buildings({ def }: { def: DistrictDef }) {
           return <Cutaway key={b.id} cx={c.x} cz={c.z} reach={14} height={12}><WukangMansion poly={b.polygon!} /></Cutaway>;
         }
         const o = b.box!;
-        const signs = b.doors.map((d) => ({ ...d, sign: signFor(d.lotId, myOpc && myOpc.lotId === d.lotId ? myOpc.name : undefined) }));
+        const signs = b.doors.map((d) => ({ ...d, sign: signFor(d.lotId, myOpc && myOpc.lotId === d.lotId ? myOpc.name : undefined, !!myOpc?.license) }));
         return (
           <Cutaway key={b.id} cx={o.cx} cz={o.cz} reach={Math.max(o.w, o.d) / 2} height={b.floors * FH + 2.5}>
             <group position={[o.cx, 0, o.cz]} rotation-y={o.rot}>
@@ -90,14 +93,17 @@ function Cutaway({ cx, cz, reach, children }: { cx: number; cz: number; reach: n
   return <group ref={g}>{children}</group>;
 }
 
-function signFor(lotId?: string, mine?: string): { text: string; bg: string; fg: string; empty: boolean } | undefined {
+function signFor(lotId?: string, mine?: string, mineLicensed?: boolean): { text: string; bg: string; fg: string; empty: boolean } | undefined {
   if (!lotId) return undefined;
-  if (mine) return { text: mine, bg: '#E8C77A', fg: '#4A3426', empty: false };
+  if (mine) return { text: `${mineLicensed ? '企|' : ''}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false };
   const shop = SHOPS.find((s) => s.lotId === lotId);
-  if (shop) return { text: shop.name, bg: '#FBF6EC', fg: '#4A3426', empty: false };
+  if (shop) return { text: `${shop.entityStatus !== 'personal_page' ? '企|' : ''}${shop.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false };
   const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);
-  if (ent) return { text: ent.name.replace('（虚构）', '').replace('（示意）', ''), bg: '#F4EBDA', fg: '#7A5539', empty: false };
-  return { text: '空铺 · 招租', bg: '#E9DCC3', fg: '#8D877F', empty: true };
+  if (ent) return { text: `${ent.kind === 'merchant' ? '企|' : ''}${ent.name.replace('（虚构）', '').replace('（示意）', '')}`, bg: '#F4EBDA', fg: '#7A5539', empty: false };
+  const sp = useLots.getState().sponsorOf(lotId);
+  if (sp && sp.status === 'live') return { text: `赞|${sp.name.replace('（虚构）', '')}`, bg: '#F6E3A6', fg: '#6B4E12', empty: false };
+  if (isGolden(lotId)) return { text: '黄金位 · 赞助招商', bg: '#F2D27A', fg: '#6B4E12', empty: false };
+  return { text: 'OPC 招租', bg: '#E9DCC3', fg: '#8D877F', empty: true };
 }
 
 type Signed = BuildingDef['doors'][number] & { sign?: ReturnType<typeof signFor> };

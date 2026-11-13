@@ -28,8 +28,8 @@ export function Onboarding() {
     <div className="pointer-events-auto fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-gradient-to-b from-cream-100/80 to-sakura-200/70 p-4 backdrop-blur-sm">
       <div className="wobble-in w-full max-w-xl rounded-[2rem] bg-cream-50 p-6 shadow-soft ring-1 ring-cream-200">
         <div className="text-center">
-          <div className="text-xs font-bold tracking-[0.3em] text-sage-700">SANLINBANG</div>
-          <h1 className="mt-1 text-3xl font-black text-cocoa-800">三邻邦 <span className="align-middle text-xs font-bold text-stone-400">v{APP_VERSION}</span></h1>
+          <div className="text-xs font-bold tracking-[0.3em] text-sage-700">OPC Town</div>
+          <h1 className="mt-1 text-3xl font-black text-cocoa-800">三邻邦<span className="text-xl">（OPC Town）</span> <span className="align-middle text-xs font-bold text-stone-400">v{APP_VERSION}</span></h1>
           <div className="mt-1 text-[11px] text-stone-500">本版更新：{APP_BUILD_NOTE}</div>
           <p className="mt-1 text-sm text-stone-600">在上海，逛着逛着，就可能找到下一位客户。</p>
         </div>

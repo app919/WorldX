@@ -189,7 +189,7 @@ export const useTown = create<TownState>()(
           const spawn = navOf(district).nearestWalkable(DISTRICTS[district].spawn) ?? DISTRICTS[district].spawn;
           set({ avatar: { id: uid('av'), userId: ME, nickname: nickname || '小萌新', lifeTag, look, position: spawn, district }, district, phase: 'playing' });
           set((s) => ({ wallet: reward(s.wallet, 'daily_login') }));
-          inbox({ kind: 'system', title: '欢迎来到三邻邦', body: '在上海，逛着逛着，就可能找到下一位客户。走在人行道上，从斑马线过马路，从门口进店。', needsMe: false });
+          inbox({ kind: 'system', title: '欢迎来到三邻邦（OPC Town）', body: '在上海，逛着逛着，就可能找到下一位客户。走在人行道上，从斑马线过马路，从门口进店。', needsMe: false });
         },
         setTab: (tab) => set({ tab, card: undefined }),
         goDistrict(d, at) {

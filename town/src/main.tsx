@@ -4,6 +4,8 @@ import App from './App';
 import './index.css';
 import { playerRuntime, useTown } from './store/useTown';
 import { useWork } from './store/useWork';
+import { useLots } from './store/useLots';
+import { lotPlan } from './domain/lots';
 import { allLots, compiledOf, navOf, DISTRICT_ORDER } from './world';
 
 // 自动化测试钩子：只在 URL 带 ?e2e 时暴露，用于把角色放到门口附近（仍然走导航与门口触发规则）
@@ -18,6 +20,8 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
   (window as unknown as Record<string, unknown>).__town = {
     useTown,
     useWork,
+    useLots,
+    lotPlan: (d: string) => lotPlan(d as 'wukang'),
     playerRuntime,
     props: (d: string) => compiledOf(d as 'wukang').props.map((p) => ({ kind: p.kind, x: p.p.x, z: p.p.z })),
     parks: (d: string) => compiledOf(d as 'wukang').parks.map((p) => ({ id: p.id, label: p.label, cx: p.box.cx, cz: p.box.cz })),

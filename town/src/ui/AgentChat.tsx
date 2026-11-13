@@ -48,13 +48,14 @@ export function AgentChat() {
     <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center p-3 md:items-center md:justify-end">
       <Panel
         testId="agent-chat"
-        title={<span>🏪 {opc.name}</span>}
+        title={<span>🏪 {opc.name} {opc.entityStatus !== 'personal_page' && <span data-testid="badge-company" title="有营业执照的公司" className="ml-1 rounded bg-brick-400 px-1 align-middle text-xs font-black text-white">企</span>}</span>}
         subtitle={opc.tagline}
         onClose={() => close(undefined)}
         className="h-[78vh] w-full max-w-md"
       >
         <div className="flex flex-wrap gap-1.5">
-          <Chip tone="haze">{ENTITY_LABEL[opc.entityStatus]}</Chip>
+          <Chip tone="haze">{opc.license ? `营业执照：${opc.license.company}` : ENTITY_LABEL[opc.entityStatus]}</Chip>
+          {opc.owner && <Chip tone="cream">店主 {opc.owner.name} · {opc.owner.phoneMasked}</Chip>}
           <Chip tone={ownerOnline ? 'sage' : 'cream'}>{ownerOnline ? '主理人在线' : '主理人离线 · AI 分身托管中'}</Chip>
           {opc.isDemo && <Chip tone="cream">演示店铺</Chip>}
         </div>

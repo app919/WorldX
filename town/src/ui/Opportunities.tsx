@@ -51,6 +51,7 @@ function Hall() {
   const { placements } = useMyChain();
   useOpp((s) => s.myOpps);
   useOpp((s) => s.deals);
+  useOpp((s) => s.bids);
   const [kind, setKind] = useState<OppKind | 'all'>('all');
   const [industry, setIndustry] = useState('all');
   const [area, setArea] = useState('all');
@@ -62,7 +63,7 @@ function Hall() {
   const myStages = placements.map((p) => p.stage);
   const st = useOpp.getState();
   const list = st.allOpps()
-    .filter((o) => st.statusOf(o) === 'matching' || o.mine)
+    .filter((o) => st.statusOf(o) === 'matching' || o.mine || st.bids.some((b) => b.oppId === o.id && b.mine))
     .filter((o) => (kind === 'all' || o.kind === kind) && (industry === 'all' || o.industry === industry) && (area === 'all' || o.area.includes(area)) && (mode === 'all' || o.mode === mode))
     .filter((o) => budget === 'all' || (o.budget && (budget === 'lt5' ? o.budget.max <= 5000 : budget === '5to10' ? o.budget.max > 5000 && o.budget.min <= 10000 : o.budget.max > 10000)))
     .map((o) => ({ o, score: oppScore(o, myTags, myStages) }))

@@ -29,6 +29,7 @@ export function TopBar() {
     <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 p-3">
       <div className="pointer-events-auto glass relative flex items-center gap-3 rounded-blob px-4 py-2">
         <div>
+          <div className="text-[10px] font-black tracking-wide text-almond-600" data-testid="brand">三邻邦（OPC Town）</div>
           <div className="text-base font-black leading-tight text-cocoa-800">{DISTRICTS[district].name} <span title={APP_BUILD_NOTE} data-testid="version" className="rounded-full bg-cocoa-800 px-1.5 py-0.5 align-middle text-[9px] font-bold text-cream-50">v{APP_VERSION}</span></div>
           <div className="text-[11px] text-stone-600" data-testid="status-line">{tag?.emoji} 正在{street}散步</div>
         </div>

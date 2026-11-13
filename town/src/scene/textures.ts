@@ -106,6 +106,9 @@ export const soilTex = () => make('soil', 64, (g, s) => {
 
 /** 招牌：圆角底板 + 文字（中文使用系统字体） */
 export function signTex(text: string, bg: string, fg: string, w = 512, h = 128): Texture {
+  // 文字以「企|」或「赞|」开头时，在招牌左上角画角标
+  const badge = /^(企|赞)\|/.test(text) ? text[0] : '';
+  const body = badge ? text.slice(2) : text;
   return make(`sign_${text}_${bg}_${fg}_${w}`, w, (g) => {
     g.canvas.height = h;
     g.fillStyle = bg;
@@ -116,8 +119,16 @@ export function signTex(text: string, bg: string, fg: string, w = 512, h = 128):
     g.font = `bold ${Math.round(h * 0.46)}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
     let size = Math.round(h * 0.46);
-    while (g.measureText(text).width > w - 40 && size > 14) { size -= 2; g.font = `bold ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`; }
-    g.fillText(text, w / 2, h / 2 + 2);
+    while (g.measureText(body).width > w - (badge ? 120 : 40) && size > 14) { size -= 2; g.font = `bold ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`; }
+    g.fillText(body, w / 2, h / 2 + 2);
+    // 角标：「企」= 有营业执照的公司；「赞」= 黄金位赞助商
+    if (badge) {
+      g.fillStyle = badge === '企' ? '#C0533A' : '#B8860B';
+      g.beginPath(); g.moveTo(4, 4); g.lineTo(h * 0.95, 4); g.lineTo(4, h * 0.95); g.closePath(); g.fill();
+      g.fillStyle = '#FFFFFF';
+      g.font = `bold ${Math.round(h * 0.3)}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`;
+      g.fillText(badge, h * 0.27, h * 0.3);
+    }
   }, false);
 }
 

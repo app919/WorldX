@@ -1,6 +1,6 @@
 /**
  * 打包可下载的游戏：
- *   release/三邻邦-<版本>.zip
+ *   release/三邻邦-OPC-Town-<版本>.zip
  *     ├─ 三邻邦.html   双击即可在浏览器里离线游玩（单文件，所有代码与资源已内嵌）
  *     ├─ 使用说明.txt
  *     └─ source/              完整源码（不含 node_modules），可二次开发
@@ -15,7 +15,7 @@ const root = resolve(import.meta.dirname, '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const out = join(root, 'release');
 const stage = join(out, 'stage');
-const name = `三邻邦-v${pkg.version}`;
+const name = `三邻邦-OPC-Town-v${pkg.version}`;
 
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
@@ -38,8 +38,12 @@ for (const entry of readdirSync(root)) {
   });
 }
 
+// 测试链路、需求核对与最近一次自检报告（截图 + 结果）
+cpSync(join(root, 'docs', 'TEST_GUIDE.md'), join(stage, '测试链路与检验标准.md'));
+cpSync(join(root, 'docs', 'REQUIREMENTS_CHECK.md'), join(stage, '需求核对.md'));
+if (existsSync(join(root, 'e2e', 'playtest'))) cpSync(join(root, 'e2e', 'playtest'), join(stage, '自检报告'), { recursive: true });
 console.log('3/4 写使用说明…');
-writeFileSync(join(stage, '使用说明.txt'), `三邻邦 · SANLINBANG  v${pkg.version}
+writeFileSync(join(stage, '使用说明.txt'), `三邻邦（OPC Town）  v${pkg.version}
 在上海，逛着逛着，就可能找到下一位客户。
 
 【直接玩】

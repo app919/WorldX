@@ -72,7 +72,7 @@ export interface AreaDef {
 }
 
 export interface PropDef {
-  kind: 'bench' | 'hydrant' | 'bin' | 'lamp' | 'mailbox' | 'bus_stop' | 'fitness' | 'planter' | 'poem_wall' | 'stall' | 'umbrella_table' | 'bike' | 'car' | 'tree' | 'shrub';
+  kind: 'street_sign' | 'manhole' | 'bench' | 'hydrant' | 'bin' | 'lamp' | 'mailbox' | 'bus_stop' | 'fitness' | 'planter' | 'poem_wall' | 'stall' | 'umbrella_table' | 'bike' | 'car' | 'tree' | 'shrub';
   p: V2;
   rot?: number;
   species?: TreeSpecies;

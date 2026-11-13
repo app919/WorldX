@@ -9,13 +9,14 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Group, Vector3 } from 'three';
-import { Chibi } from './Chibi';
+import { Chibi, GhostChibi } from './Chibi';
 import { compiledOf, navOf, streetOfDoor } from '../world';
 import { Zone } from '../world/nav';
 import { RESIDENTS } from '../data/seed';
 import { playerRuntime, residentAnchor, useTown } from '../store/useTown';
 import { input } from './input';
-import { dist } from '../world/geom';
+import { hitsCar, trafficRuntime } from '../world/traffic';
+import { dist, inOBB, inPolygon } from '../world/geom';
 
 const WALK = 4.4;
 const RUN = 7.6;
@@ -35,6 +36,7 @@ export function Player() {
   const pathIdx = useRef(0);
   const lastDoor = useRef<string | null>(null);
   const roadHint = useRef(0);
+  const ghost = useRef<Group | null>(null);
   const { camera, gl } = useThree();
   const camTarget = useRef(new Vector3(avatar.position.x, 0, avatar.position.z));
 
@@ -87,7 +89,9 @@ export function Player() {
       const speed = (run ? RUN : WALK) * Math.min(1, len);
       const from = { x: playerRuntime.x, z: playerRuntime.z };
       const to = { x: from.x + (dx / len) * speed * dt, z: from.z + (dz / len) * speed * dt };
-      const res = nav.move(from, to);
+      let res = nav.move(from, to);
+      // 不能穿过车辆：车在斑马线上时会被挡住
+      if (hitsCar(trafficRuntime.tr, res.p)) res = { p: from, hit: true };
       if (res.hit && manual && now > playerRuntime.bumpUntil) {
         const z = nav.zoneAt(to);
         if (z === Zone.Obstacle) { playerRuntime.bumpUntil = now + 0.7; s.fxPush({ kind: 'bonk', from: to }); }
@@ -131,6 +135,16 @@ export function Player() {
         }
       }
       if (!door) lastDoor.current = null;
+      // 被建筑挡住了吗？沿视线（每向镜头方向 1 个单位升高约 1.8）检查建筑占地与高度
+      if (ghost.current) {
+        let hidden = false;
+        for (let d = 1; d <= 16 && !hidden; d += 0.8) {
+          const p = { x: playerRuntime.x, z: playerRuntime.z + d * 0.48 };
+          const h = 1.2 + d * 0.48 * 1.82;
+          hidden = cd.def.buildings.some((b) => (b.polygon ? inPolygon(b.polygon, p) : inOBB(b.box!, p)) && (b.kind === 'wukang_mansion' ? 11 : b.floors * 1.35 + 2) > h);
+        }
+        ghost.current.visible = hidden;
+      }
       // 靠近地标打卡
       for (const b of cd.def.buildings.filter((x) => x.archiveId)) {
         const c = b.polygon ? b.polygon[4] : { x: b.box!.cx, z: b.box!.cz };
@@ -155,6 +169,7 @@ export function Player() {
     <>
       <group ref={group} position={[avatar.position.x, 0.16, avatar.position.z]}>
         <Chibi look={avatar.look} movingRef={moving} happyRef={happy} />
+        <GhostChibi look={avatar.look} movingRef={moving} happyRef={happy} groupRef={ghost} />
         <Html position={[0, 2.3, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
           <div className="whitespace-nowrap rounded-full bg-almond-300 px-2 py-0.5 text-[11px] font-bold text-cocoa-800 shadow-soft">我 · {avatar.nickname}</div>
         </Html>

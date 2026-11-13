@@ -1,14 +1,13 @@
 /** 街道家具与生活资产：路灯、长椅、消防栓、垃圾桶、共享单车、花箱、邮筒、公交站、健身器材、摊位、停放车辆、情诗墙诗牌 */
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { Group } from 'three';
+import { MeshStandardMaterial, type Group } from 'three';
 import { playerRuntime } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { RoundedBox } from '@react-three/drei';
-import { MeshStandardMaterial } from 'three';
 import type { PropDef } from '../world/types';
 import { mats } from './materials';
-import { signTex } from './textures';
+import { signTex, streetPlateTex } from './textures';
 
 /** 街道家具按 30×30 的区块分组，远离角色的区块不绘制 */
 export function Props({ props }: { props: PropDef[] }) {
@@ -138,7 +137,16 @@ function PropModel({ p }: { p: PropDef }) {
         </group>
       );
     case 'car':
-      return <Car color={p.color ?? '#F2D99B'} />;
+      return <Car color={p.color ?? '#F2D99B'} seed={Math.round(p.p.x * 7 + p.p.z * 3)} />;
+    case 'street_sign':
+      return <StreetSign text={p.text ?? ''} />;
+    case 'manhole':
+      return (
+        <mesh position-y={-0.1 + 0.002} rotation-x={-Math.PI / 2}>
+          <circleGeometry args={[0.55, 20]} />
+          <meshStandardMaterial color="#6E6A66" roughness={0.55} metalness={0.4} />
+        </mesh>
+      );
     case 'poem_wall':
       return <PoemPlaque text={p.text ?? ''} />;
     default:
@@ -167,19 +175,55 @@ const paintOf = (c: string) => {
   return carPaint.get(c)!;
 };
 
-/** 圆润的小车：局部 z 轴为车头方向 */
-export function Car({ color }: { color: string }) {
+const PLATE_LETTERS = 'ABCDEFGHJKLMN';
+const tailMat = new MeshStandardMaterial({ color: '#B8322B', emissive: '#E0473C', emissiveIntensity: 0.35, roughness: 0.4 });
+const chrome = new MeshStandardMaterial({ color: '#D9DDE0', metalness: 0.85, roughness: 0.2 });
+const tyre = new MeshStandardMaterial({ color: '#2C2B2A', roughness: 0.9 });
+const rim = new MeshStandardMaterial({ color: '#BFC3C6', metalness: 0.7, roughness: 0.3 });
+
+/**
+ * 小汽车（局部 z 轴为车头方向）：车身、轮拱、四面车窗、前大灯与尾灯、后视镜、上海蓝色车牌（虚构号码）。
+ * wheelSpin / brake 由交通系统驱动，让车轮转动、刹车灯亮起。
+ */
+export function Car({ color, seed = 1, wheelsRef, brakeRef }: { color: string; seed?: number; wheelsRef?: React.MutableRefObject<Group[]>; brakeRef?: React.MutableRefObject<MeshStandardMaterial | null> }) {
   const M = mats();
   const paint = paintOf(color);
+  const plate = useMemo(() => signTex(`沪${PLATE_LETTERS[Math.abs(seed) % PLATE_LETTERS.length]}·${String(10000 + (Math.abs(seed * 7919) % 89999)).slice(0, 5)}`, '#1F4E8C', '#FFFFFF', 256, 80), [seed]);
+  const tail = useMemo(() => (brakeRef ? tailMat.clone() : tailMat), [brakeRef]);
+  if (brakeRef) brakeRef.current = tail;
+  const W = 1.86, L = 4.2;
   return (
     <group>
-      <RoundedBox args={[1.9, 0.75, 4.1]} radius={0.32} smoothness={3} position-y={0.62} material={paint} castShadow />
-      <RoundedBox args={[1.6, 0.62, 2.3]} radius={0.28} smoothness={3} position={[0, 1.18, -0.25]} material={M.glass} castShadow />
-      <RoundedBox args={[1.66, 0.12, 2.1]} radius={0.05} position={[0, 1.5, -0.25]} material={paint} />
-      {[[-0.85, 1.35], [0.85, 1.35], [-0.85, -1.35], [0.85, -1.35]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.32, z]} rotation-z={Math.PI / 2} material={M.frameDark}><cylinderGeometry args={[0.32, 0.32, 0.26, 14]} /></mesh>
+      {/* 车身下半部 */}
+      <RoundedBox args={[W, 0.62, L]} radius={0.22} smoothness={3} position-y={0.6} material={paint} castShadow receiveShadow />
+      {/* 车舱：前窄后宽的斜面感用两个圆角块叠出 */}
+      <RoundedBox args={[W - 0.22, 0.58, 2.2]} radius={0.24} smoothness={3} position={[0, 1.12, -0.2]} material={paint} castShadow />
+      {/* 车窗：前挡、后挡、两侧 */}
+      <mesh position={[0, 1.15, 0.92]} rotation-x={-0.5} material={M.glass}><planeGeometry args={[W - 0.42, 0.62]} /></mesh>
+      <mesh position={[0, 1.15, -1.32]} rotation={[0.5, Math.PI, 0]} material={M.glass}><planeGeometry args={[W - 0.42, 0.55]} /></mesh>
+      {[1, -1].map((sg) => (
+        <mesh key={sg} position={[sg * (W / 2 - 0.1), 1.17, -0.2]} rotation-y={sg * Math.PI / 2} material={M.glass}><planeGeometry args={[1.9, 0.4]} /></mesh>
       ))}
-      {[-0.6, 0.6].map((x) => <mesh key={x} position={[x, 0.72, 2.06]} material={M.lampHead}><sphereGeometry args={[0.12, 8, 8]} /></mesh>)}
+      {/* 轮拱与车轮 */}
+      {[[-1, 1.32], [1, 1.32], [-1, -1.32], [1, -1.32]].map(([sx, z], i) => (
+        <group key={i} position={[sx * (W / 2 - 0.12), 0.34, z]}>
+          <mesh rotation-z={Math.PI / 2} material={M.frameDark} position-x={sx * 0.03}><cylinderGeometry args={[0.42, 0.42, 0.2, 18, 1, true, 0, Math.PI]} /></mesh>
+          <group ref={(g) => { if (g && wheelsRef) wheelsRef.current[i] = g; }}>
+            <mesh rotation-z={Math.PI / 2} material={tyre} castShadow><cylinderGeometry args={[0.34, 0.34, 0.24, 18]} /></mesh>
+            <mesh rotation-z={Math.PI / 2} position-x={sx * 0.125} material={rim}><cylinderGeometry args={[0.2, 0.2, 0.02, 12]} /></mesh>
+            <mesh position={[sx * 0.13, 0.12, 0]} material={chrome}><boxGeometry args={[0.02, 0.08, 0.14]} /></mesh>
+          </group>
+        </group>
+      ))}
+      {/* 前大灯、格栅、尾灯 */}
+      {[-0.62, 0.62].map((x) => <mesh key={x} position={[x, 0.72, L / 2 - 0.02]} material={M.lampHead}><boxGeometry args={[0.38, 0.16, 0.06]} /></mesh>)}
+      <mesh position={[0, 0.58, L / 2 - 0.01]} material={chrome}><boxGeometry args={[0.7, 0.12, 0.04]} /></mesh>
+      {[-0.66, 0.66].map((x) => <mesh key={x} position={[x, 0.76, -L / 2 + 0.01]} material={tail}><boxGeometry args={[0.34, 0.14, 0.05]} /></mesh>)}
+      {/* 车牌 */}
+      <mesh position={[0, 0.48, L / 2 + 0.02]}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
+      <mesh position={[0, 0.5, -L / 2 - 0.02]} rotation-y={Math.PI}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
+      {/* 后视镜 */}
+      {[1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.08), 1.0, 0.75]} material={paint}><boxGeometry args={[0.16, 0.12, 0.2]} /></mesh>)}
     </group>
   );
 }
@@ -189,6 +233,29 @@ function PoemPlaque({ text }: { text: string }) {
   return (
     <group position-y={0.95}>
       <mesh><planeGeometry args={[5.2, 0.95]} /><meshStandardMaterial map={tex} roughness={0.7} /></mesh>
+    </group>
+  );
+}
+
+/** 路名牌：立柱 + 两块互相垂直的蓝牌（正在过的路 / 脚下这条路），两面都能看 */
+function StreetSign({ text }: { text: string }) {
+  const M = mats();
+  const [a, b] = text.split('|');
+  const ta = useMemo(() => streetPlateTex(a), [a]);
+  const tb = useMemo(() => (b ? streetPlateTex(b) : null), [b]);
+  return (
+    <group>
+      <mesh material={M.metal} position-y={1.35} castShadow><cylinderGeometry args={[0.05, 0.06, 2.7, 8]} /></mesh>
+      <mesh position={[0, 2.62, 0]}><boxGeometry args={[0.06, 0.6, 1.9]} /><meshStandardMaterial color="#1F4E8C" /></mesh>
+      <mesh position={[0.035, 2.62, 0]} rotation-y={Math.PI / 2}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={ta} /></mesh>
+      <mesh position={[-0.035, 2.62, 0]} rotation-y={-Math.PI / 2}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={ta} /></mesh>
+      {tb && (
+        <group position-y={2.0}>
+          <mesh><boxGeometry args={[1.9, 0.6, 0.06]} /><meshStandardMaterial color="#1F4E8C" /></mesh>
+          <mesh position-z={0.035}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={tb} /></mesh>
+          <mesh position-z={-0.035} rotation-y={Math.PI}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={tb} /></mesh>
+        </group>
+      )}
     </group>
   );
 }

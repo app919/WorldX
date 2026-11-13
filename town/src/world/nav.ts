@@ -94,11 +94,14 @@ export class NavGrid {
 
   /** 网格视线检测（用于路径平滑） */
   lineWalkable(a: V2, b: V2): boolean {
+    // 采样足够密，并在两侧各留 0.12 的余量，避免平滑后的路径擦着障碍物的角走（会卡住）
     const d = dist(a, b);
-    const n = Math.ceil(d / (this.cell * 0.5));
+    const n = Math.ceil(d / (this.cell * 0.25));
+    const ux = (b.x - a.x) / (d || 1), uz = (b.z - a.z) / (d || 1);
     for (let k = 1; k <= n; k++) {
       const t = k / n;
-      if (!this.walkable({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t })) return false;
+      const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+      if (!this.walkable({ x, z }) || !this.walkable({ x: x - uz * 0.12, z: z + ux * 0.12 }) || !this.walkable({ x: x + uz * 0.12, z: z - ux * 0.12 })) return false;
     }
     return true;
   }

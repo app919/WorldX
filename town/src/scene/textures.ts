@@ -131,3 +131,44 @@ export function paintTex(text: string): Texture {
     g.fillText(text, s / 2, s / 2 + 4);
   }, false);
 }
+
+/** 路面路名：白色半透明喷涂字，带一点磨损 */
+export function roadNameTex(text: string): Texture {
+  return make(`roadname_${text}`, 512, (g) => {
+    g.canvas.height = 112;
+    g.clearRect(0, 0, 512, 112);
+    g.fillStyle = 'rgba(255,255,255,0.86)';
+    let size = 76;
+    g.font = `900 ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`;
+    while (g.measureText(text).width > 490 && size > 30) { size -= 4; g.font = `900 ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`; }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, 256, 58);
+    // 磨损
+    g.globalCompositeOperation = 'destination-out';
+    const R = rng(text.length * 31);
+    for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${0.3 + R() * 0.5})`; g.fillRect(R() * 512, R() * 112, 2 + R() * 3, 2 + R() * 3); }
+    g.globalCompositeOperation = 'source-over';
+  }, false);
+}
+
+const ROAD_EN: Record<string, string> = {
+  淮海中路: 'Middle Huaihai Rd.', 武康路: 'Wukang Rd.', 天平路: 'Tianping Rd.', 兴国路: 'Xingguo Rd.', 安福路: 'Anfu Rd.',
+  四川北路: 'N. Sichuan Rd.', 甜爱路: "Tian'ai Rd.", 山阴路: 'Shanyin Rd.', 横浜路: 'Hengbang Rd.',
+};
+
+/** 上海样式的蓝底白字路名牌（附英文路名，示意道路不写英文） */
+export function streetPlateTex(name: string): Texture {
+  const clean = name.replace('（示意）', '');
+  return make(`plate_${name}`, 512, (g) => {
+    g.canvas.height = 160;
+    g.fillStyle = '#1F4E8C'; g.beginPath(); g.roundRect(0, 0, 512, 160, 14); g.fill();
+    g.strokeStyle = '#FFFFFF'; g.lineWidth = 6; g.beginPath(); g.roundRect(9, 9, 494, 142, 10); g.stroke();
+    g.fillStyle = '#FFFFFF'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    let size = 70;
+    g.font = `bold ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`;
+    while (g.measureText(clean).width > 450 && size > 30) { size -= 4; g.font = `bold ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`; }
+    const en = ROAD_EN[clean];
+    g.fillText(clean, 256, en ? 64 : 82);
+    if (en) { g.font = '600 30px "Helvetica Neue",Arial,sans-serif'; g.fillText(en, 256, 122); }
+  }, false);
+}

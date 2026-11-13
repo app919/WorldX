@@ -9,6 +9,7 @@ import { AgentChat } from './ui/AgentChat';
 import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
+import { MiniMap } from './ui/MiniMap';
 
 const CityScene = lazy(() => import('./scene/CityScene').then((m) => ({ default: m.CityScene })));
 
@@ -28,6 +29,7 @@ export default function App() {
             <TopBar />
             <DistrictSwitcher />
             <Coach />
+            <MiniMap />
             <Controls />
             <CityCards />
             {tab === 'biz' && <MyBusiness />}

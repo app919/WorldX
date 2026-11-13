@@ -3,7 +3,9 @@
  * - 主理人 / 自由职业者（可点击，查看公开介绍、打招呼）：在自己的店门口或所在街区附近活动；
  * - 路人（氛围角色，不可交互）：沿人行道和斑马线，用同一套导航规则散步，绝不会穿墙或横穿马路。
  */
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { crosswalkBusy, hitsCar, trafficRuntime } from '../world/traffic';
+import { inOBB } from '../world/geom';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { Group } from 'three';
@@ -87,6 +89,8 @@ const WALKER_LOOKS: AvatarLook[] = [
 ];
 
 function Walker({ district, seed }: { district: DistrictKey; seed: number }) {
+  const key = `walker-${seed}`;
+  useEffect(() => () => { trafficRuntime.peds.delete(key); }, [key]);
   const nav = navOf(district);
   const R = useMemo(() => rng(seed * 991 + district.length), [seed, district]);
   const look = WALKER_LOOKS[seed % WALKER_LOOKS.length];
@@ -111,8 +115,16 @@ function Walker({ district, seed }: { district: DistrictKey; seed: number }) {
       const tgt = s.path[Math.min(s.i, s.path.length - 1)];
       const dx = tgt.x - s.p.x, dz = tgt.z - s.p.z, L = Math.hypot(dx, dz);
       if (L < 0.2) { s.i++; if (s.i >= s.path.length) s.path = []; }
-      else { s.p.x += (dx / L) * 1.6 * dt; s.p.z += (dz / L) * 1.6 * dt; moving.current = 1; if (g.current) g.current.rotation.y = Math.atan2(dx, dz); }
+      else {
+        const next = { x: s.p.x + (dx / L) * 1.6 * dt, z: s.p.z + (dz / L) * 1.6 * dt };
+        // 过马路前看一眼：斑马线上有车就等一等；也不会穿过车辆
+        const cw = nav.cd.crosswalks.find((c) => inOBB(c.box, next, 0.2));
+        const wait = (cw && !inOBB(cw.box, s.p, 0) && crosswalkBusy(trafficRuntime.tr, cw.box)) || hitsCar(trafficRuntime.tr, next);
+        if (wait) moving.current = 0;
+        else { s.p = next; moving.current = 1; if (g.current) g.current.rotation.y = Math.atan2(dx, dz); }
+      }
     }
+    trafficRuntime.peds.set(key, s.p);
     g.current?.position.set(s.p.x, 0.16, s.p.z);
   });
   return <group ref={g}><Chibi look={look} movingRef={moving} scale={0.85} /></group>;

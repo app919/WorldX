@@ -1,44 +1,55 @@
 /**
- * 车辆：只在机动车道上按车道方向行驶（右侧通行），不会开上人行道；
- * 前方斑马线上有人时会礼让停车。
+ * 车辆渲染：由 world/traffic.ts 的交通仿真驱动（跟车、路口让行、转弯、礼让斑马线行人）。
+ * 渲染位置平滑跟随仿真位置（转弯并线时平滑过渡，不会瞬移），车轮按速度转动，减速时刹车灯亮。
  */
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { Group } from 'three';
+import type { Group, MeshStandardMaterial } from 'three';
 import type { CompiledDistrict } from '../world/build';
-import { dist, inOBB } from '../world/geom';
+import { carPos, createTraffic, stepTraffic, trafficRuntime, type Car as SimCar } from '../world/traffic';
 import { Car } from './Props';
 import { playerRuntime } from '../store/useTown';
-
-const COLORS = ['#F2D99B', '#9DB6CA', '#F7F3EA', '#C98068', '#A9C2A0', '#E6A3A7', '#6F8BA4'];
+import { LOW_GFX } from './quality';
 
 export function Traffic({ cd }: { cd: CompiledDistrict }) {
-  const cars = useMemo(() => cd.lanes.flatMap((lane, li) => {
-    const L = dist(lane.from, lane.to);
-    const n = Math.max(1, Math.floor(L / 45));
-    return Array.from({ length: n }, (_, k) => ({ lane, t0: (k / n) * L + li * 7, color: COLORS[(li * 3 + k) % COLORS.length], speed: 5 + ((li + k) % 3) }));
-  }), [cd]);
-  return <group>{cars.map((c, i) => <MovingCar key={i} {...c} cd={cd} />)}</group>;
+  const tr = useMemo(() => createTraffic(cd, LOW_GFX ? 0.6 : 1), [cd]);
+  useEffect(() => {
+    trafficRuntime.tr = tr;
+    return () => { if (trafficRuntime.tr === tr) trafficRuntime.tr = null; };
+  }, [tr]);
+  useFrame((_, dt) => {
+    trafficRuntime.peds.set('player', { x: playerRuntime.x, z: playerRuntime.z });
+    stepTraffic(tr, Math.min(dt, 0.05), [...trafficRuntime.peds.values()]);
+  });
+  return <group>{tr.cars.map((c) => <MovingCar key={c.id} car={c} tr={tr} />)}</group>;
 }
 
-function MovingCar({ lane, t0, color, speed, cd }: { lane: CompiledDistrict['lanes'][number]; t0: number; color: string; speed: number; cd: CompiledDistrict }) {
+function MovingCar({ car, tr }: { car: SimCar; tr: ReturnType<typeof createTraffic> }) {
   const g = useRef<Group>(null);
-  const s = useRef({ t: t0, v: speed });
-  const L = dist(lane.from, lane.to);
-  const rot = Math.atan2(lane.dir.x, lane.dir.z);
+  const wheels = useRef<Group[]>([]);
+  const brake = useRef<MeshStandardMaterial | null>(null);
+  const vis = useRef({ x: 0, z: 0, yaw: 0, init: false, spin: 0 });
   useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
-    const st = s.current;
-    const pos = (t: number) => ({ x: lane.from.x + lane.dir.x * t, z: lane.from.z + lane.dir.z * t });
-    // 礼让行人：前方 2–7 单位内的斑马线上有玩家
-    const ahead = [3, 5, 7].map((d) => pos(st.t + d));
-    const yieldNow = cd.crosswalks.some((cw) => inOBB(cw.box, playerRuntime, 0.6) && ahead.some((p) => inOBB(cw.box, p, 0.2)));
-    const target = yieldNow ? 0 : speed;
-    st.v += (target - st.v) * Math.min(1, dt * (yieldNow ? 4 : 1.2));
-    st.t += st.v * dt;
-    if (st.t > L + 6) st.t = -6;
-    const p = pos(st.t);
-    g.current?.position.set(p.x, 0, p.z);
+    if (!g.current) return;
+    g.current.visible = !car.hidden;
+    if (car.hidden) { vis.current.init = false; return; }
+    const lane = tr.lanes[car.lane];
+    const p = carPos(tr, car);
+    const yaw = Math.atan2(lane.dir.x, lane.dir.z);
+    const v = vis.current;
+    if (!v.init) { v.x = p.x; v.z = p.z; v.yaw = yaw; v.init = true; }
+    // 平滑跟随：直行时几乎贴合，转弯并线时约 0.4 秒内平滑过渡
+    const k = Math.min(1, dt * 7);
+    v.x += (p.x - v.x) * k; v.z += (p.z - v.z) * k;
+    let dy = yaw - v.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    v.yaw += dy * Math.min(1, dt * 5);
+    g.current.position.set(v.x, 0, v.z);
+    g.current.rotation.y = v.yaw;
+    // 车轮滚动（半径约 0.34）
+    v.spin += (car.v * dt) / 0.34;
+    for (const w of wheels.current) if (w) w.rotation.x = v.spin;
+    if (brake.current) brake.current.emissiveIntensity = car.braking ? 2.2 : 0.35;
   });
-  return <group ref={g} rotation-y={rot}><Car color={color} /></group>;
+  return <group ref={g}><Car color={car.color} seed={car.seed} wheelsRef={wheels} brakeRef={brake} /></group>;
 }

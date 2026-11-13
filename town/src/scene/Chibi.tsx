@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { Group } from 'three';
+import { MeshBasicMaterial, type Group, type Mesh } from 'three';
 import type { AvatarLook } from '../domain/types';
 
 /**
@@ -213,3 +213,22 @@ function Accessory({ kind }: { kind: AvatarLook['accessory'] }) {
       return null;
   }
 }
+
+/**
+ * 透视轮廓：角色被建筑挡住时，以半透明的柔和轮廓显示（不改变建筑，不会闪烁）。
+ * 与正常角色共用同一套动画引用，叠加在其上方渲染、忽略深度测试。
+ */
+export function GhostChibi(props: Parameters<typeof Chibi>[0] & { groupRef?: React.MutableRefObject<Group | null> }) {
+  const g = useRef<Group | null>(null);
+  const { groupRef, ...rest } = props;
+  useLayoutEffect(() => {
+    g.current?.traverse((o) => {
+      const m = o as Mesh;
+      if (m.isMesh) { m.material = GHOST; m.renderOrder = 999; m.castShadow = false; m.receiveShadow = false; }
+    });
+  });
+  return <group ref={(el) => { g.current = el; if (groupRef) groupRef.current = el; }} visible={false}><Chibi {...rest} /></group>;
+}
+
+// 只在角色被建筑挡住时显示（由 Player 根据建筑数据判断），叠加在最上层
+const GHOST = new MeshBasicMaterial({ color: '#3A2618', transparent: true, opacity: 0.82, depthWrite: false, depthTest: false, toneMapped: false, fog: false });

@@ -77,23 +77,15 @@ export function Buildings({ def }: { def: DistrictDef }) {
 }
 
 /**
- * 前景建筑剖切：位于镜头与角色之间的建筑会柔和地“压低”，避免遮挡角色（微缩模型常用的展示方式）。
+ * 距离剔除：远处的建筑不绘制（只在镜头视野之外发生，不会看到“闪烁”）。
+ * 之前的“前景建筑自动压低”会在角色走过时让建筑反复升降，造成闪烁，已移除；
+ * 被建筑挡住时，角色会以半透明轮廓显示（见 Player）。
  */
-function Cutaway({ cx, cz, reach, height, children }: { cx: number; cz: number; reach: number; height: number; children: React.ReactNode }) {
+function Cutaway({ cx, cz, reach, children }: { cx: number; cz: number; reach: number; height?: number; children: React.ReactNode }) {
   const g = useRef<Group>(null);
-  useFrame((_, dt) => {
+  useFrame(() => {
     if (!g.current) return;
-    // 远处的建筑不绘制（距离剔除），保证大地图流畅
-    const far = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) > DRAW_DIST + reach;
-    g.current.visible = !far;
-    if (far) return;
-    // 镜头在角色南侧上方（高 40、后退 22）：视线每水平后退 1 单位升高约 1.8 单位
-    const dz = cz - playerRuntime.z, dx = Math.abs(cx - playerRuntime.x);
-    const near = Math.max(0, dz - reach);
-    const front = dz > 0 && dx < reach + 1.2 && near * 1.8 < height + 1.5;
-    const target = front ? 0.18 : 1;
-    const y = g.current.scale.y + (target - g.current.scale.y) * Math.min(1, dt * 6);
-    g.current.scale.set(1, y, 1);
+    g.current.visible = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) < DRAW_DIST + reach;
   });
   return <group ref={g}>{children}</group>;
 }

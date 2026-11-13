@@ -248,6 +248,37 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
       }
     }
   }
+  // 路名牌：每条斑马线两端各一块（标出“正在过的路”和“脚下这条路”），以及路段中间每 70 个单位一块
+  const roadAt = (p: V2, except?: RoadDef) => sidewalks.find((x) => x.road !== except && inOBB(x.box, p))?.road;
+  const signOk = (p: V2) => !inCarriage(p, 0.2) && !inCrosswalk(p, 0.6) && !inBuilding(p, 0.6) && !nearDoor(p, 1.4)
+    && !props.some((q) => dist(q.p, p) < 1.3);
+  for (const cw of crosswalks) {
+    const u = roadDir(cw.road), n = leftOf(u);
+    for (const sg of [1, -1]) {
+      for (const along of [cw.box.w / 2 + 0.9, -(cw.box.w / 2 + 0.9)]) {
+        const p = add(add(cw.center, mul(n, sg * (cw.road.carriage / 2 + 0.45))), mul(u, along));
+        if (!signOk(p)) continue;
+        const walking = roadAt(p, cw.road);
+        props.push({ kind: 'street_sign', p, rot: Math.atan2(u.x, u.z), text: walking ? `${cw.road.name}|${walking.name}` : cw.road.name });
+        break;
+      }
+    }
+  }
+  for (const r of def.roads) {
+    const u = roadDir(r), L = roadLen(r);
+    for (let s = 35; s < L - 20; s += 70) {
+      for (const side of [1, -1]) {
+        const p = add(roadPoint(r, s), mul(leftOf(u), side * (r.carriage / 2 + 0.45)));
+        if (signOk(p) && !props.some((q) => q.kind === 'street_sign' && dist(q.p, p) < 25)) { props.push({ kind: 'street_sign', p, rot: Math.atan2(u.x, u.z), text: r.name }); break; }
+      }
+    }
+    // 井盖：车道中线附近，每 38 个单位一个
+    for (let s = 19; s < L - 5; s += 38) {
+      const p = add(roadPoint(r, s), mul(leftOf(u), r.carriage / 4));
+      if (!def.roads.some((o) => o !== r && inOBB(segmentOBB(o.a, o.b, o.carriage), p, 0.5)) && !inCrosswalk(p, 1)) props.push({ kind: 'manhole', p });
+    }
+  }
+
   // 停车位里的车
   for (const a of def.areas.filter((x) => x.kind === 'parking' && x.box)) {
     const o = a.box!;
@@ -258,7 +289,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
   // 碰撞体
   const obstacles: Obstacle[] = [];
   for (const p of props) {
-    const r = p.kind === 'tree' ? 0.75 : p.kind === 'lamp' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45
+    const r = p.kind === 'tree' ? 0.75 : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45
       : p.kind === 'fitness' ? 0.9 : p.kind === 'stall' ? 1.4 : p.kind === 'shrub' ? 0.7 : p.kind === 'umbrella_table' ? 1.0 : 0;
     if (r) obstacles.push({ kind: p.kind, p: p.p, r });
     if (p.kind === 'bench') obstacles.push({ kind: 'bench', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.8, rot: p.rot ?? 0 } });

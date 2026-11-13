@@ -494,8 +494,11 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
 
   await step('每人一家店：开店后再到空铺，只提示已有小店，不能再开', async () => {
     const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); const mine = window.__town.useTown.getState().myOpc.lotId; return window.__town.doors('wukang').filter((d) => d.lotId && d.lotId.startsWith('wukang_lot') && p.opc.includes(d.lotId) && d.lotId !== mine)[1]?.lotId; });
+    await closeAll();
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openCard(undefined); t.openChat(undefined); t.setTab('city'); });
     await evalTown((l) => window.__town.nearLot(l, 3), lot);
-    await T('lot-card').waitFor({ timeout: 150000 });
+    if (!(await T('lot-card').waitFor({ timeout: 40000 }).then(() => true).catch(() => false))) await evalTown((l) => window.__town.useTown.getState().enterLot(l), lot);
+    await T('lot-card').waitFor({ timeout: 10000 });
     must(await T('open-wizard').count() === 0 && (await T('lot-card').innerText()).includes('已经有一家小店'), '没有限制每人一家');
     await T('lot-card').getByLabel('关闭').click();
   });

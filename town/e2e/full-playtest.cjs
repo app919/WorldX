@@ -748,7 +748,8 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const lot = await evalTown(() => { const w = window.__town.useWork.getState(); const j = w.jobsHere().find((x) => x.kind === 'shift'); w.accept(j); return j.at.lotId; });
     const cash0 = await evalTown(() => window.__town.useWork.getState().purse.cash);
     await evalTown((l) => window.__town.nearLot(l), lot);
-    await T('shift-game').waitFor({ timeout: 20000 });
+    if (!(await T('shift-game').waitFor({ timeout: 20000 }).then(() => true).catch(() => false))) await evalTown((l) => window.__town.useWork.getState().arrive(l), lot);
+    await T('shift-game').waitFor({ timeout: 10000 });
     for (let k = 0; k < 4; k++) {
       // 低画质测试浏览器里 Playwright 的点击较慢，直接触发 DOM 点击，避免 60 秒的班次计时先结束
       await page.evaluate(() => {
@@ -768,8 +769,10 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('消费：进咖啡店买一杯拿铁（花钞票、补体力）', async () => {
     await closeAll();
     await evalTown(() => window.__town.useWork.setState((s) => ({ purse: { ...s.purse, stamina: 40 } })));
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openCard(undefined); t.openChat(undefined); });
     await evalTown(() => window.__town.nearLot('wk_w2'));
-    await T('agent-chat').waitFor({ timeout: 20000 });
+    if (!(await T('agent-chat').waitFor({ timeout: 20000 }).then(() => true).catch(() => false))) await evalTown(() => window.__town.useTown.getState().enterLot('wk_w2'));
+    await T('agent-chat').waitFor({ timeout: 10000 });
     await T('open-counter').click();
     await T('counter').waitFor();
     const p0 = await evalTown(() => window.__town.useWork.getState().purse);

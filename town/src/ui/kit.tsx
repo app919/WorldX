@@ -65,7 +65,7 @@ export function Avatar({ color, hair, label, size = 36 }: { color: string; hair?
  */
 export function Drawer({ title, subtitle, onClose, children, testId, wide }: { title: ReactNode; subtitle?: ReactNode; onClose?: () => void; children: ReactNode; testId?: string; wide?: boolean }) {
   return (
-    <div className={`pointer-events-none absolute inset-x-0 bottom-[5.2rem] z-20 flex max-h-[58%] md:inset-x-auto md:bottom-24 md:right-3 md:top-24 md:max-h-none ${wide ? 'md:w-[30rem]' : 'md:w-[26rem]'}`}>
+    <div className={`pointer-events-none absolute inset-x-0 bottom-[5.2rem] z-20 flex max-h-[58%] md:inset-x-auto md:bottom-24 md:right-3 md:top-[10.5rem] md:max-h-none ${wide ? 'md:w-[30rem]' : 'md:w-[26rem]'}`}>
       <Panel testId={testId} title={title} subtitle={subtitle} onClose={onClose} className="w-full rounded-b-none md:rounded-b-blob">{children}</Panel>
     </div>
   );

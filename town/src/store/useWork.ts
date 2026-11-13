@@ -34,6 +34,9 @@ export function placeOfLot(lotId: string) {
 }
 
 interface WorkState {
+  /** 「街区生活」小游戏开关（打工挣游戏钞票 / 小店消费），与商业撮合完全分开 */
+  enabled: boolean;
+  setEnabled(v: boolean): void;
   purse: Purse;
   active?: ActiveJob;
   boardOpen: boolean;
@@ -61,6 +64,7 @@ interface WorkState {
 export const useWork = create<WorkState>()(
   persist(
     (set, get) => ({
+      enabled: true, setEnabled: (enabled) => set({ enabled, boardOpen: false, shift: undefined, counter: undefined }),
       purse: emptyPurse(), boardOpen: false, doneToday: [], day: today(),
 
       openBoard: (boardOpen) => set({ boardOpen }),
@@ -131,6 +135,6 @@ export const useWork = create<WorkState>()(
       },
       restTick: (sec) => set((s) => (s.purse.stamina >= 100 ? {} : { purse: rest(s.purse, sec) })),
     }),
-    { name: 'opc-town-work', version: 1, partialize: (s) => ({ purse: s.purse, active: s.active, doneToday: s.doneToday, day: s.day }) },
+    { name: 'opc-town-work', version: 1, partialize: (s) => ({ enabled: s.enabled, purse: s.purse, active: s.active, doneToday: s.doneToday, day: s.day }) },
   ),
 );

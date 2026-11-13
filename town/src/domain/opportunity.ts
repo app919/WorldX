@@ -16,11 +16,36 @@ import type { Industry } from '../data/chains';
 export type OppKind = 'tender' | 'promo' | 'gig';
 export const OPP_LABEL: Record<OppKind, string> = { tender: '招标项目', promo: '推广接单', gig: '灵活用工' };
 
+/** 需求单状态：发布 → 审核 → 匹配 → 对接 → 成交 → 履约 → 评价（完成） */
+export type DealStatus = 'reviewing' | 'matching' | 'connecting' | 'contracted' | 'delivering' | 'done' | 'closed';
+export const STATUS_LABEL: Record<DealStatus, string> = {
+  reviewing: '审核中', matching: '匹配中', connecting: '对接中', contracted: '已成交', delivering: '履约中', done: '已完成', closed: '已关闭',
+};
+export type Requester = 'enterprise' | 'opc' | 'individual';
+export const REQUESTER_LABEL: Record<Requester, string> = { enterprise: '企业', opc: 'OPC / 小店', individual: '个人' };
+export type WorkMode = 'remote' | 'onsite' | 'hybrid';
+export const MODE_LABEL: Record<WorkMode, string> = { remote: '远程', onsite: '到场', hybrid: '远程 + 到场' };
+/** 联合交付需要的角色 */
+export interface Role { id: string; name: string; tags: string[] }
+
 export interface Opp {
   id: string;
   kind: OppKind;
   title: string;
   poster: string;
+  /** 需求方身份 */
+  requester: Requester;
+  /** 需求方已通过身份 / 企业认证（演示） */
+  verified?: boolean;
+  /** 地区（街道 / 区 / 线上） */
+  area: string;
+  /** 合作方式 */
+  mode: WorkMode;
+  /** 交付时间（天） */
+  deliveryDays?: number;
+  status: DealStatus;
+  /** 需要联合交付时的角色分工 */
+  roles?: Role[];
   /** 发布方对应的链上成员 / 街区主体 */
   memberId?: string;
   entityId?: string;
@@ -43,7 +68,14 @@ export interface Opp {
 }
 
 export type BidStatus = 'submitted' | 'shortlisted' | 'won' | 'lost';
-export interface Bid { id: string; oppId: string; bidder: string; quote: number; days: number; plan: string; status: BidStatus; at: number; mine?: boolean }
+export interface TeamMember { role: string; name: string; memberId?: string; split: number; state: 'me' | 'invited' | 'accepted' }
+export interface Bid {
+  id: string; oppId: string; bidder: string; quote: number; days: number; plan: string; status: BidStatus; at: number; mine?: boolean;
+  /** 投标方的链上成员 id（用于信用记录） */
+  memberId?: string;
+  /** 联合投标的团队与分成 */
+  team?: TeamMember[];
+}
 
 export type TaskStatus = 'taken' | 'submitted' | 'approved' | 'rejected';
 export interface PromoTask { oppId: string; code: string; status: TaskStatus; link?: string; at: number }
@@ -67,6 +99,9 @@ export function validateOpp(o: Partial<Opp>): string[] {
   if (o.kind === 'gig' && !o.pay) err.push('灵活用工需要写明报酬（如 ¥35/小时）');
   if (o.kind === 'promo' && !o.commission) err.push('推广任务需要写明佣金或报酬');
   if (!o.deadlineDays || o.deadlineDays < 1 || o.deadlineDays > 60) err.push('截止时间需在 1–60 天内');
+  if (!o.area || !o.area.trim()) err.push('请填写地区（街道 / 区，或“线上”）');
+  if (!o.mode) err.push('请选择合作方式');
+  if (o.kind === 'tender' && (!o.deliveryDays || o.deliveryDays < 1)) err.push('招标需要填写交付时间');
   const all = [o.title, ...(o.requirements ?? []), ...(o.deliverables ?? []), o.pay, o.commission].join(' ');
   if (BANNED.test(all)) err.push('内容包含不允许的要求（刷单 / 保证金 / 押金 / 培训费 等）');
   return err;
@@ -91,14 +126,19 @@ export function oppScore(o: Opp, myTags: string[], myStages: string[]): number {
 export const promoCode = (oppId: string, seed: number) => `SLB-${oppId.slice(-3).toUpperCase()}${(seed % 9000) + 1000}`;
 
 const d = 86400000;
+const DISTRICT_AREA: Record<string, string> = { wukang: '徐汇 · 武康路一带', yangjing: '浦东 · 洋泾', sichuan_n: '虹口 · 四川北路' };
 /** 演示用的公告（全部虚构） */
 export function demoOpps(now: number): Opp[] {
-  const O = (o: Omit<Opp, 'postedAt' | 'isDemo'> & { ago?: number }): Opp => ({ ...o, postedAt: now - (o.ago ?? 1) * d, isDemo: true });
+  const O = (o: Omit<Opp, 'postedAt' | 'isDemo' | 'status' | 'requester' | 'area' | 'mode'> & { ago?: number; status?: DealStatus; requester?: Requester; area?: string; mode?: WorkMode }): Opp => ({
+    status: 'matching', requester: o.entityId ? 'opc' : 'enterprise', verified: true, area: o.district ? DISTRICT_AREA[o.district] : '上海 · 线上', mode: o.kind === 'gig' ? 'onsite' : 'hybrid', ...o, postedAt: now - (o.ago ?? 1) * d, isDemo: true,
+  });
   return [
-    O({ id: 'op_t1', kind: 'tender', title: '挂耳咖啡直播首秀：短视频 6 条 + 直播间视觉', poster: '梧桐豆子', memberId: 'cm_wutong', entityId: 'e_wutong', industry: 'ecommerce', stage: 'ec_content', district: 'wukang', budget: { min: 4000, max: 8000 }, deadlineDays: 7, requirements: ['有食品 / 饮品类拍摄经验', '能在两周内交付'], deliverables: ['15–30 秒短视频 6 条', '直播间背景与贴片'], tags: ['video', 'photo', 'graphic'], ago: 1 }),
-    O({ id: 'op_t2', kind: 'tender', title: '东南亚海外店铺代运营（3 个月）', poster: '一帆出海工作室（虚构）', memberId: 'cm_global', industry: 'ecommerce', stage: 'ec_global', budget: { min: 9000, max: 15000 }, deadlineDays: 10, requirements: ['有海外电商平台运营经验', '会英语'], deliverables: ['店铺上新 30 个 SKU', '月度运营报告'], tags: ['crossborder', 'copywriting'], ago: 2 }),
-    O({ id: 'op_t3', kind: 'tender', title: '海派糕团节令礼盒包装设计', poster: '阿婆糕团店', memberId: 'cm_apo', entityId: 'e_apo', industry: 'heritage', stage: 'hc_design', district: 'yangjing', budget: { min: 3000, max: 6000 }, deadlineDays: 14, requirements: ['有食品包装经验', '理解传统纹样'], deliverables: ['礼盒结构与视觉 1 套', '印刷文件'], tags: ['graphic', 'industrial_design'], ago: 3 }),
-    O({ id: 'op_t4', kind: 'tender', title: '“AI 办公提效”企业内训 2 场（课程 + 讲师）', poster: '某科技公司 HR（虚构）', memberId: 'cm_hr', industry: 'education', stage: 'ed_teach', budget: { min: 6000, max: 12000 }, deadlineDays: 12, requirements: ['讲师有企业培训经验', '课程可定制'], deliverables: ['2 场半天内训', '课件与练习'], tags: ['ai_app', 'consulting', 'teaching'], ago: 1 }),
+    O({ id: 'op_t1', kind: 'tender', title: '挂耳咖啡直播首秀：短视频 6 条 + 直播间视觉', poster: '梧桐豆子', memberId: 'cm_wutong', entityId: 'e_wutong', industry: 'ecommerce', stage: 'ec_content', district: 'wukang', budget: { min: 4000, max: 8000 }, deadlineDays: 7, deliveryDays: 14, requirements: ['有食品 / 饮品类拍摄经验', '能在两周内交付'], deliverables: ['15–30 秒短视频 6 条', '直播间背景与贴片', '首场直播运营'], tags: ['video', 'photo', 'graphic', 'livestream'], ago: 1,
+      roles: [{ id: 'r_video', name: '短视频拍摄剪辑', tags: ['video', 'photo', 'ai_video'] }, { id: 'r_visual', name: '直播间视觉', tags: ['graphic'] }, { id: 'r_live', name: '首场直播运营', tags: ['livestream', 'community_ops', 'planning'] }] }),
+    O({ id: 'op_t2', kind: 'tender', title: '东南亚海外店铺代运营（3 个月）', poster: '一帆出海工作室（虚构）', memberId: 'cm_global', industry: 'ecommerce', stage: 'ec_global', budget: { min: 9000, max: 15000 }, deadlineDays: 10, deliveryDays: 90, mode: 'remote', requirements: ['有海外电商平台运营经验', '会英语'], deliverables: ['店铺上新 30 个 SKU', '月度运营报告'], tags: ['crossborder', 'copywriting'], ago: 2 }),
+    O({ id: 'op_t3', kind: 'tender', title: '海派糕团节令礼盒包装设计', poster: '阿婆糕团店', memberId: 'cm_apo', entityId: 'e_apo', industry: 'heritage', stage: 'hc_design', district: 'yangjing', budget: { min: 3000, max: 6000 }, deadlineDays: 14, deliveryDays: 21, requirements: ['有食品包装经验', '理解传统纹样'], deliverables: ['礼盒结构与视觉 1 套', '印刷文件'], tags: ['graphic', 'industrial_design'], ago: 3 }),
+    O({ id: 'op_t4', kind: 'tender', title: '“AI 办公提效”企业内训 2 场（课程 + 讲师）', poster: '某科技公司 HR（虚构）', memberId: 'cm_hr', industry: 'education', stage: 'ed_teach', budget: { min: 6000, max: 12000 }, deadlineDays: 12, deliveryDays: 30, area: '上海 · 浦东', requirements: ['讲师有企业培训经验', '课程可定制'], deliverables: ['2 场半天内训', '课件与练习'], tags: ['ai_app', 'consulting', 'teaching'], ago: 1,
+      roles: [{ id: 'r_rd', name: '课程设计', tags: ['consulting', 'copywriting'] }, { id: 'r_teach', name: '主讲讲师', tags: ['teaching', 'ai_app'] }, { id: 'r_media', name: '课件视频', tags: ['video', 'voice'] }] }),
     O({ id: 'op_p1', kind: 'promo', title: '探店短视频：梧桐豆子秋季新品', poster: '梧桐豆子', memberId: 'cm_wutong', entityId: 'e_wutong', industry: 'ecommerce', stage: 'ec_live', district: 'wukang', commission: '每条 ¥80 + 带货订单 8%', deadlineDays: 14, requirements: ['到店拍摄', '内容标注「广告」'], deliverables: ['15 秒以上探店视频 1 条'], tags: ['video', 'livestream'], quota: 20, ago: 1 }),
     O({ id: 'op_p2', kind: 'promo', title: '甜爱文创七夕礼盒 · 分销推广', poster: '甜爱文创', memberId: 'cm_tianai', entityId: 'e_tianai', industry: 'heritage', stage: 'hc_channel', district: 'sichuan_n', commission: '成交一单 12%', deadlineDays: 20, requirements: ['用专属推广码分享', '不得虚假宣传'], deliverables: ['分享笔记或社群推荐'], tags: ['copywriting', 'community_ops'], quota: 50, ago: 2 }),
     O({ id: 'op_p3', kind: 'promo', title: '读书会会员招募笔记（小红书 / 公众号）', poster: '街角书店', memberId: 'cm_books2', entityId: 'e_books', industry: 'education', stage: 'ed_growth', district: 'sichuan_n', commission: '每篇 ¥60', deadlineDays: 10, requirements: ['标注「推广」'], deliverables: ['图文笔记 1 篇'], tags: ['copywriting'], quota: 10, ago: 4 }),
@@ -113,8 +153,8 @@ export function demoOpps(now: number): Opp[] {
 export function demoBidsFor(o: Opp, now: number): Bid[] {
   const base = o.budget ? Math.round((o.budget.min + o.budget.max) / 2) : 1000;
   return [
-    { id: `${o.id}_b1`, oppId: o.id, bidder: '光影小棚', quote: Math.round(base * 0.9), days: 10, plan: '先出分镜与样片，确认后两周内拍完并交付全部素材。', status: 'submitted', at: now },
-    { id: `${o.id}_b2`, oppId: o.id, bidder: '鹿鹿 · 平面设计', quote: Math.round(base * 0.8), days: 8, plan: '视觉方向 2 套供选择，含两轮修改，交付源文件。', status: 'submitted', at: now },
-    { id: `${o.id}_b3`, oppId: o.id, bidder: '一帆出海工作室（虚构）', quote: Math.round(base * 1.05), days: 14, plan: '联合阿声配音做中英双语版本，适合后续出海使用。', status: 'submitted', at: now },
+    { id: `${o.id}_b1`, oppId: o.id, memberId: 'cm_guangying', bidder: '光影小棚', quote: Math.round(base * 0.9), days: 10, plan: '先出分镜与样片，确认后两周内拍完并交付全部素材。', status: 'submitted', at: now },
+    { id: `${o.id}_b2`, oppId: o.id, memberId: 'cm_lulu', bidder: '鹿鹿 · 平面设计', quote: Math.round(base * 0.8), days: 8, plan: '视觉方向 2 套供选择，含两轮修改，交付源文件。', status: 'submitted', at: now },
+    { id: `${o.id}_b3`, oppId: o.id, memberId: 'cm_global', bidder: '一帆出海工作室（虚构）', quote: Math.round(base * 1.05), days: 14, plan: '联合阿声配音做中英双语版本，适合后续出海使用。', status: 'submitted', at: now },
   ];
 }

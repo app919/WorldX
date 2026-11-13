@@ -332,51 +332,100 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await page.waitForTimeout(300);
     must(!(await T('slot-box').innerText()).includes('我的展位'), '满员环节不应抢到');
   });
-  await step('机会广场：投标招标项目（报价 / 工期 / 方案）', async () => {
+  const waitText = async (loc, text, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { if ((await loc.innerText().catch(() => '')).includes(text)) return true; await page.waitForTimeout(300); } return false; };
+  await step('需求大厅：需求单字段完整（需求方 / 预算 / 交付 / 地区 / 合作方式 / 截止 / 状态），可筛选', async () => {
     await evalTown(() => window.__town.useTown.getState().setTab('opps'));
     await T('opp-panel').waitFor();
-    await T('opp-tab-tender').click();
-    const card = T('opp-op_t1');
+    await T('opp-tab-hall').click();
+    const f = await T('opp-op_t1').getByTestId('opp-fields').innerText();
+    for (const k of ['已认证', '¥', '交付', '📍', '截止', '匹配中']) must(f.includes(k), `缺少字段 ${k}：${f}`);
+    await T('opp-kind-gig').click();
+    must(await T('opp-op_t1').count() === 0 && await T('opp-op_g1').count() === 1, '类型筛选无效');
+    await T('opp-kind-all').click();
+    return f;
+  });
+  await step('供给方：投标 → 中标 → 确认成交单 → 按节点交付 → 对方验收 → 互评', async () => {
+    const card = T('opp-op_t2');
     await card.getByTestId('bid-open').click();
-    await card.getByTestId('bid-quote').fill('5200');
-    await card.getByTestId('bid-plan').fill('先出分镜和样片，确认后两周内交付全部视频与直播间视觉。');
+    await card.getByTestId('bid-quote').fill('12000');
+    await card.getByTestId('bid-plan').fill('两人小团队，按周汇报，三个月完成店铺上新与运营。');
     await card.getByTestId('bid-submit').click();
-    await page.waitForTimeout(3000);
-    const t = await card.innerText();
-    must(t.includes('已投标'), '投标没有提交');
-    return t.includes('候选') ? '进入候选' : '已提交';
+    must(await waitText(card, '中标'), '没有中标');
+    await T('opp-tab-taken').click();
+    const d = T('deal-op_t2');
+    await d.getByTestId('contract-confirm').click();
+    must(await waitText(d, '双方已确认'), '成交单没有双方确认');
+    for (let i = 0; i < 3; i++) {
+      await d.getByTestId('ms-deliver').waitFor({ timeout: 10000 });
+      await d.getByTestId('ms-deliver').click();
+      must(await waitText(d.getByTestId(`milestone-${i}`), '已验收'), `节点 ${i + 1} 没有验收`);
+    }
+    await d.getByTestId('rate-submit').waitFor({ timeout: 10000 });
+    await d.getByTestId('rate-submit').click();
+    must(await d.getByTestId('rated').count() > 0, '没有评价');
+    return '对方评价：' + ((await d.getByTestId('rating').innerText()).includes('对方给你') ? '已收到' : '未收到');
   });
-  await step('机会广场：访客接单推广（推广码 → 提交作品 → 商家验收）', async () => {
-    await T('opp-tab-promo').click();
-    const card = T('opp-op_p1');
-    await card.getByTestId('promo-take').click();
-    await card.getByTestId('promo-link').fill('https://example.com/my-video');
-    await card.getByTestId('promo-submit').click();
-    await page.waitForTimeout(2600);
-    must((await card.innerText()).includes('已验收'), '推广没有验收');
+  await step('联合交付：组队 → 按角色邀请伙伴 → 分成合计 100% → 联合投标', async () => {
+    await T('opp-tab-hall').click();
+    const card = T('opp-op_t4');
+    await card.getByTestId('team-start').click();
+    const tb = card.getByTestId('team-builder');
+    for (const r of ['r_rd', 'r_teach', 'r_media']) {
+      const btn = tb.getByTestId(`role-${r}`).getByTestId(`invite-role-${r}`);
+      if (await btn.count()) await btn.first().click();
+    }
+    await page.waitForTimeout(1600);
+    const splits = await tb.locator('[data-testid^=split-]').count();
+    for (let i = 0; i < splits; i++) await tb.locator('[data-testid^=split-]').nth(i).fill(String(i === 0 ? 100 - 33 * (splits - 1) : 33));
+    await tb.getByTestId('team-quote').fill('11000');
+    await tb.getByTestId('team-plan').fill('课程设计 + 主讲 + 课件视频三人联合交付，两周内完成。');
+    await tb.getByTestId('team-submit').click();
+    must(await waitText(card, '已投标'), '联合投标没有提交：' + (await tb.innerText().catch(() => '')));
+    await page.screenshot({ path: path.join(OUT, '20-team.png') });
   });
-  await step('机会广场：灵活用工投递 → 商家邀约', async () => {
-    await T('opp-tab-gig').click();
-    const card = T('opp-op_g1');
-    await card.getByTestId('gig-apply').click();
-    await page.waitForTimeout(3000);
-    must((await card.innerText()).includes('邀约'), '没有收到邀约');
+  await step('灵活就业：接单推广（推广码 → 作品 → 验收）与兼职投递（→ 邀约）', async () => {
+    const p = T('opp-op_p1');
+    await p.getByTestId('promo-take').click();
+    await p.getByTestId('promo-link').fill('https://example.com/my-video');
+    await p.getByTestId('promo-submit').click();
+    must(await waitText(p, '已验收'), '推广没有验收');
+    const g = T('opp-op_g1');
+    await g.getByTestId('gig-apply').click();
+    must(await waitText(g, '邀约'), '没有邀约');
   });
-  await step('机会广场：商家发布招标（含违规内容拦截）→ 收到投标 → 选标', async () => {
-    await T('opp-tab-tender').click();
+  await step('需求方：发布（违规拦截）→ 审核 → 平台推荐并邀请 → 比选表 → 选标 → 成交 → 逐节点验收 → 评价 → 复购', async () => {
     await T('opp-post-open').click();
     await T('post-title').fill('七夕礼盒短视频，需先交保证金');
     await T('post-submit').click();
     must((await T('post-errors').innerText()).includes('不允许'), '没有拦截违规内容');
     await T('post-title').fill('七夕礼盒短视频 3 条招标');
+    await T('post-roles').fill('拍摄、设计');
     await T('post-submit').click();
-    await page.waitForTimeout(2200);
-    await T('opp-tab-mine').click();
-    await T('incoming-bid').first().waitFor({ timeout: 8000 });
-    await T('award').first().click();
-    await page.waitForTimeout(300);
-    must((await T('opp-mine').innerText()).includes('已中标'), '选标失败');
-    await page.screenshot({ path: path.join(OUT, '19-opps.png') });
+    const d = page.locator('[data-testid^=deal-my_tender]').first();
+    await d.waitFor();
+    must(await waitText(d, '平台为你推荐'), '没有进入匹配 / 推荐');
+    await d.getByTestId('reco-invite').first().click();
+    must(await waitText(d.getByTestId('compare-table'), '¥', 12000), '没有收到投标');
+    await page.screenshot({ path: path.join(OUT, '21-compare.png') });
+    await d.getByTestId('award').first().click();
+    await d.getByTestId('contract-confirm').click();
+    must(await waitText(d, '双方已确认'), '没有成交');
+    for (let i = 0; i < 3; i++) {
+      await d.getByTestId('ms-accept').waitFor({ timeout: 10000 });
+      await d.getByTestId('ms-accept').click();
+      must(await waitText(d.getByTestId(`milestone-${i}`), '已验收'), `节点 ${i + 1}`);
+    }
+    await d.getByTestId('rate-submit').click();
+    await d.getByTestId('repeat').click();
+    await page.waitForTimeout(600);
+    must(await page.locator('[data-testid^=deal-my_tender]').count() >= 2, '复购没有生成新需求');
+    await page.screenshot({ path: path.join(OUT, '22-deal-done.png') });
+  });
+  await step('街区：成交后出现金色连接线；发布方店门口有需求标记', async () => {
+    await evalTown(() => window.__town.useTown.getState().setTab('city'));
+    await evalTown(() => window.__town.useTown.getState().goDistrict('wukang'));
+    await page.waitForTimeout(2500);
+    must(await page.locator('[data-testid^=opp-pin-]').count() > 0, '店门口没有需求标记');
   });
   await step('街区公告栏：每个街区都有，点击打开机会广场；店铺显示产业链位置', async () => {
     await evalTown(() => window.__town.useTown.getState().setTab('city'));
@@ -510,7 +559,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('0.5.0'), `版本号是 ${v}`);
+    must(v.includes('0.6.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {

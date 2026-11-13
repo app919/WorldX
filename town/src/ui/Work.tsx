@@ -13,9 +13,11 @@ import { useTown } from '../store/useTown';
 import { Btn, Chip, Panel } from './kit';
 
 export function PurseChip() {
+  const enabled = useWork((s) => s.enabled);
   const purse = useWork((s) => s.purse);
   const openBoard = useWork((s) => s.openBoard);
   const [tip, setTip] = useState(false);
+  if (!enabled) return null;
   return (
     <div className="relative flex items-center gap-1.5">
       <button data-testid="purse" onClick={() => setTip(!tip)} className="glass flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold">
@@ -44,7 +46,7 @@ export function JobBoard() {
   const purse = useWork((s) => s.purse);
   const district = useTown((s) => s.district);
   const jobs = useMemo(() => (open ? useWork.getState().jobsHere() : []), [open, district, active]);
-  if (!open) return null;
+  if (!open || !useWork.getState().enabled) return null;
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center p-3 md:items-center">
       <Panel testId="job-board" title="💼 街区打工告示板" subtitle="今天这条街上的短工 · 靠双脚挣钞票，再到小店里花掉" onClose={() => openBoard(false)} className="max-h-[80vh] w-full max-w-lg">
@@ -89,7 +91,8 @@ export function ActiveJobBar() {
   const cancel = useWork((s) => s.cancel);
   const district = useTown((s) => s.district);
   const goDistrict = useTown((s) => s.goDistrict);
-  if (!active) return null;
+  const enabled = useWork((s) => s.enabled);
+  if (!active || !enabled) return null;
   const j = active.job;
   const lotId = j.kind === 'delivery' ? (active.picked ? j.to.lotId : j.from.lotId) : j.at.lotId;
   const pl = placeOfLot(lotId);

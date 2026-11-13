@@ -1,4 +1,5 @@
 import { ECONOMY_NOTICE } from '../domain/economy';
+import { useWork } from '../store/useWork';
 import { useTown } from '../store/useTown';
 import { LOW_GFX, setLowGfx } from '../scene/quality';
 import { LIFE_TAGS } from './Onboarding';
@@ -17,6 +18,8 @@ export function MePanel() {
   const setWizard = useTown((s) => s.setWizard);
   const openChat = useTown((s) => s.openChat);
   const marketing = useTown((s) => s.marketingOptIn);
+  const lifeOn = useWork((s) => s.enabled);
+  const setLife = useWork((s) => s.setEnabled);
   const setMarketing = useTown((s) => s.setMarketing);
   const setOpen = useTown((s) => s.setOpenToConnect);
   const reset = useTown((s) => s.reset);
@@ -93,6 +96,10 @@ export function MePanel() {
         <Card className="!p-3">
           <div className="text-sm font-black">画质</div>
           <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={LOW_GFX} onChange={(e) => setLowGfx(e.target.checked)} /> 流畅模式（关闭阴影、降低分辨率，适合低端手机；切换后重新加载）</label>
+        </Card>
+        <Card className="!p-3">
+          <div className="text-sm font-black">街区生活（小游戏）</div>
+          <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" data-testid="life-toggle" checked={lifeOn} onChange={(e) => setLife(e.target.checked)} /> 开启「打工挣游戏钞票 / 小店消费 / 公园歇脚」。这是街区里的休闲玩法，游戏钞票不能兑换、不能用于商业撮合，与需求大厅的真实机会完全分开。</label>
         </Card>
         <Btn tone="cream" size="sm" onClick={reset}>重置演示数据</Btn>
       </div>

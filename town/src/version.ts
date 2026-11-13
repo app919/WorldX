@@ -1,2 +1,2 @@
-export const APP_VERSION = '0.5.0';
-export const APP_BUILD_NOTE = '更名「三邻邦」· 产业链黄页与上下游速配（电商直播出海 / 非遗手艺 / 教育培训）· 服务商抢位 · 机会广场（招标 / 推广接单 / 灵活用工）';
+export const APP_VERSION = '0.6.0';
+export const APP_BUILD_NOTE = '需求单交易链：发布 → 审核 → 匹配 → 对接 → 成交 → 履约 → 评价 · 平台推荐与比选 · 联合交付组队 · 成交确认单与信用记录';

@@ -3,6 +3,7 @@ import { transparencyNotice } from '../domain/agent';
 import { shopById, useTown } from '../store/useTown';
 import { COUNTERPARTIES, residentById } from '../data/seed';
 import { INDUSTRY_CHAINS } from '../data/chains';
+import { creditOf } from '../domain/deal';
 import { useOpp } from '../store/useOpp';
 import { Btn, Chip, Disclaimer, Panel } from './kit';
 import { placeOfLot, useWork } from '../store/useWork';
@@ -38,6 +39,8 @@ export function AgentChat() {
   const ownerOnline = mine ? !!myAgent?.ownerOnline : !!owner?.online;
   const ent = COUNTERPARTIES.find((c) => c.ownerId === opc.ownerId);
   const chainPos = ent ? INDUSTRY_CHAINS.flatMap((ind) => ind.members.filter((m) => m.entityId === ent.id).map((m) => ({ id: `${ind.id}_${m.stage}`, ind: ind.id, stage: m.stage, label: `${ind.name.split(' · ')[0]} · ${ind.stages.find((s) => s.id === m.stage)?.name}` }))) : [];
+  const member = ent ? INDUSTRY_CHAINS.flatMap((x) => x.members).find((m) => m.entityId === ent.id) : undefined;
+  const credit = member ? creditOf(member.id) : undefined;
   const send = (text: string) => { if (text.trim()) { ask(opc.id, text.trim()); setQ(''); } };
   const quick = ['你们是做什么的？', '多少钱？', '可以打个折吗？', '有案例吗？', '想预约聊聊', '你是真人吗？'];
 
@@ -66,6 +69,12 @@ export function AgentChat() {
         {!mine && placeOfLot(opc.lotId) && (
           <div className="mt-2 flex gap-2">
             <Btn size="sm" tone="sage" data-testid="open-counter" onClick={() => { close(undefined); openCounter(opc.lotId); }}>🛍️ 买点东西 / 💼 打短工</Btn>
+          </div>
+        )}
+        {credit && (
+          <div className="mt-2 text-xs" data-testid="shop-credit">
+            <b>信用记录：</b>{credit.done ? `★${credit.rating} · 完成 ${credit.done} 单 · 准时 ${Math.round(credit.onTime * 100)}%` : '新入驻，暂无成交记录'}{credit.certified ? ' · ✔ 已认证' : ''}
+            <span className="text-stone-400">（只来自双方确认完成的合作）</span>
           </div>
         )}
         {chainPos.length > 0 && (

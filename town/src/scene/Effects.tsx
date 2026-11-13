@@ -1,4 +1,8 @@
 import { useMemo, useRef } from 'react';
+import { useOpp } from '../store/useOpp';
+import { INDUSTRY_CHAINS } from '../data/chains';
+import { lotById } from '../world';
+import { entityById } from '../data/seed';
 import { useFrame } from '@react-three/fiber';
 import { Html, RoundedBox } from '@react-three/drei';
 import { CatmullRomCurve3, Group, QuadraticBezierCurve3, Vector3, MeshStandardMaterial, Color } from 'three';
@@ -113,6 +117,7 @@ export function ConnectionLines() {
   const myOpc = useTown((s) => s.myOpc);
   const avatar = useTown((s) => s.avatar);
   const district = useTown((s) => s.district);
+  const deals = useOpp((s) => s.deals);
   const links = intros.filter((i) => ['meeting_booked', 'collab_proposed', 'collab_confirmed', 'contact_exchanged', 'accepted'].includes(i.status));
   const me = myAnchor({ myOpc, avatar });
   return (
@@ -125,6 +130,15 @@ export function ConnectionLines() {
         if (o.district !== district) return null;
         const from = me.district === district ? me.p : { x: o.p.x - 14, z: o.p.z - 14 };
         return <Glow key={l.id} from={from} to={o.p} strong={strong} confirmed={l.status === 'collab_confirmed'} />;
+      })}
+      {/* 成交的需求单：我和合作方之间的金色连接线 */}
+      {Object.values(deals).filter((d) => ['contracted', 'delivering', 'done'].includes(d.status)).map((d) => {
+        const m = INDUSTRY_CHAINS.flatMap((x) => x.members).find((x) => x.id === d.counterpartMember);
+        const e = m?.entityId ? entityById(m.entityId) : undefined;
+        const lot = e?.place.lotId ? lotById(e.place.lotId) : undefined;
+        if (!lot || lot.district !== district || !me) return null;
+        const from = me.district === district ? me.p : { x: lot.door.p.x - 14, z: lot.door.p.z - 14 };
+        return <Glow key={`deal_${d.oppId}`} from={from} to={lot.door.p} strong confirmed />;
       })}
     </group>
   );

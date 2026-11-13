@@ -10,6 +10,7 @@ import { Player } from './Player';
 import { People } from './People';
 import { Tunnels } from './Tunnels';
 import { JobTarget } from './JobTarget';
+import { OppPins } from './OppPins';
 import { Traffic } from './Traffic';
 import { Markers } from './Markers';
 import { ConnectionLines, Effects } from './Effects';
@@ -102,6 +103,7 @@ function District() {
       <People district={district} />
       <Markers district={district} />
       <JobTarget district={district} />
+      <OppPins district={district} />
       <Player />
       <ConnectionLines />
       <Effects />

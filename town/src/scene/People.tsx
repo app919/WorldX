@@ -4,7 +4,7 @@
  * - 路人（氛围角色，不可交互）：沿人行道和斑马线，用同一套导航规则散步，绝不会穿墙或横穿马路。
  */
 import { useEffect, useMemo, useRef } from 'react';
-import { crosswalkBusy, hitsCar, trafficRuntime } from '../world/traffic';
+import { crosswalkBusy, hitsCar, pedLight, trafficRuntime } from '../world/traffic';
 import { inOBB } from '../world/geom';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
@@ -118,8 +118,11 @@ function Walker({ district, seed }: { district: DistrictKey; seed: number }) {
       else {
         const next = { x: s.p.x + (dx / L) * 1.6 * dt, z: s.p.z + (dz / L) * 1.6 * dt };
         // 过马路前看一眼：斑马线上有车就等一等；也不会穿过车辆
-        const cw = nav.cd.crosswalks.find((c) => inOBB(c.box, next, 0.2));
-        const wait = (cw && !inOBB(cw.box, s.p, 0) && crosswalkBusy(trafficRuntime.tr, cw.box)) || hitsCar(trafficRuntime.tr, next);
+        const ci = nav.cd.crosswalks.findIndex((c) => inOBB(c.box, next, 0.2));
+        const cw = ci >= 0 ? nav.cd.crosswalks[ci] : undefined;
+        const sig = ci >= 0 ? pedLight(trafficRuntime.tr, ci) : 'none';
+        // 路口斑马线看行人信号灯；没有信号灯的斑马线看有没有车驶来
+        const wait = (cw && !inOBB(cw.box, s.p, 0) && (sig === 'stop' || (sig === 'none' && crosswalkBusy(trafficRuntime.tr, cw.box, 9)))) || hitsCar(trafficRuntime.tr, next);
         if (wait) moving.current = 0;
         else { s.p = next; moving.current = 1; if (g.current) g.current.rotation.y = Math.atan2(dx, dz); }
       }

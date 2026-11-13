@@ -57,6 +57,34 @@ describe.each(DISTRICT_ORDER)('街区「%s」的道路规则', (id) => {
     }
   });
 
+  it('迎面走向行道树：会顺着树干滑过去，不会被困在树里；站在不可走的位置也能自己走出来', () => {
+    const trees = cd.props.filter((p) => p.kind === 'tree').slice(0, 60);
+    let tested = 0, stuck = 0;
+    for (const t of trees) {
+      const r = def.roads.find((rr) => cd.sidewalks.some((sw) => sw.road === rr && inOBB(sw.box, t.p)));
+      if (!r) continue;
+      const u = roadDir(r);
+      const start = nav.nearestWalkable({ x: t.p.x - u.x * 2.5, z: t.p.z - u.z * 2.5 }, 0.6);
+      const goal = { x: t.p.x + u.x * 2.5, z: t.p.z + u.z * 2.5 };
+      if (!start || !nav.walkable(goal)) continue;
+      tested++;
+      let p = start;
+      const memo = { side: 0 };
+      for (let k = 0; k < 120 && dist(p, goal) > 0.4; k++) {
+        const d = dist(p, goal), step = Math.min(0.12, d);
+        p = nav.move(p, { x: p.x + ((goal.x - p.x) / d) * step, z: p.z + ((goal.z - p.z) / d) * step }, memo).p;
+      }
+      if (dist(p, goal) > 0.6) stuck++;
+    }
+    expect(tested).toBeGreaterThan(5);
+    expect(stuck).toBe(0);
+    // 不可走位置（树干上）出发也能挪出来
+    const t0 = trees[0];
+    let q = t0.p;
+    for (let k = 0; k < 30; k++) q = nav.move(q, { x: q.x + 0.1, z: q.z }).p;
+    expect(nav.walkable(q)).toBe(true);
+  });
+
   it('每一扇门都能从出生点沿人行道走到（门口不会被花坛或树挡住）', () => {
     for (const d of cd.doors) {
       const path = nav.findPath(def.spawn, d.trigger);

@@ -15,7 +15,7 @@ import { Zone } from '../world/nav';
 import { RESIDENTS } from '../data/seed';
 import { playerRuntime, residentAnchor, useTown } from '../store/useTown';
 import { input } from './input';
-import { hitsCar, trafficRuntime } from '../world/traffic';
+import { crosswalkBusy, hitsCar, pedLight, trafficRuntime } from '../world/traffic';
 import { useWork } from '../store/useWork';
 import { dist, inOBB, inPolygon } from '../world/geom';
 
@@ -38,6 +38,8 @@ export function Player() {
   const lastDoor = useRef<string | null>(null);
   const roadHint = useRef(0);
   const restHint = useRef(0);
+  const signalHint = useRef(0);
+  const slideMemo = useRef({ side: 0 });
   const ghost = useRef<Group | null>(null);
   const ring = useRef<Mesh>(null);
   const beacon = useRef<Group>(null);
@@ -94,9 +96,19 @@ export function Player() {
       const speed = (run ? RUN : WALK) * Math.min(1, len);
       const from = { x: playerRuntime.x, z: playerRuntime.z };
       const to = { x: from.x + (dx / len) * speed * dt, z: from.z + (dz / len) * speed * dt };
-      let res = nav.move(from, to);
+      let res = nav.move(from, to, slideMemo.current);
       // 不能穿过车辆：车在斑马线上时会被挡住
       if (hitsCar(trafficRuntime.tr, res.p)) res = { p: from, hit: true };
+      // 过马路看信号灯：红灯不能走上斑马线；没有信号灯的斑马线，有车驶来要先等一等
+      const cwIdx = nav.cd.crosswalks.findIndex((c) => inOBB(c.box, res.p, 0.05));
+      if (cwIdx >= 0 && !inOBB(nav.cd.crosswalks[cwIdx].box, from, 0.05)) {
+        const sig = pedLight(trafficRuntime.tr, cwIdx);
+        const busy = sig === 'none' && crosswalkBusy(trafficRuntime.tr, nav.cd.crosswalks[cwIdx].box, 9);
+        if (sig === 'stop' || busy) {
+          res = { p: from, hit: true };
+          if (now > signalHint.current) { signalHint.current = now + 3; s.toast(sig === 'stop' ? '🚦 红灯，请等行人绿灯再过马路' : '🚗 有车驶来，稍等再过', 'info'); }
+        }
+      }
       if (res.hit && manual && now > playerRuntime.bumpUntil) {
         const z = nav.zoneAt(to);
         if (z === Zone.Obstacle) { playerRuntime.bumpUntil = now + 0.7; s.fxPush({ kind: 'bonk', from: to }); }

@@ -407,13 +407,14 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
   // 碰撞体
   const obstacles: Obstacle[] = tunnels.map((t) => ({ kind: 'tunnel', box: t.box }));
   for (const p of props) {
-    const r = p.kind === 'tree' ? 0.36 : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45 : p.kind === 'park_sign' ? 0.4
+    const r = p.kind === 'tree' ? 0.3 : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45 : p.kind === 'park_sign' ? 0.4
       : p.kind === 'fitness' ? 0.9 : p.kind === 'stall' ? 1.4 : p.kind === 'shrub' ? 0.7 : p.kind === 'umbrella_table' ? 1.0 : 0;
     if (r) obstacles.push({ kind: p.kind, p: p.p, r });
     if (p.kind === 'notice_board') obstacles.push({ kind: 'notice_board', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.5, rot: p.rot ?? 0 } });
     if (p.kind === 'bench') obstacles.push({ kind: 'bench', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.8, rot: p.rot ?? 0 } });
     if (p.kind === 'planter') obstacles.push({ kind: 'planter', box: { cx: p.p.x, cz: p.p.z, w: 0.9, d: 2.4, rot: p.rot ?? 0 } });
-    if (p.kind === 'bike') obstacles.push({ kind: 'bike', box: { cx: p.p.x, cz: p.p.z, w: 0.5, d: 1.5, rot: p.rot ?? 0 } });
+    // 单车停放区的车与车之间不留一格宽的缝（否则人会走进缝里出不来）
+    if (p.kind === 'bike') obstacles.push({ kind: 'bike', box: { cx: p.p.x, cz: p.p.z, w: 1.0, d: 1.5, rot: p.rot ?? 0 } });
     if (p.kind === 'bus_stop') obstacles.push({ kind: 'bus_stop', box: { cx: p.p.x, cz: p.p.z, w: 4.2, d: 0.5, rot: p.rot ?? 0 } });
     if (p.kind === 'car') obstacles.push({ kind: 'car', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 4.4, rot: p.rot ?? 0 } });
   }

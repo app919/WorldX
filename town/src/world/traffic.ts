@@ -39,11 +39,53 @@ export interface Car {
   seed: number;
   /** 已获准进入、尚未完全驶出的路口（持续占用，直到车尾离开） */
   committed: Set<string>;
+  /** 调试：本帧限制车速的原因 */
+  why?: string;
   /** 正在转弯：沿二次贝塞尔曲线 p0 → c → e 行驶；t < t0 时车在曲线上（t0 - len 为曲线起点） */
   turn?: { p0: V2; c: V2; e: V2; len: number; t0: number };
 }
 
-export interface Traffic { lanes: Lane[]; cars: Car[]; /** 路口 → 当前占用的道路 id 与车辆 */ occupancy: Map<string, Set<number>> }
+export interface Signal { id: string; roads: string[]; center: V2; offset: number }
+export interface Traffic {
+  lanes: Lane[]; cars: Car[]; /** 路口 → 当前占用的道路 id 与车辆 */ occupancy: Map<string, Set<number>>;
+  /** 仿真时钟（秒），驱动红绿灯 */
+  time: number;
+  /** 每个路口一组红绿灯：各条道路轮流放行（绿 → 黄 → 全红） */
+  signals: Map<string, Signal>;
+  /** 每条斑马线对应的路口与被横穿的道路（不在路口附近的斑马线没有信号灯，车辆礼让行人） */
+  cwSignal: ({ j: string; road: string } | null)[];
+}
+
+/** 红绿灯配时（秒） */
+export const GREEN = 10, YELLOW = 3, ALL_RED = 1.5;
+const PHASE = GREEN + YELLOW + ALL_RED;
+export type Light = 'green' | 'yellow' | 'red';
+
+/** 某个路口对某条道路的信号灯 */
+export function lightFor(tr: Traffic, j: string, road: string): Light {
+  const sg = tr.signals.get(j);
+  if (!sg || sg.roads.length < 2) return 'green';
+  const k = sg.roads.indexOf(road);
+  if (k < 0) return 'green';
+  const t = (tr.time + sg.offset) % (PHASE * sg.roads.length);
+  const cur = Math.floor(t / PHASE), inPhase = t - cur * PHASE;
+  if (cur !== k) return 'red';
+  return inPhase < GREEN ? 'green' : inPhase < GREEN + YELLOW ? 'yellow' : 'red';
+}
+
+/** 斑马线的行人信号：被横穿的道路是红灯时行人绿灯；不在路口的斑马线返回 none（车辆礼让） */
+export function pedLight(tr: Traffic | null, cwIndex: number): 'walk' | 'stop' | 'none' {
+  const m = tr?.cwSignal[cwIndex];
+  if (!tr || !m) return 'none';
+  const sg = tr.signals.get(m.j)!;
+  // 行人绿灯只在横穿道路红灯、且不在全红过渡的最后 1 秒时亮起，留出清空时间
+  const l = lightFor(tr, m.j, m.road);
+  if (l !== 'red') return 'stop';
+  const t = (tr.time + sg.offset) % (PHASE * sg.roads.length);
+  const k = sg.roads.indexOf(m.road);
+  const before = ((k * PHASE - t) % (PHASE * sg.roads.length) + PHASE * sg.roads.length) % (PHASE * sg.roads.length);
+  return before < 2.5 ? 'stop' : 'walk';
+}
 
 const COLORS = ['#F2D99B', '#9DB6CA', '#F7F3EA', '#C98068', '#A9C2A0', '#E6A3A7', '#6F8BA4', '#3E4A5A', '#D7D2CA'];
 
@@ -138,7 +180,27 @@ export function createTraffic(cd: CompiledDistrict, density = 1): Traffic {
       cars.push({ id: id++, lane: l.idx, t, v: 0, cruise: 5.5 + ((id * 37) % 10) / 5, braking: false, hidden: false, color: COLORS[(id * 5) % COLORS.length], seed: id * 131 + l.idx, committed: new Set() });
     }
   }
-  return { lanes, cars, occupancy: new Map() };
+  // 红绿灯：每个路口收集经过它的道路与中心点
+  const signals = new Map<string, Signal>();
+  const acc = new Map<string, { x: number; z: number; n: number; roads: Set<string> }>();
+  for (const l of lanes) for (const j of l.junctions) {
+    const m = (j.tIn + j.tOut) / 2;
+    const a = acc.get(j.id) ?? { x: 0, z: 0, n: 0, roads: new Set<string>() };
+    a.x += l.from.x + l.dir.x * m; a.z += l.from.z + l.dir.z * m; a.n++; a.roads.add(l.roadId);
+    acc.set(j.id, a);
+  }
+  let k = 0;
+  for (const [id, a] of acc) signals.set(id, { id, roads: [...a.roads].sort(), center: { x: a.x / a.n, z: a.z / a.n }, offset: (k++ * 7.3) % 40 });
+  const cwSignal = cd.crosswalks.map((cw) => {
+    let best: { j: string; road: string; d: number } | null = null;
+    for (const sg of signals.values()) {
+      if (!sg.roads.includes(cw.road.id) || sg.roads.length < 2) continue;
+      const d = dist(sg.center, cw.center);
+      if (d < 22 && (!best || d < best.d)) best = { j: sg.id, road: cw.road.id, d };
+    }
+    return best ? { j: best.j, road: best.road } : null;
+  });
+  return { lanes, cars, occupancy: new Map(), time: 0, signals, cwSignal };
 }
 
 const bez = (a: V2, b: V2, c: V2, u: number): V2 => ({ x: (1 - u) * (1 - u) * a.x + 2 * u * (1 - u) * b.x + u * u * c.x, z: (1 - u) * (1 - u) * a.z + 2 * u * (1 - u) * b.z + u * u * c.z });
@@ -190,6 +252,7 @@ function planTurn(tr: Traffic, c: Car, lane: number): { t0: number; turn: NonNul
 
 /** 推进仿真 dt 秒。peds：所有行人（含玩家）的位置 */
 export function stepTraffic(tr: Traffic, dt: number, peds: V2[]) {
+  tr.time += dt;
   const occ = tr.occupancy;
   // 1) 重新计算路口占用（车身与路口区间重叠即占用）
   occ.clear();
@@ -234,15 +297,20 @@ export function stepTraffic(tr: Traffic, dt: number, peds: V2[]) {
       continue;
     }
     const list = perLane.get(c.lane)!;
-    const leader = list[list.indexOf(c) + 1];
+    // 转弯中的车：只跟随在汇入点之后（物理上在前方）的车；汇入点后方排队等灯的车不是它的前车
+    const leader = c.turn && c.t < c.turn.t0
+      ? list.filter((o) => o !== c && o.t > c.turn!.t0 - CAR_LEN * 0.5).sort((a, b) => a.t - b.t)[0]
+      : list[list.indexOf(c) + 1];
     const front = c.t + CAR_LEN / 2;
     let vMax = c.cruise;
+    c.why = '';
+    const lim = (v: number, why: string) => { if (v < vMax) { vMax = v; c.why = why; } };
     // 跟车：保证能在剩余距离内停下
     const stopIn = (d: number) => Math.sqrt(Math.max(0, 2 * BRAKE * 0.6 * Math.max(0, d)));
     if (leader) {
       const gap = leader.t - CAR_LEN / 2 - front - MIN_GAP;
       // 运动学安全车速：即使前车急停，也能在车距内停下
-      vMax = Math.min(vMax, gap <= 0 ? 0 : Math.sqrt(leader.v * leader.v + 2 * BRAKE * 0.6 * gap));
+      lim(gap <= 0 ? 0 : Math.sqrt(leader.v * leader.v + 2 * BRAKE * 0.6 * gap), 'leader');
     }
     const turning = !!c.turn && c.t < c.turn.t0;
     if (c.turn && !turning) c.turn = undefined;
@@ -253,9 +321,19 @@ export function stepTraffic(tr: Traffic, dt: number, peds: V2[]) {
       if (j === endJ) break;
       if (front > j.tIn - 0.3) continue; // 已进入
       const d = j.tIn - 1.6 - front; // 停止线在路口前 1.6 个单位（等待中的车不占用路口）
+      if (d > 14 + c.v) break;
+      // 红绿灯：红灯停；黄灯时还能停下就停（已经停不下来的继续通过）
+      const light = lightFor(tr, j.id, l.roadId);
+      const canStop = d > (c.v * c.v) / (2 * BRAKE) - 0.2; // 按最大制动力判断还停不停得下
+      if ((light === 'red' && (canStop || !c.committed.has(j.id))) || (light === 'yellow' && canStop)) {
+        // 还停得下来：在停止线前停车，并让出此前的路口占用
+        c.committed.delete(j.id);
+        lim(stopIn(d), 'signal');
+        break;
+      }
       if (d > 14) break;
       const exitFree = !leader || leader.t - CAR_LEN / 2 > j.tOut + MIN_GAP + 0.5 || leader.v > 2;
-      if (blockedBy(j.id, c) || !exitFree) vMax = Math.min(vMax, stopIn(d));
+      if (blockedBy(j.id, c) || !exitFree) lim(stopIn(d), 'junction');
       // 到了“停不下来”的位置就立即占用路口（同一帧里后处理的车会看到），保证另一方还来得及停
       else if (d < (c.v * c.v) / (2 * BRAKE * 0.6) + 1.5) claim(j.id, c);
       break;
@@ -265,7 +343,7 @@ export function stepTraffic(tr: Traffic, dt: number, peds: V2[]) {
       if (front > cw.tIn) continue;
       const d = cw.tIn - 1.2 - front;
       if (d > 12) break;
-      if (peds.some((p) => inOBB(cw.box, p, 0.9))) vMax = Math.min(vMax, stopIn(d));
+      if (peds.some((p) => inOBB(cw.box, p, 0.9))) lim(stopIn(d), 'crosswalk');
     }
     // 支路尽头：在主路路口的停止线前等待，路口空闲且主路有空档时一次并入（不会停在路口中间）
     let merge: { lane: number; t: number } | null = null;
@@ -274,18 +352,44 @@ export function stepTraffic(tr: Traffic, dt: number, peds: V2[]) {
       const options = tr.lanes.filter((m) => m.roadId === l.endsIn).map((m) => ({ lane: m.idx, t: project(m, l.to) }))
         .filter((o) => o.t > TUNNEL + CAR_LEN && o.t < tr.lanes[o.lane].L - TUNNEL - CAR_LEN * 2);
       const pick = options[(c.id + c.seed) % Math.max(1, options.length)];
-      const can = pick && gapFree(tr, perLane, pick.lane, pick.t) && areaFree(tr, l.to, 6.5, c) && !(endJ && blockedByRoad(endJ.id, l.endsIn, c));
+      // 并入的空档：目标点附近和前方没有车；后方只关心正在驶来的车（红灯前停着排队的车不算）
+      const mergeGap = (lane: number, t: number) => !tr.cars.some((o) => !o.hidden && o !== c && o.lane === lane && ((o.t > t - CAR_LEN * 1.2 && o.t < t + CAR_LEN * 1.8) || (o.t > t - CAR_LEN * 4 && o.t <= t - CAR_LEN * 1.2 && o.v > 1)));
+      const can = pick && (!endJ || lightFor(tr, endJ.id, l.roadId) === 'green') && mergeGap(pick.lane, pick.t) && areaFree(tr, l.to, 4, c) && !(endJ && blockedByRoad(endJ.id, l.endsIn, c));
       if (can && front >= stopAt - 1.0) merge = pick;
-      else vMax = Math.min(vMax, stopIn(stopAt - front));
+      else lim(stopIn(stopAt - front), 'merge');
     }
-    if (turning) vMax = Math.min(vMax, 4.2); // 转弯减速
+    if (turning) lim(4.2, 'turnspeed'); // 转弯减速
     // 前方感应：制动距离内有任何车辆（横穿、转弯、对向占道），提前减速停车
     const look = (c.v * c.v) / (2 * BRAKE * 0.6) + 3;
     for (let d = 0.4; d <= look; d += 0.7) {
       const t = front + d;
       if (t > l.L + 2) break;
       const p = poseAt(tr, c, t).p;
-      if (tr.cars.some((o) => o !== c && !o.hidden && o !== leader && inOBB(carBox(tr, o), p, CAR_W / 2 - 0.1))) { vMax = Math.min(vMax, stopIn(d - 1.0)); break; }
+      if (tr.cars.some((o) => o !== c && !o.hidden && o !== leader && inOBB(carBox(tr, o), p, CAR_W / 2 - 0.1))) { lim(stopIn(d - 1.0), 'car-sensor'); break; }
+    }
+    // 礼让正在转弯的车：它剩下的转弯轨迹会经过我前方，就先停下让它走完
+    if (!turning) {
+      outer: for (const o of tr.cars) {
+        if (o === c || o.hidden || !o.turn || o.t >= o.turn.t0 || o.lane === c.lane) continue;
+        // 我已经挡在它的转弯轨迹上（它在等我）：我先走，避免互相等待
+        const myBox = carBox(tr, c, 0.6);
+        let inItsWay = false;
+        for (let k = 0; k <= 8 && !inItsWay; k++) inItsWay = inOBB(myBox, poseAt(tr, o, o.t + ((o.turn.t0 - o.t) * k) / 8 + CAR_LEN / 2).p);
+        if (inItsWay) continue;
+        for (let k = 0; k <= 8; k++) {
+          const q = poseAt(tr, o, o.t + ((o.turn.t0 - o.t) * k) / 8).p;
+          for (let d = 0; d <= look + 2; d += 0.8) {
+            const p = poseAt(tr, c, front + d).p;
+            if (dist(p, q) < CAR_W + 0.3) { lim(stopIn(d - 1.5), 'yield-turn'); break outer; }
+          }
+        }
+      }
+    }
+    // 行人感应：车头前方（含转弯曲线）任何位置有人 —— 玩家、路人，不论在不在斑马线上 —— 都提前刹停，绝不压过去
+    const lookP = (c.v * c.v) / (2 * BRAKE * 0.6) + 4.5;
+    for (let d = 0; d <= lookP; d += 0.5) {
+      const p = poseAt(tr, c, front + d).p;
+      if (peds.some((q) => dist(q, p) < CAR_W / 2 + 0.7)) { lim(stopIn(d - 1.2), 'ped'); break; }
     }
     const target = Math.max(0, vMax);
     const dv = target - c.v;
@@ -353,6 +457,8 @@ function pathFree(tr: Traffic, c: Car, turn: NonNullable<Car['turn']>, horizon =
 function turnInto(tr: Traffic, perLane: Map<number, Car[]>, c: Car, lane: number): boolean {
   const plan = planTurn(tr, c, lane);
   if (!plan || !pathFree(tr, c, plan.turn)) return false;
+  // 出口要有足够空间：目标车道前方排队（慢速 / 停着）的车太近，就不进入路口，免得停在路口中间
+  if (tr.cars.some((o) => o !== c && !o.hidden && o.lane === lane && o.t > plan.t0 - CAR_LEN && o.t < plan.t0 + CAR_LEN * 2.5 + MIN_GAP && o.v < 2)) return false;
   const keep = [...c.committed];
   moveTo(perLane, c, lane, plan.t0 - plan.turn.len);
   c.turn = plan.turn;
@@ -378,9 +484,9 @@ export function hitsCar(tr: Traffic | null, p: V2, pad = 0.35): boolean {
 }
 
 /** 有车辆正在通过这条斑马线（行人应等待） */
-export function crosswalkBusy(tr: Traffic | null, cw: OBB): boolean {
+export function crosswalkBusy(tr: Traffic | null, cw: OBB, reach = CAR_LEN / 2 + 1.2): boolean {
   if (!tr) return false;
-  return tr.cars.some((c) => !c.hidden && inOBB(cw, carPos(tr, c), CAR_LEN / 2 + 1.2));
+  return tr.cars.some((c) => !c.hidden && inOBB(cw, carPos(tr, c), reach) && (c.v > 0.3 || inOBB(cw, carPos(tr, c), CAR_LEN / 2 + 0.3)));
 }
 
 /** 当前街区的交通实例（场景与玩家控制器共享） */

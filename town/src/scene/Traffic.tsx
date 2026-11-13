@@ -8,6 +8,7 @@ import type { Group, MeshStandardMaterial } from 'three';
 import type { CompiledDistrict } from '../world/build';
 import { poseAt, createTraffic, stepTraffic, trafficRuntime, type Car as SimCar } from '../world/traffic';
 import { Car } from './Props';
+import { Signals } from './Signals';
 import { playerRuntime } from '../store/useTown';
 import { LOW_GFX } from './quality';
 
@@ -21,7 +22,7 @@ export function Traffic({ cd }: { cd: CompiledDistrict }) {
     trafficRuntime.peds.set('player', { x: playerRuntime.x, z: playerRuntime.z });
     stepTraffic(tr, Math.min(dt, 0.05), [...trafficRuntime.peds.values()]);
   });
-  return <group>{tr.cars.map((c) => <MovingCar key={c.id} car={c} tr={tr} />)}</group>;
+  return <group>{tr.cars.map((c) => <MovingCar key={c.id} car={c} tr={tr} />)}<Signals cd={cd} tr={tr} /></group>;
 }
 
 function MovingCar({ car, tr }: { car: SimCar; tr: ReturnType<typeof createTraffic> }) {

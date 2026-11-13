@@ -62,6 +62,17 @@ export class NavGrid {
       }
       this.walk[j * this.w + i] = ok;
     }
+    // 填掉“死胡同”小格：三面被挡住的一格宽缝隙（路缘、树池、路灯之间）——人走进去会被困住
+    for (let pass = 0; pass < 4; pass++) {
+      let changed = 0;
+      for (let j = 1; j < this.h - 1; j++) for (let i = 1; i < this.w - 1; i++) {
+        const k = j * this.w + i;
+        if (!this.walk[k]) continue;
+        const open = this.walk[k - 1] + this.walk[k + 1] + this.walk[k - this.w] + this.walk[k + this.w];
+        if (open <= 1) { this.walk[k] = 0; changed++; }
+      }
+      if (!changed) break;
+    }
   }
 
   idx(p: V2) {
@@ -71,14 +82,98 @@ export class NavGrid {
   zoneAt(p: V2): Zone { const k = this.idx(p); return k < 0 ? Zone.Blocked : this.zone[k]; }
   walkable(p: V2): boolean { const k = this.idx(p); return k >= 0 && this.walk[k] === 1; }
 
-  /** 尝试移动：被挡住时沿 x / z 轴滑动，返回实际位置与是否发生了碰撞 */
-  move(from: V2, to: V2): { p: V2; hit: boolean } {
-    if (this.walkable(to)) return { p: to, hit: false };
+  /**
+   * 尝试移动：被挡住时自动绕开障碍（树、路灯、单车、花箱……），不会卡住。
+   * 绕行方法：在身边约 8 米的小范围里做一次局部寻路，找一条通往“前方”的路线并沿着走；
+   * memo 记住这条绕行路线，直到绕过去为止（不会左右来回抖动）。
+   */
+  move(from: V2, to: V2, memo?: { side: number; path?: V2[]; ttl?: number }): { p: V2; hit: boolean } {
+    const step = dist(from, to);
+    // 正在沿绕行路线走
+    if (memo?.path?.length && (memo.ttl ?? 0) > 0) {
+      memo.ttl!--;
+      while (memo.path.length && dist(memo.path[0], from) < Math.max(0.12, step * 0.6)) memo.path.shift();
+      const wp = memo.path[0];
+      if (wp) {
+        const d = dist(from, wp), k = Math.min(1, step / (d || 1));
+        const q = { x: from.x + (wp.x - from.x) * k, z: from.z + (wp.z - from.z) * k };
+        if (this.walkable(q)) return { p: q, hit: true };
+      }
+      memo.path = undefined;
+    }
+    if (this.walkable(to)) { if (memo) memo.path = undefined; return { p: to, hit: false }; }
+    // 自己已经站在不可走的位置（例如传送后）：先朝最近的可走点挪出来，不会被困住
+    if (!this.walkable(from)) {
+      const near = this.nearestWalkable(from, 3);
+      if (near) { const d = dist(from, near), st = Math.max(step, 0.05); return { p: d <= st ? near : { x: from.x + ((near.x - from.x) / d) * st, z: from.z + ((near.z - from.z) / d) * st }, hit: false }; }
+    }
+    const ux = (to.x - from.x) / (step || 1), uz = (to.z - from.z) / (step || 1);
+    // 小角度偏转就能过去的（擦着障碍边缘），直接走
+    for (const a of [0.3, -0.3, 0.6, -0.6]) {
+      const c = Math.cos(a), sn = Math.sin(a);
+      const q = { x: from.x + (ux * c - uz * sn) * step, z: from.z + (ux * sn + uz * c) * step };
+      if (this.walkable(q)) return { p: q, hit: true };
+    }
+    // 局部寻路绕过去：目标是前方 2.5–4 米处的可走点
+    for (const ahead of [2.5, 4, 1.6]) {
+      const goal = this.nearestWalkable({ x: from.x + ux * ahead, z: from.z + uz * ahead }, 1.2);
+      if (!goal || dist(goal, from) < 0.5) continue;
+      const path = this.localPath(from, goal, 24);
+      if (path && path.length > 1) {
+        if (memo) { memo.path = path.slice(1); memo.ttl = 90; }
+        const wp = path[1], d = dist(from, wp), k = Math.min(1, step / (d || 1));
+        const q = { x: from.x + (wp.x - from.x) * k, z: from.z + (wp.z - from.z) * k };
+        if (this.walkable(q)) return { p: q, hit: true };
+      }
+    }
     const sx = { x: to.x, z: from.z };
     if (this.walkable(sx)) return { p: sx, hit: true };
     const sz = { x: from.x, z: to.z };
     if (this.walkable(sz)) return { p: sz, hit: true };
     return { p: from, hit: true };
+  }
+
+  /** 局部 A*：只在起点周围 (2R+1)² 个格子里搜索，开销很小 */
+  localPath(from: V2, goal: V2, R = 24): V2[] | null {
+    const ci = Math.floor((from.x - this.minX) / this.cell), cj = Math.floor((from.z - this.minZ) / this.cell);
+    const gi = Math.floor((goal.x - this.minX) / this.cell), gj = Math.floor((goal.z - this.minZ) / this.cell);
+    if (Math.abs(gi - ci) > R || Math.abs(gj - cj) > R) return null;
+    const W = 2 * R + 1, N = W * W;
+    const g = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+    const id = (i: number, j: number) => (j - cj + R) * W + (i - ci + R);
+    const ok = (i: number, j: number) => Math.abs(i - ci) <= R && Math.abs(j - cj) <= R && i >= 0 && j >= 0 && i < this.w && j < this.h && this.walk[j * this.w + i] === 1;
+    const open: [number, number, number][] = [];
+    const h = (i: number, j: number) => Math.hypot(i - gi, j - gj);
+    const S = id(ci, cj), G = id(gi, gj);
+    g[S] = 0; open.push([h(ci, cj), ci, cj]);
+    let found = false;
+    const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+    while (open.length) {
+      let bi = 0;
+      for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k;
+      const [, i, j] = open.splice(bi, 1)[0];
+      const k0 = id(i, j);
+      if (closed[k0]) continue;
+      closed[k0] = 1;
+      if (k0 === G) { found = true; break; }
+      for (const [di, dj, c] of NB) {
+        const ni = i + di, nj = j + dj;
+        if (!ok(ni, nj) || (di && dj && (!ok(i + di, j) || !ok(i, j + dj)))) continue;
+        const nk = id(ni, nj);
+        if (closed[nk]) continue;
+        const ng = g[k0] + c;
+        if (ng < g[nk]) { g[nk] = ng; came[nk] = k0; open.push([ng + h(ni, nj), ni, nj]); }
+      }
+    }
+    if (!found) return null;
+    const out: V2[] = [];
+    for (let k = G; k !== -1; k = came[k]) {
+      const li = (k % W) - R + ci, lj = Math.floor(k / W) - R + cj;
+      out.push({ x: this.minX + (li + 0.5) * this.cell, z: this.minZ + (lj + 0.5) * this.cell });
+    }
+    out.reverse();
+    out[0] = from;
+    return out;
   }
 
   nearestWalkable(p: V2, maxR = 12): V2 | null {

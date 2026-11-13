@@ -1,4 +1,5 @@
 import { ECONOMY_NOTICE } from '../domain/economy';
+import { useCenter } from '../store/useCenter';
 import { useWork } from '../store/useWork';
 import { useTown } from '../store/useTown';
 import { LOW_GFX, setLowGfx } from '../scene/quality';
@@ -19,6 +20,8 @@ export function MePanel() {
   const openChat = useTown((s) => s.openChat);
   const marketing = useTown((s) => s.marketingOptIn);
   const lifeOn = useWork((s) => s.enabled);
+  const opsOn = useCenter((s) => s.opsMode);
+  const setOps = useCenter((s) => s.setOps);
   const setLife = useWork((s) => s.setEnabled);
   const setMarketing = useTown((s) => s.setMarketing);
   const setOpen = useTown((s) => s.setOpenToConnect);
@@ -96,6 +99,10 @@ export function MePanel() {
         <Card className="!p-3">
           <div className="text-sm font-black">画质</div>
           <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={LOW_GFX} onChange={(e) => setLowGfx(e.target.checked)} /> 流畅模式（关闭阴影、降低分辨率，适合低端手机；切换后重新加载）</label>
+        </Card>
+        <Card className="!p-3">
+          <div className="text-sm font-black">运营视角（平台运营人员）</div>
+          <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" data-testid="ops-toggle" checked={opsOn} onChange={(e) => setOps(e.target.checked)} /> 打开后，服务中心出现「运营后台」：新需求先进入人工审核队列，可以人工撮合，并查看试运营 KPI 看板。</label>
         </Card>
         <Card className="!p-3">
           <div className="text-sm font-black">街区生活（小游戏）</div>

@@ -12,6 +12,7 @@ import { MePanel } from './ui/MePanel';
 import { MiniMap } from './ui/MiniMap';
 import { ChainPanel } from './ui/Chain';
 import { OppPanel } from './ui/Opportunities';
+import { CenterPanel } from './ui/Center';
 import { ActiveJobBar, Counter, JobBoard, ShiftGame } from './ui/Work';
 
 const CityScene = lazy(() => import('./scene/CityScene').then((m) => ({ default: m.CityScene })));
@@ -38,6 +39,7 @@ export default function App() {
             {tab === 'biz' && <MyBusiness />}
             {tab === 'chain' && <ChainPanel />}
             {tab === 'opps' && <OppPanel />}
+            {tab === 'center' && <CenterPanel />}
             {tab === 'community' && <CommunityPanel />}
             {tab === 'messages' && <MessagesPanel />}
             {tab === 'me' && <MePanel />}

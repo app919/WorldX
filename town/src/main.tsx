@@ -5,6 +5,7 @@ import './index.css';
 import { playerRuntime, useTown } from './store/useTown';
 import { useWork } from './store/useWork';
 import { useLots } from './store/useLots';
+import { useCenter } from './store/useCenter';
 import { trafficRuntime } from './world/traffic';
 import { lotPlan } from './domain/lots';
 import { allLots, compiledOf, navOf, DISTRICT_ORDER } from './world';
@@ -22,6 +23,7 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
     useTown,
     useWork,
     useLots,
+    useCenter,
     signals: () => { const tr = trafficRuntime.tr; return tr ? { junctions: [...tr.signals.values()].filter((s) => s.roads.length > 1).length, pedCrossings: tr.cwSignal.filter(Boolean).length, centers: [...tr.signals.values()].filter((s) => s.roads.length > 1).map((s) => s.center) } : null; },
     lotPlan: (d: string) => lotPlan(d as 'wukang'),
     playerRuntime,

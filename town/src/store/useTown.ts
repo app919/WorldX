@@ -16,7 +16,7 @@ import { EVENTS, type TownEvent } from '../data/events';
 import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
 
 export const ME = 'me';
-export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'community' | 'messages' | 'me';
+export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'center' | 'community' | 'messages' | 'me';
 
 export type InboxKind = 'chat' | 'agent' | 'invite' | 'collab' | 'meeting' | 'event' | 'order' | 'system';
 export const INBOX_LABEL: Record<InboxKind, string> = {

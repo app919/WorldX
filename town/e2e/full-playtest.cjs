@@ -474,6 +474,91 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(await page.locator('[data-testid^=deal-my_tender]').count() >= 2, '复购没有生成新需求');
     await page.screenshot({ path: path.join(OUT, '22-deal-done.png') });
   });
+  // —— PPT P1 / P2：三邻邦服务中心 ——
+  const openCenter = async (sec) => { await evalTown(() => window.__town.useTown.getState().setTab('center')); await T('center-panel').waitFor(); await T(`center-${sec}`).click(); };
+  await step('P1-5 创业服务市场：五类服务、套餐比价（最低价 / 认证优先）、预约咨询 → 对方确认', async () => {
+    await openCenter('services');
+    await T('svc-cat-legal').click();
+    must((await T('price-compare').innerText()).includes('最低'), '没有比价');
+    const card = T('provider-sv_law1');
+    await card.getByTestId('book-open').click();
+    await card.getByTestId('book-slot').first().click();
+    await card.getByTestId('book-topic').fill('合伙协议的股权与退出条款');
+    await card.getByTestId('book-submit').click();
+    must(await waitText(T('my-bookings'), '已确认', 6000), '预约没有被确认');
+  });
+  await step('P1-6 信用与保障：实名认证、企业认证（信用代码校验）、案例审核、投诉与申诉、信用分', async () => {
+    await openCenter('trust');
+    const before = Number((await T('credit-score').innerText()).match(/信用分\s*(\d+)/)[1]);
+    await T('rn-name').fill('阿岚'); await T('rn-id').fill('123X'); await T('rn-submit').click();
+    await T('co-name').fill('上海阿岚影像工作室'); await T('co-code').fill('92310000MA1AL0000A'); await T('co-submit').click();
+    must((await T('co-errors').innerText()).includes('信用代码'), '没有校验信用代码');
+    await T('co-code').fill(uscc('92310104MA1AL0000')); await T('co-submit').click();
+    await T('case-title').fill('咖啡品牌秋季新品短视频'); await T('case-client').fill('某咖啡品牌'); await T('case-proof').fill('https://example.com/case'); await T('case-submit').click();
+    await T('cp-kind').selectOption('rating_appeal'); await T('cp-target').fill('一帆出海工作室'); await T('cp-detail').fill('对方给的低分与沟通记录不符，附上聊天截图与交付记录。'); await T('cp-submit').click();
+    must(await waitText(T('trust'), '已处理', 8000), '投诉没有处理结果');
+    must(await waitText(T('trust'), '已审核 ✔', 4000), '案例没有审核通过');
+    const after = Number((await T('credit-score').innerText()).match(/信用分\s*(\d+)/)[1]);
+    must(after > before, `信用分没有提升 ${before} → ${after}`);
+    return `信用分 ${before} → ${after}`;
+  });
+  await step('P1-7 交易型活动：六种活动、会前预配对、关联真实需求、报名', async () => {
+    await openCenter('events');
+    for (const k of ['demand_day', 'matchmaking', 'team_up', 'clinic', 'roadshow', 'closed_door']) must(await T(`event-${k}`).count() === 1, `缺少 ${k}`);
+    must((await T('prematch').innerText()).length > 20, '没有预配对');
+    await T('event-demand_day').getByTestId('event-signup').click();
+    must((await T('event-demand_day').innerText()).includes('已报名'), '报名失败');
+  });
+  await step('P1-8 会员与价格：四类付费方测试价格，登记付费意向（不收费）', async () => {
+    await openCenter('pricing');
+    await T('tier-pt_opc_pro').getByTestId('tier-intent').click();
+    must((await T('tier-pt_opc_pro').innerText()).includes('已登记'), '没有登记意向');
+  });
+  await step('P1-9 运营后台：打开运营视角 → 新需求进入人工审核 → 通过 → 人工撮合 → KPI 看板', async () => {
+    await evalTown(() => window.__town.useTown.getState().setTab('me'));
+    await T('ops-toggle').check();
+    await evalTown(() => window.__town.useTown.getState().setTab('opps'));
+    await T('opp-panel').waitFor();
+    await T('opp-post-open').click();
+    await T('post-title').fill('非遗礼盒包装设计招标（运营审核测试）');
+    await T('post-submit').click();
+    await openCenter('ops');
+    await T('ops-queue').getByTestId('ops-approve').first().click();
+    await page.waitForTimeout(400);
+    await T('ops-match').getByTestId('ops-recommend').first().click();
+    for (const k of ['users', 'profiles', 'demands', 'connections', 'paid']) must(await T(`kpi-${k}`).count() === 1, `缺少 KPI ${k}`);
+    const board = await T('kpi-board').innerText();
+    for (const k of ['需求响应率', '有效对接率', '成交转化率', '平均撮合周期', '复购率', '单笔服务收入']) must(board.includes(k), `缺少 ${k}`);
+    await page.screenshot({ path: path.join(OUT, '23-ops.png') });
+    await evalTown(() => window.__town.useCenter.getState().setOps(false));
+  });
+  await step('P2-10 资源人脉库与融资：投资人 / 园区 / 专家，项目资料页 → 匹配投资人 → 预约沟通 → 报名路演', async () => {
+    await openCenter('funding');
+    await T('contact-investor').click();
+    must(await T('contact-card').count() >= 3, '投资人不足');
+    await T('pj-name').fill('挂耳咖啡出海');
+    await T('pj-traction').fill('3 个月 120 位付费客户，复购 35%');
+    await T('pj-ask').fill('100'); await T('pj-use').fill('海外店铺与库存');
+    await T('pj-save').click();
+    await T('investor-matches').getByTestId('investor-request').first().click();
+    must(await waitText(T('investor-matches'), '已同意沟通', 5000), '投资人没有回应');
+    await T('roadshow-signup').click();
+  });
+  await step('P2-11 内容与案例论坛：行业小组、分类、广告拦截、发帖、从已完成交易写成交故事', async () => {
+    await openCenter('forum');
+    await T('group-join').first().click();
+    await T('post-open').click();
+    await T('fp-title').fill('一人公司如何定价');
+    await T('fp-body').fill('加微信领取定价模板，日赚 1000 不是梦，私信领取资料');
+    await T('fp-submit').click();
+    must((await T('fp-errors').innerText()).includes('广告'), '没有拦截广告');
+    await T('fp-body').fill('我按项目拆成三段报价：需求访谈、交付、售后，客户更容易接受。');
+    await T('fp-submit').click();
+    const n0 = await T('forum-post').count();
+    if (await T('story-from-deal').count()) { await T('story-from-deal').first().click(); await T('fp-submit').click(); }
+    must(await T('forum-post').count() > n0 - 1, '发帖失败');
+    await page.screenshot({ path: path.join(OUT, '24-forum.png') });
+  });
   await step('街区：成交后出现金色连接线；发布方店门口有需求标记', async () => {
     await evalTown(() => window.__town.useTown.getState().setTab('city'));
     await evalTown(() => window.__town.useTown.getState().goDistrict('wukang'));
@@ -625,7 +710,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('0.8.0'), `版本号是 ${v}`);
+    must(v.includes('0.9.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {

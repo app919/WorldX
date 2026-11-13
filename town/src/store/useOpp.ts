@@ -12,6 +12,7 @@ import { demoBidsFor, demoOpps, promoCode, validateBid, validateOpp, type Applic
 import { creditOf, draftContract, recommendProviders, repeatDraft, validateContract, validateRating, validateTeam, type Contract, type Rating } from '../domain/deal';
 import { INDUSTRY_CHAINS } from '../data/chains';
 import { useTown } from './useTown';
+import { useCenter } from './useCenter';
 
 export interface Deal { oppId: string; side: 'buyer' | 'seller'; bidId: string; counterpart: string; counterpartMember?: string; status: DealStatus; contract: Contract; ratingGiven?: Rating; ratingGot?: Rating }
 
@@ -40,6 +41,8 @@ interface OppState {
   statusOf(o: Opp): DealStatus;
   post(o: Omit<Opp, 'id' | 'postedAt' | 'mine' | 'status'>): string[];
   invite(oppId: string, memberId: string): void;
+  /** 运营后台：人工审核需求 */
+  review(oppId: string, ok: boolean, reason?: string): void;
   bid(oppId: string, b: { quote: number; days: number; plan: string }, team?: TeamMember[]): string[];
   award(bidId: string): void;
   updateContract(oppId: string, c: Contract): void;
@@ -127,6 +130,8 @@ export const useOpp = create<OppState>()(
           const id = `my_${o.kind}_${Date.now().toString(36)}`;
           const mine: Opp = { ...draft, id, postedAt: now(), mine: true };
           set((s) => ({ myOpps: [mine, ...s.myOpps] }));
+          // 运营视角开启时：进入人工审核队列，由运营在后台通过 / 驳回（PPT：后台审核）
+          if (useCenter.getState().opsMode) { T().toast('已提交，进入人工审核队列（运营后台）', 'info'); return []; }
           T().toast('已提交，正在审核（身份与需求真实性）', 'info');
           later(1200, () => {
             setOppStatus(id, 'matching');
@@ -141,6 +146,14 @@ export const useOpp = create<OppState>()(
             }
           });
           return [];
+        },
+        review(oppId, ok, reason) {
+          const o = get().myOpps.find((x) => x.id === oppId);
+          if (!o || o.status !== 'reviewing') return;
+          if (!ok) { setOppStatus(oppId, 'closed'); T().toast(`需求已驳回：${reason ?? '信息不完整'}`, 'warn'); return; }
+          setOppStatus(oppId, 'matching');
+          T().toast('人工审核通过，已发布到需求大厅', 'ok');
+          if (o.kind === 'tender') later(1300, () => set((s) => ({ bids: [...demoBidsFor(o, now()).slice(0, 2), ...s.bids] })));
         },
         invite(oppId, memberId) {
           if ((get().invited[oppId] ?? []).includes(memberId)) return;

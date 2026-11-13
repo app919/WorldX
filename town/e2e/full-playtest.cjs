@@ -408,6 +408,91 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     for (const a of ['intro.sent', 'contact.', 'meeting.booked', 'collab.', 'opc.opened', 'agent.reply']) must(t.includes(a), `缺少 ${a}`);
   });
 
+  // —— v0.4：版本号、找到我、打工挣钞票与消费、公园 ——
+  await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
+    await toCity();
+    const v = await T('version').innerText();
+    must(v.includes('0.4.0'), `版本号是 ${v}`);
+    return v;
+  });
+  await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
+    await toCity();
+    await T('find-me').click();
+    await page.waitForTimeout(600);
+    const t = await evalTown(() => window.__town.playerRuntime.locateAt);
+    must(t > 0, '没有触发定位');
+    await page.screenshot({ path: path.join(OUT, '11-find-me.png') });
+  });
+  await step('打工 · 跑腿：接单 → 走到 A 店取货 → 走到 B 店送达 → 拿到钞票', async () => {
+    await toCity();
+    await T('district-wukang').click();
+    await page.waitForTimeout(1500);
+    await evalTown(() => window.__town.useWork.setState({ active: undefined, doneToday: [], purse: { ...window.__town.useWork.getState().purse, stamina: 90 } }));
+    await T('open-jobs').click();
+    await T('job-board').waitFor();
+    await page.screenshot({ path: path.join(OUT, '12-job-board.png') });
+    await T('job-delivery').first().getByText('接单').click();
+    await T('active-job').waitFor();
+    const job = await evalTown(() => window.__town.useWork.getState().active.job);
+    const cash0 = await evalTown(() => window.__town.useWork.getState().purse.cash);
+    await evalTown((l) => window.__town.nearLot(l), job.from.lotId);
+    for (let i = 0; i < 40 && !(await evalTown(() => window.__town.useWork.getState().active?.picked)); i++) await page.waitForTimeout(500);
+    must(await evalTown(() => window.__town.useWork.getState().active?.picked), '没有取到货');
+    await page.screenshot({ path: path.join(OUT, '13-picked.png') });
+    await evalTown((l) => window.__town.nearLot(l), job.to.lotId);
+    for (let i = 0; i < 40 && (await evalTown(() => !!window.__town.useWork.getState().active)); i++) await page.waitForTimeout(500);
+    const cash1 = await evalTown(() => window.__town.useWork.getState().purse.cash);
+    must(cash1 > cash0, `钞票没有增加 ${cash0} → ${cash1}`);
+    return `${job.title}：💴 ${cash0} → ${cash1}`;
+  });
+  await step('打工 · 店里帮工：按单配齐 4 单，下班结算', async () => {
+    await closeAll();
+    const lot = await evalTown(() => { const w = window.__town.useWork.getState(); const j = w.jobsHere().find((x) => x.kind === 'shift'); w.accept(j); return j.at.lotId; });
+    const cash0 = await evalTown(() => window.__town.useWork.getState().purse.cash);
+    await evalTown((l) => window.__town.nearLot(l), lot);
+    await T('shift-game').waitFor({ timeout: 20000 });
+    for (let k = 0; k < 4; k++) {
+      const need = (await T('order-need').getAttribute('data-need')).split(',');
+      for (const id of need) await T(`ing-${id}`).click();
+      if (k === 0) await page.screenshot({ path: path.join(OUT, '14-shift.png') });
+      await T('serve').click();
+      await page.waitForTimeout(150);
+    }
+    await page.waitForTimeout(400);
+    const cash1 = await evalTown(() => window.__town.useWork.getState().purse.cash);
+    must(cash1 >= cash0 + 4 * 6 + 6, `帮工工资不对 ${cash0} → ${cash1}`);
+    return `💴 ${cash0} → ${cash1}`;
+  });
+  await step('消费：进咖啡店买一杯拿铁（花钞票、补体力）', async () => {
+    await closeAll();
+    await evalTown(() => window.__town.useWork.setState((s) => ({ purse: { ...s.purse, stamina: 40 } })));
+    await evalTown(() => window.__town.nearLot('wk_w2'));
+    await T('agent-chat').waitFor({ timeout: 20000 });
+    await T('open-counter').click();
+    await T('counter').waitFor();
+    const p0 = await evalTown(() => window.__town.useWork.getState().purse);
+    await T('buy-m_latte').click();
+    await page.waitForTimeout(300);
+    const p1 = await evalTown(() => window.__town.useWork.getState().purse);
+    await page.screenshot({ path: path.join(OUT, '15-counter.png') });
+    must(p1.cash === p0.cash - 22 && p1.stamina > p0.stamina, `消费结果不对 ${JSON.stringify(p0)} → ${JSON.stringify(p1)}`);
+    await T('counter').getByLabel('关闭').click();
+    return `💴 ${p0.cash} → ${p1.cash}，⚡ ${p0.stamina} → ${p1.stamina}`;
+  });
+  await step('公园：走进公园，站着歇一会儿体力会恢复；小地图标出公园', async () => {
+    await closeAll();
+    const pk = await evalTown(() => window.__town.parks('wukang')[0]);
+    await evalTown(() => window.__town.useWork.setState((s) => ({ purse: { ...s.purse, stamina: 30 } })));
+    await evalTown((p) => { const t = window.__town.useTown.getState(); t.goDistrict('wukang', { x: p.cx, z: p.cz }); }, pk);
+    await page.waitForTimeout(3500);
+    const st = await evalTown(() => window.__town.useWork.getState().purse.stamina);
+    await page.screenshot({ path: path.join(OUT, '16-park.png') });
+    must(st > 30, `体力没有恢复：${st}`);
+    const label = await T('minimap').innerText();
+    must(label.includes('襄阳公园') || label.includes('徐家汇公园'), '小地图上没有公园名');
+    return `${pk.label}：体力 30 → ${Math.round(st)}`;
+  });
+
   // —— 三条街道 ——
   for (const d of ['yangjing', 'sichuan_n', 'wukang']) {
     await step(`街道：切换到「${d}」并四处走走`, async () => {

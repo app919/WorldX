@@ -37,6 +37,34 @@ export interface CompiledDistrict {
   props: PropDef[];
   obstacles: Obstacle[];
   lanes: { road: RoadDef; from: V2; to: V2; dir: V2 }[];
+  /** 地图边缘的隧道口：道路在地图边缘不会“断掉”，车辆从隧道驶入 / 驶出 */
+  tunnels: Tunnel[];
+  parks: ParkLayout[];
+}
+
+/** 隧道长度（覆盖道路末端的这一段） */
+export const TUNNEL = 9;
+export interface Tunnel { road: RoadDef; end: 'a' | 'b'; /** 洞口中心（朝向地图内侧的一面） */ mouth: V2; /** 指向地图外的方向 */ out: V2; box: OBB; width: number }
+
+/** 道路端点不在任何其他道路上 = 通往地图外 */
+function deadEnds(roads: RoadDef[]): { road: RoadDef; end: 'a' | 'b' }[] {
+  const out: { road: RoadDef; end: 'a' | 'b' }[] = [];
+  for (const r of roads) for (const end of ['a', 'b'] as const) {
+    const p = r[end];
+    if (!roads.some((q) => q !== r && inOBB(segmentOBB(q.a, q.b, q.carriage), p, 0.6))) out.push({ road: r, end });
+  }
+  return out;
+}
+
+function tunnelsOf(roads: RoadDef[]): Tunnel[] {
+  return deadEnds(roads).map(({ road, end }) => {
+    const u = roadDir(road);
+    const out = end === 'b' ? u : mul(u, -1);
+    const tip = road[end];
+    const mouth = add(tip, mul(out, -TUNNEL));
+    const width = road.carriage + road.sidewalk * 2 + 1.2;
+    return { road, end, mouth, out, width, box: segmentOBB(mouth, add(tip, mul(out, 0.6)), width) };
+  });
 }
 
 function buildingContains(b: BuildingDef, p: V2, pad = 0): boolean {
@@ -96,7 +124,7 @@ function boundsOf(def: DistrictDef): Bounds {
 }
 
 /** 沿街自动补全建筑：不压路、不压人行道、不压已有建筑与区域，正立面朝街 */
-function fillFrontage(def: DistrictDef, bounds: Bounds): BuildingDef[] {
+function fillFrontage(def: DistrictDef, bounds: Bounds, tunnels: Tunnel[] = [], blockers: OBB[] = []): BuildingDef[] {
   if (!def.filler) return [];
   const R = rng(def.filler.seed);
   const gap = def.filler.gap ?? 1.2;
@@ -120,6 +148,8 @@ function fillFrontage(def: DistrictDef, bounds: Bounds): BuildingDef[] {
     if (all.some((p) => zones.some((z) => inOBB(z.o, p)))) return false;
     if (all.some((p) => placed.some((b) => buildingContains(b, p, 1.2)))) return false;
     if (placed.some((b) => (b.box ? obbCornersOf(b.box) : b.polygon!).some((q) => inOBB(o, q, 1.2)))) return false;
+    if (all.some((p) => tunnels.some((t) => inOBB(t.box, p, 3)))) return false;
+    if (all.some((p) => blockers.some((b) => inOBB(b, p, 1.2)))) return false;
     if (all.some((p) => def.areas.some((a) => (a.box && inOBB(a.box, p, 0.8)) || (a.polygon && inPolygon(a.polygon, p))))) return false;
     if (all.some((p) => def.props.some((q) => dist(q.p, p) < 1.5))) return false;
     return true;
@@ -139,7 +169,9 @@ function fillFrontage(def: DistrictDef, bounds: Bounds): BuildingDef[] {
         const d = k.d[0] + R() * (k.d[1] - k.d[0]);
         const sb = k.setback ?? 0.6;
         const o = frontage(r, s + w / 2, side, w, d, sb);
-        if (s + w < L - 2 && free(o, sb)) {
+        const tunA = tunnels.some((t) => t.road.id === r.id && t.end === 'a'), tunB = tunnels.some((t) => t.road.id === r.id && t.end === 'b');
+        const clearOfTunnel = !(tunA && s < TUNNEL + 2.5) && !(tunB && s + w > L - TUNNEL - 2.5);
+        if (s + w < L - 2 && clearOfTunnel && free(o, sb)) {
           const id = `${def.id}_f${n++}`;
           const floors = Math.round(k.floors[0] + R() * (k.floors[1] - k.floors[0]));
           const lot = k.lot ? `${def.id}_lot${n}` : undefined;
@@ -161,10 +193,74 @@ const obbCornersOf = (o: OBB) => {
   return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({ x: o.cx + (a * o.w / 2) * c + (b * o.d / 2) * s, z: o.cz - (a * o.w / 2) * s + (b * o.d / 2) * c }));
 };
 
+/**
+ * 公园 / 街心绿地的园路与景观：环形园路 + 十字园路 + 中心小广场 + 池塘 + 树林 + 长椅 + 名牌；
+ * 入口：从十字园路的四个端点向外找最近的人行道，中间没有车道和建筑才开口。
+ */
+export interface ParkLayout { id: string; label: string; box: OBB; paths: OBB[]; entrances: { p: V2; out: V2 }[]; props: PropDef[] }
+function parkLayout(def: DistrictDef): ParkLayout[] {
+  const out: ParkLayout[] = [];
+  const carriages = def.roads.map((r) => segmentOBB(r.a, r.b, r.carriage));
+  const walks = def.roads.flatMap((r) => {
+    const u = roadDir(r);
+    return [1, -1].map((sg) => { const off = mul(leftOf(u), sg * (r.carriage / 2 + r.sidewalk / 2)); return segmentOBB(add(r.a, off), add(r.b, off), r.sidewalk); });
+  });
+  const trees: TreeSpecies[] = ['camphor', 'plane', 'ginkgo', 'osmanthus'];
+  for (const a of def.areas) {
+    if (a.kind !== 'park' || !a.box) continue;
+    const o = a.box, R = rng(a.id.length * 131 + Math.round(Math.abs(o.cx * 7 + o.cz * 3)));
+    const x0 = o.cx - o.w / 2, x1 = o.cx + o.w / 2, z0 = o.cz - o.d / 2, z1 = o.cz + o.d / 2;
+    const m = 3.4;
+    const strip = (ax: number, az: number, bx: number, bz: number, w: number) => segmentOBB({ x: ax, z: az }, { x: bx, z: bz }, w);
+    const paths: OBB[] = [
+      strip(x0, o.cz, x1, o.cz, 2.6), strip(o.cx, z0, o.cx, z1, 2.6), // 十字园路
+      strip(x0 + m, z0 + m, x1 - m, z0 + m, 2.2), strip(x0 + m, z1 - m, x1 - m, z1 - m, 2.2), // 环路
+      strip(x0 + m, z0 + m, x0 + m, z1 - m, 2.2), strip(x1 - m, z0 + m, x1 - m, z1 - m, 2.2),
+      { cx: o.cx, cz: o.cz, w: 7, d: 7, rot: 0 }, // 中心小广场
+    ];
+    const entrances: ParkLayout['entrances'] = [];
+    const props: PropDef[] = [];
+    for (const [ex, ez, nx, nz] of [[x0, o.cz, -1, 0], [x1, o.cz, 1, 0], [o.cx, z0, 0, -1], [o.cx, z1, 0, 1]]) {
+      const n = { x: nx, z: nz };
+      for (let d = 0; d <= 40; d += 0.5) {
+        const p = { x: ex + nx * d, z: ez + nz * d };
+        if (carriages.some((c) => inOBB(c, p, 0.2)) || def.buildings.some((b) => buildingContains(b, p, 1.6))) break;
+        if (walks.some((w) => inOBB(w, p, -0.3))) {
+          paths.push(segmentOBB({ x: ex - nx * 0.5, z: ez - nz * 0.5 }, add(p, mul(n, 0.8)), 2.6));
+          entrances.push({ p: { x: ex, z: ez }, out: n });
+          const side = { x: -nz, z: nx };
+          props.push({ kind: 'park_sign', p: add({ x: ex - nx * 0.6, z: ez - nz * 0.6 }, mul(side, 2.6)), rot: Math.atan2(nx, nz), text: a.label ?? '公园' });
+          break;
+        }
+      }
+    }
+    // 池塘：放在一个象限的中央
+    const qw = o.w / 2 - m - 1.1 - 1.3, qd = o.d / 2 - m - 1.1 - 1.3;
+    const pondR = Math.max(2.2, Math.min(7, Math.min(qw, qd) / 2 - 1.4));
+    const pond = { x: o.cx + 1.3 + qw / 2, z: o.cz + 1.3 + qd / 2 };
+    if (qw > 7 && qd > 7) props.push({ kind: 'pond', p: pond, scale: pondR });
+    // 树林：避开园路、池塘和边缘
+    for (let x = x0 + 1.8; x < x1 - 1.5; x += 4.6) for (let z = z0 + 1.8; z < z1 - 1.5; z += 4.6) {
+      const p = { x: x + (R() - 0.5) * 2.4, z: z + (R() - 0.5) * 2.4 };
+      if (paths.some((q) => inOBB(q, p, 1.7)) || dist(p, pond) < pondR + 2 || R() < 0.22) continue;
+      props.push({ kind: 'tree', p, species: trees[Math.floor(R() * trees.length)], scale: 0.8 + R() * 0.5, rot: R() * Math.PI * 2 });
+    }
+    // 长椅：沿十字园路两侧
+    for (const sg of [-1, 1]) for (let k = 7; k < Math.min(o.w, o.d) / 2 - 4; k += 9) {
+      props.push({ kind: 'bench', p: { x: o.cx + sg * k, z: o.cz + 2.3 }, rot: Math.PI });
+      props.push({ kind: 'bench', p: { x: o.cx - 2.3, z: o.cz + sg * k }, rot: Math.PI / 2 });
+    }
+    out.push({ id: a.id, label: a.label ?? '公园', box: o, paths, entrances, props });
+  }
+  return out;
+}
+
 export function compileDistrict(raw: DistrictDef): CompiledDistrict {
   const bounds = boundsOf(raw);
   const withCw: DistrictDef = { ...raw, crosswalks: raw.autoCrosswalks === false ? raw.crosswalks : autoCrosswalks(raw) };
-  const def = { ...withCw, bounds, buildings: [...raw.buildings, ...fillFrontage(withCw, bounds)] };
+  const parks = parkLayout(raw);
+  const def = { ...withCw, bounds, buildings: [...raw.buildings, ...fillFrontage(withCw, bounds, tunnelsOf(raw.roads), parks.flatMap((p) => p.paths))] };
+  const tunnels = tunnelsOf(def.roads);
   const carriages = def.roads.map((r) => ({ road: r, box: segmentOBB(r.a, r.b, r.carriage) }));
   const sidewalks = def.roads.flatMap((r) => {
     const u = roadDir(r);
@@ -205,6 +301,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
     });
   }
 
+  for (const pk of parks) paths.push(...pk.paths);
   const inCarriage = (p: V2, pad = 0) => carriages.some((c) => inOBB(c.box, p, pad));
   const inCrosswalk = (p: V2, pad = 0) => crosswalks.some((c) => inOBB(c.box, p, pad));
   const inBuilding = (p: V2, pad = 0) => def.buildings.some((b) => buildingContains(b, p, pad));
@@ -286,10 +383,14 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
     for (let i = 0; i < n; i++) if (R() > 0.25) props.push({ kind: 'car', p: { x: o.cx - o.w / 2 + 2.6 + i * 5.2, z: o.cz }, rot: Math.PI / 2, color: ['#F2D99B', '#9DB6CA', '#F7F3EA', '#C98068', '#A9C2A0'][i % 5] });
   }
 
+  for (const pk of parks) props.push(...pk.props);
+  // 隧道口里不放街道家具
+  for (let i = props.length - 1; i >= 0; i--) if (tunnels.some((t) => inOBB(t.box, props[i].p, 0.8))) props.splice(i, 1);
+
   // 碰撞体
-  const obstacles: Obstacle[] = [];
+  const obstacles: Obstacle[] = tunnels.map((t) => ({ kind: 'tunnel', box: t.box }));
   for (const p of props) {
-    const r = p.kind === 'tree' ? 0.75 : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45
+    const r = p.kind === 'tree' ? 0.36 : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45 : p.kind === 'park_sign' ? 0.4
       : p.kind === 'fitness' ? 0.9 : p.kind === 'stall' ? 1.4 : p.kind === 'shrub' ? 0.7 : p.kind === 'umbrella_table' ? 1.0 : 0;
     if (r) obstacles.push({ kind: p.kind, p: p.p, r });
     if (p.kind === 'bench') obstacles.push({ kind: 'bench', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.8, rot: p.rot ?? 0 } });
@@ -326,7 +427,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
     }
   }
 
-  return { def, carriages, sidewalks, crosswalks, paths, doors, props, obstacles, lanes };
+  return { def, carriages, sidewalks, crosswalks, paths, doors, props, obstacles, lanes, tunnels, parks };
 }
 
 export { buildingContains, sub };

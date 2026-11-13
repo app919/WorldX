@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { APP_BUILD_NOTE, APP_VERSION } from '../version';
 import type { AvatarLook, LifeTag } from '../domain/types';
 import type { DistrictKey } from '../domain/commerce';
 import { DISTRICTS, DISTRICT_ORDER } from '../world';
@@ -28,7 +29,8 @@ export function Onboarding() {
       <div className="wobble-in w-full max-w-xl rounded-[2rem] bg-cream-50 p-6 shadow-soft ring-1 ring-cream-200">
         <div className="text-center">
           <div className="text-xs font-bold tracking-[0.3em] text-sage-700">SHANGHAI OPC TOWN</div>
-          <h1 className="mt-1 text-3xl font-black text-cocoa-800">沪上软萌生意街</h1>
+          <h1 className="mt-1 text-3xl font-black text-cocoa-800">沪上软萌生意街 <span className="align-middle text-xs font-bold text-stone-400">v{APP_VERSION}</span></h1>
+          <div className="mt-1 text-[11px] text-stone-500">本版更新：{APP_BUILD_NOTE}</div>
           <p className="mt-1 text-sm text-stone-600">在上海，逛着逛着，就可能找到下一位客户。</p>
         </div>
         {step === 0 ? (

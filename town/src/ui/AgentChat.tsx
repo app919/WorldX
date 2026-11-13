@@ -3,6 +3,7 @@ import { transparencyNotice } from '../domain/agent';
 import { shopById, useTown } from '../store/useTown';
 import { residentById } from '../data/seed';
 import { Btn, Chip, Disclaimer, Panel } from './kit';
+import { placeOfLot, useWork } from '../store/useWork';
 
 const ENTITY_LABEL = { personal_page: '个人创业主页（未注册主体）', opc_entity: 'OPC 经营主体（自述，未核验）', verified_company: '已认证企业' } as const;
 const LEVEL_TONE = { L1: 'sage', L2: 'almond', L3: 'sakura' } as const;
@@ -20,6 +21,7 @@ export function AgentChat() {
   const setTab = useTown((s) => s.setTab);
   const intro = useTown((s) => s.intros.find((i) => i.toUserId === shopById(opcId ?? '', myOpc)?.ownerId));
   const profile = useTown((s) => s.profile);
+  const openCounter = useWork((s) => s.openCounter);
   const [q, setQ] = useState('');
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -56,6 +58,11 @@ export function AgentChat() {
             </div>
           ))}
         </div>
+        {!mine && placeOfLot(opc.lotId) && (
+          <div className="mt-2 flex gap-2">
+            <Btn size="sm" tone="sage" data-testid="open-counter" onClick={() => { close(undefined); openCounter(opc.lotId); }}>🛍️ 买点东西 / 💼 打短工</Btn>
+          </div>
+        )}
         {opc.openNeeds.length > 0 && <div className="mt-2 text-xs"><b>正在寻找：</b>{opc.openNeeds.join('、')}</div>}
         {!mine && owner && (
           <div className="mt-2 flex gap-2">

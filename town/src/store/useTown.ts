@@ -412,5 +412,5 @@ export function vitality(d: DistrictKey, st: Pick<TownState, 'myOpc' | 'intros' 
   return { score: Math.round(parts.reduce((s, p) => s + p.score * p.w, 0)), parts, occupied: occupied.length, total: lots.length };
 }
 
-export const playerRuntime = { x: 0, z: 0, heading: 0, moving: false, bumpUntil: 0, teleported: false };
+export const playerRuntime = { x: 0, z: 0, heading: 0, moving: false, bumpUntil: 0, teleported: false, /** 点了「找到我」的时间（performance.now 毫秒） */ locateAt: 0 };
 export { compiledOf, streetOfDoor };

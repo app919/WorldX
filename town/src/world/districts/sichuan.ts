@@ -63,7 +63,10 @@ export const SICHUAN: DistrictDef = {
   areas: [
     // 甜爱路南侧情诗墙（不可穿越）
     { id: 'poem_wall', kind: 'wall', box: { cx: 46, cz: -12 + 2.5 + 3.2 + 0.5, w: 60, d: 0.9, rot: 0 }, label: '情诗墙' },
-    { id: 'ta_lawn', kind: 'lawn', box: { cx: 52, cz: 3, w: 52, d: 17, rot: 0 } },
+    { id: 'ta_lawn', kind: 'lawn', box: { cx: 52, cz: 3, w: 52, d: 17, rot: 0 }, label: '甜爱路街心花园' },
+    // 鲁迅公园就在四川北路北端西侧、甜爱路对面；四川北路公园在四川北路南段东侧
+    { id: 'luxun_park', kind: 'park', box: { cx: -56, cz: -103, w: 88, d: 74, rot: 0 }, label: '鲁迅公园' },
+    { id: 'sc_park', kind: 'park', box: { cx: 68, cz: 92, w: 78, d: 116, rot: 0 }, label: '四川北路公园（示意位置）' },
   ],
   buildings: [
     // 四川北路西侧：骑楼与近代建筑（右侧 = 西侧，因为道路向南）

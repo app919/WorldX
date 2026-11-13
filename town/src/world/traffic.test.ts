@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DISTRICT_ORDER, compiledOf } from './index';
-import { carBox, createTraffic, stepTraffic, CAR_LEN } from './traffic';
+import { carBox, carDir, carPos, createTraffic, stepTraffic, CAR_LEN } from './traffic';
+import { inOBB, dist } from './geom';
 import { vi } from 'vitest';
 vi.setConfig({ testTimeout: 120000 });
 import { obbCorners, type OBB } from './geom';
@@ -61,5 +62,34 @@ describe.each(DISTRICT_ORDER)('街区「%s」的车辆遵守物理规律', (id) 
     }
     expect(maxJump).toBeLessThanOrEqual(9 * 0.05 + 1e-6);
     expect(CAR_LEN).toBeGreaterThan(4);
+  });
+
+  it('车辆只在路面上行驶，画面上的位置与朝向连续（不瞬移、不开出地图），只在隧道里出现 / 消失', () => {
+    const tr = createTraffic(cd);
+    const problems: string[] = [];
+    let turns = 0;
+    const inTunnel = (p: { x: number; z: number }) => cd.tunnels.some((t) => inOBB(t.box, p, 0.2));
+    const onRoad = (p: { x: number; z: number }) => cd.carriages.some((c) => inOBB(c.box, p, 0.4)) || inTunnel(p);
+    let prev = tr.cars.map((c) => ({ hidden: c.hidden, p: carPos(tr, c), d: carDir(tr, c) }));
+    for (let f = 0; f < 4800 && problems.length < 5; f++) {
+      stepTraffic(tr, 0.05, []);
+      tr.cars.forEach((c, i) => {
+        const was = prev[i];
+        const p = carPos(tr, c), d = carDir(tr, c);
+        if (c.turn) turns++;
+        if (!c.hidden) {
+          if (!onRoad(p)) problems.push(`车${c.id} 离开路面 (${p.x.toFixed(1)},${p.z.toFixed(1)})`);
+          if (was.hidden && !inTunnel(p)) problems.push(`车${c.id} 不在隧道里就出现了`);
+          if (!was.hidden) {
+            if (dist(p, was.p) > c.v * 0.05 + 0.5) problems.push(`车${c.id} 瞬移 ${dist(p, was.p).toFixed(2)}`);
+            const turn = Math.acos(Math.max(-1, Math.min(1, d.x * was.d.x + d.z * was.d.z)));
+            if (turn > 0.35) problems.push(`车${c.id} 朝向突变 ${turn.toFixed(2)}`);
+          }
+        } else if (!was.hidden && !inTunnel(was.p)) problems.push(`车${c.id} 不在隧道里就消失了`);
+      });
+      prev = tr.cars.map((c) => ({ hidden: c.hidden, p: carPos(tr, c), d: carDir(tr, c) }));
+    }
+    expect(problems).toEqual([]);
+    if (cd.lanes.some((l) => cd.carriages.some((c) => c.road.id !== l.road.id && inOBB(c.box, l.to, 0.5)))) expect(turns).toBeGreaterThan(0);
   });
 });

@@ -65,14 +65,15 @@ export interface BuildingDef {
 
 export interface AreaDef {
   id: string;
-  kind: 'plaza' | 'lawn' | 'flowerbed' | 'courtyard' | 'parking' | 'bike_zone' | 'wall';
+  /** park：公园 / 街心绿地（有园路、入口、名牌，可以进去散步） */
+  kind: 'plaza' | 'lawn' | 'flowerbed' | 'courtyard' | 'parking' | 'bike_zone' | 'wall' | 'park';
   box?: OBB;
   polygon?: V2[];
   label?: string;
 }
 
 export interface PropDef {
-  kind: 'street_sign' | 'manhole' | 'bench' | 'hydrant' | 'bin' | 'lamp' | 'mailbox' | 'bus_stop' | 'fitness' | 'planter' | 'poem_wall' | 'stall' | 'umbrella_table' | 'bike' | 'car' | 'tree' | 'shrub';
+  kind: 'park_sign' | 'pond' | 'street_sign' | 'manhole' | 'bench' | 'hydrant' | 'bin' | 'lamp' | 'mailbox' | 'bus_stop' | 'fitness' | 'planter' | 'poem_wall' | 'stall' | 'umbrella_table' | 'bike' | 'car' | 'tree' | 'shrub';
   p: V2;
   rot?: number;
   species?: TreeSpecies;

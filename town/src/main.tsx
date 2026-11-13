@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { playerRuntime, useTown } from './store/useTown';
+import { useWork } from './store/useWork';
 import { allLots, compiledOf, navOf, DISTRICT_ORDER } from './world';
 
 // 自动化测试钩子：只在 URL 带 ?e2e 时暴露，用于把角色放到门口附近（仍然走导航与门口触发规则）
@@ -16,7 +17,9 @@ function place(d: Parameters<ReturnType<typeof useTown.getState>['goDistrict']>[
 if (typeof location !== 'undefined' && location.search.includes('e2e')) {
   (window as unknown as Record<string, unknown>).__town = {
     useTown,
+    useWork,
     playerRuntime,
+    parks: (d: string) => compiledOf(d as 'wukang').parks.map((p) => ({ id: p.id, label: p.label, cx: p.box.cx, cz: p.box.cz })),
     /** 把角色放到某扇门附近（按门 id，例如 wukang_mansion#0） */
     nearDoor(doorId: string, r = 4, walk = true) {
       for (const d of DISTRICT_ORDER) {

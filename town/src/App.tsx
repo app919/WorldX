@@ -10,6 +10,7 @@ import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
 import { MiniMap } from './ui/MiniMap';
+import { ActiveJobBar, Counter, JobBoard, ShiftGame } from './ui/Work';
 
 const CityScene = lazy(() => import('./scene/CityScene').then((m) => ({ default: m.CityScene })));
 
@@ -38,6 +39,10 @@ export default function App() {
             {tab === 'me' && <MePanel />}
             <BottomNav />
             <AgentChat />
+            <ActiveJobBar />
+            <JobBoard />
+            <ShiftGame />
+            <Counter />
             <HelloComposer />
             <OpcWizard />
             <Toasts />

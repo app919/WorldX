@@ -8,6 +8,8 @@ import { Props } from './Props';
 import { Buildings } from './Buildings';
 import { Player } from './Player';
 import { People } from './People';
+import { Tunnels } from './Tunnels';
+import { JobTarget } from './JobTarget';
 import { Traffic } from './Traffic';
 import { Markers } from './Markers';
 import { ConnectionLines, Effects } from './Effects';
@@ -96,8 +98,10 @@ function District() {
       <Props props={cd.props} />
       <Buildings def={cd.def} />
       <Traffic cd={cd} />
+      <Tunnels cd={cd} />
       <People district={district} />
       <Markers district={district} />
+      <JobTarget district={district} />
       <Player />
       <ConnectionLines />
       <Effects />

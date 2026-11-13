@@ -59,6 +59,8 @@ export const YANGJING: DistrictDef = {
   },
   areas: [
     { id: 'yj_plaza', kind: 'plaza', box: { cx: 50, cz: 19.2, w: 24, d: 19.6, rot: 0 }, label: '社区小广场' },
+    { id: 'yj_park', kind: 'park', box: { cx: -27, cz: -52, w: 62, d: 38, rot: 0 }, label: '洋泾街心公园（示意）' },
+    { id: 'yj_sport', kind: 'park', box: { cx: 66, cz: 66, w: 56, d: 64, rot: 0 }, label: '社区运动公园（示意）' },
     { id: 'yj_lawn1', kind: 'lawn', box: { cx: -26, cz: -16, w: 72, d: 9, rot: 0 } },
     { id: 'yj_parking', kind: 'parking', box: { cx: -34, cz: 4.9, w: 40, d: 2.2, rot: 0 }, label: '路边停车位' },
   ],

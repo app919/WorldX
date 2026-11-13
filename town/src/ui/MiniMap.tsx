@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { compiledOf } from '../world';
 import { playerRuntime, useTown } from '../store/useTown';
+import { placeOfLot, useWork } from '../store/useWork';
+import { jobTargetLot } from '../scene/JobTarget';
 
 const W = 200, H = 168;
 
@@ -15,6 +17,9 @@ export function MiniMap() {
   const [open, setOpen] = useState(true);
   const me = useRef<SVGGElement>(null);
   const cd = useMemo(() => compiledOf(district), [district]);
+  const active = useWork((s) => s.active);
+  const tl = jobTargetLot(active);
+  const target = tl ? placeOfLot(tl) : undefined;
   const b = cd.def.bounds;
   const scale = Math.min(W / (b.maxX - b.minX), H / (b.maxZ - b.minZ));
   const ox = (W - (b.maxX - b.minX) * scale) / 2, oz = (H - (b.maxZ - b.minZ) * scale) / 2;
@@ -38,13 +43,21 @@ export function MiniMap() {
     <div className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 overflow-hidden rounded-2xl p-1.5 md:bottom-24 md:left-3 md:right-auto md:top-auto" data-testid="minimap">
       <div className="flex items-center justify-between px-1 pb-1 text-[10px] font-bold text-stone-600">
         <span>{cd.def.name} · 上北下南</span>
-        <button onClick={() => setOpen(false)} aria-label="收起小地图">✕</button>
+        <span className="flex items-center gap-2">
+          <button data-testid="find-me" onClick={() => { playerRuntime.locateAt = performance.now(); }} className="rounded-full bg-[#FF8A3D] px-2 py-0.5 text-[10px] font-black text-white">📍 找到我 (F)</button>
+          <button onClick={() => setOpen(false)} aria-label="收起小地图">✕</button>
+        </span>
       </div>
       <svg width={W} height={H} className="block cursor-crosshair rounded-xl bg-[#DCE8C8]"
         onClick={(e) => {
           const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
           walkTo({ x: b.minX + (e.clientX - r.left - ox) / scale, z: b.minZ + (e.clientY - r.top - oz) / scale });
         }}>
+        {/* 公园 / 绿地 */}
+        {cd.def.areas.filter((a) => (a.kind === 'park' || a.kind === 'lawn') && a.box).map((a) => (
+          <rect key={a.id} x={sx(a.box!.cx - a.box!.w / 2)} y={sz(a.box!.cz - a.box!.d / 2)} width={a.box!.w * scale} height={a.box!.d * scale} rx={2}
+            fill={a.kind === 'park' ? '#9CC47E' : '#B5D49A'} stroke="#6E9A52" strokeWidth={0.6} />
+        ))}
         {cd.def.buildings.map((bd) => bd.box ? (
           <rect key={bd.id} x={sx(bd.box.cx) - (bd.box.w * scale) / 2} y={sz(bd.box.cz) - (bd.box.d * scale) / 2} width={bd.box.w * scale} height={bd.box.d * scale}
             transform={`rotate(${(-bd.box.rot * 180) / Math.PI} ${sx(bd.box.cx)} ${sz(bd.box.cz)})`} fill="#E9D9C2" />
@@ -66,6 +79,18 @@ export function MiniMap() {
             </text>
           );
         })}
+        {cd.tunnels.map((t, i) => (
+          <circle key={`tn${i}`} cx={sx(t.box.cx)} cy={sz(t.box.cz)} r={2.2} fill="#3E4048" />
+        ))}
+        {cd.def.areas.filter((a) => a.kind === 'park' && a.box && a.label).map((a) => (
+          <text key={`pl${a.id}`} x={sx(a.box!.cx)} y={sz(a.box!.cz)} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="800"
+            fill="#2F5A22" stroke="#FFFFFF" strokeWidth="2.2" paintOrder="stroke">🌳{a.label!.replace(/（.*?）/g, '')}</text>
+        ))}
+        {target && target.district === district && (
+          <g transform={`translate(${sx(target.trigger.x)},${sz(target.trigger.z)})`}>
+            <circle r="5" fill="#FF8A3D" stroke="#FFFFFF" strokeWidth="1.5" /><text y="3" textAnchor="middle" fontSize="7">🎯</text>
+          </g>
+        )}
         <g ref={me}>
           <circle r="5.5" fill="#E8C77A" stroke="#4A3426" strokeWidth="1.5" />
           <path d="M0,-9 L4,-3 L-4,-3 Z" fill="#4A3426" />

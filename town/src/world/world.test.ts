@@ -41,6 +41,22 @@ describe.each(DISTRICT_ORDER)('街区「%s」的道路规则', (id) => {
     }
   });
 
+  it('公园 / 绿地：不压建筑，有入口，从出生点能沿园路走到公园中心', () => {
+    const parks = cd.parks;
+    expect(parks.length).toBeGreaterThan(0);
+    for (const pk of parks) {
+      const o = pk.box;
+      for (let x = -0.45; x <= 0.45; x += 0.15) for (let z = -0.45; z <= 0.45; z += 0.15) {
+        const p = { x: o.cx + x * o.w, z: o.cz + z * o.d };
+        expect(cd.def.buildings.some((b) => (b.box ? inOBB(b.box, p) : false)), `${pk.id} 压到建筑`).toBe(false);
+      }
+      expect(pk.entrances.length, `${pk.id} 没有入口`).toBeGreaterThan(0);
+      const path = nav.findPath(def.spawn, { x: o.cx, z: o.cz });
+      expect(path, pk.id).not.toBeNull();
+      expect(dist(path![path!.length - 1], { x: o.cx, z: o.cz }), pk.id).toBeLessThan(4);
+    }
+  });
+
   it('每一扇门都能从出生点沿人行道走到（门口不会被花坛或树挡住）', () => {
     for (const d of cd.doors) {
       const path = nav.findPath(def.spawn, d.trigger);

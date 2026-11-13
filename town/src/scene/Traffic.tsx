@@ -1,12 +1,12 @@
 /**
  * 车辆渲染：由 world/traffic.ts 的交通仿真驱动（跟车、路口让行、转弯、礼让斑马线行人）。
- * 渲染位置平滑跟随仿真位置（转弯并线时平滑过渡，不会瞬移），车轮按速度转动，减速时刹车灯亮。
+ * 渲染位置就是仿真位置（转弯沿曲线），车轮按速度转动，减速时刹车灯亮；车辆从隧道驶入 / 驶出。
  */
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group, MeshStandardMaterial } from 'three';
 import type { CompiledDistrict } from '../world/build';
-import { carPos, createTraffic, stepTraffic, trafficRuntime, type Car as SimCar } from '../world/traffic';
+import { poseAt, createTraffic, stepTraffic, trafficRuntime, type Car as SimCar } from '../world/traffic';
 import { Car } from './Props';
 import { playerRuntime } from '../store/useTown';
 import { LOW_GFX } from './quality';
@@ -34,16 +34,10 @@ function MovingCar({ car, tr }: { car: SimCar; tr: ReturnType<typeof createTraff
     if (!g.current) return;
     g.current.visible = !car.hidden;
     if (car.hidden) { vis.current.init = false; return; }
-    const lane = tr.lanes[car.lane];
-    const p = carPos(tr, car);
-    const yaw = Math.atan2(lane.dir.x, lane.dir.z);
+    // 画面位置 = 仿真位置（转弯时仿真本身就沿曲线行驶），所以看到的与碰撞检测完全一致
+    const { p, dir } = poseAt(tr, car, car.t);
     const v = vis.current;
-    if (!v.init) { v.x = p.x; v.z = p.z; v.yaw = yaw; v.init = true; }
-    // 平滑跟随：直行时几乎贴合，转弯并线时约 0.4 秒内平滑过渡
-    const k = Math.min(1, dt * 7);
-    v.x += (p.x - v.x) * k; v.z += (p.z - v.z) * k;
-    let dy = yaw - v.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-    v.yaw += dy * Math.min(1, dt * 5);
+    v.x = p.x; v.z = p.z; v.yaw = Math.atan2(dir.x, dir.z); v.init = true;
     g.current.position.set(v.x, 0, v.z);
     g.current.rotation.y = v.yaw;
     // 车轮滚动（半径约 0.34）

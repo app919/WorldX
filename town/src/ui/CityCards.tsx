@@ -1,4 +1,5 @@
 import { archiveById } from '../data/archives';
+import { placeOfLot, useWork } from '../store/useWork';
 import { COUNTERPARTIES, entityById, residentById, shopOfEntity } from '../data/seed';
 import { BIZ_LABEL, ENTITY_KIND_LABEL, relationsWith } from '../domain/commerce';
 import { capLabel, industryLabel } from '../domain/taxonomy';
@@ -86,6 +87,7 @@ function EntityCard({ id }: { id: string }) {
         </div>
       ))}
       <div className="mt-3 flex flex-wrap gap-2">
+        {e.place.lotId && placeOfLot(e.place.lotId) && <Btn tone="sage" data-testid="entity-counter" onClick={() => { openCard(undefined); useWork.getState().openCounter(e.place.lotId); }}>🛍️ 进店消费 / 打短工</Btn>}
         <Btn tone="cream" disabled={saved} onClick={() => saveLead(id)}>{saved ? '已收藏线索' : '⭐ 收藏为线索'}</Btn>
         {rels[0] && <Btn tone="cream" onClick={() => { setBiz(rels[0].type, rels[0].id); setTab('biz'); }}>在「我的生意」中查看</Btn>}
       </div>

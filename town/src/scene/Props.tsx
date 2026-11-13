@@ -90,6 +90,20 @@ function PropModel({ p }: { p: PropDef }) {
           <mesh position-y={0.52} material={M.hedge}><boxGeometry args={[0.7, 0.12, 2.1]} /></mesh>
         </group>
       );
+    case 'pond': {
+      const r = p.scale ?? 4;
+      return (
+        <group>
+          <mesh position-y={0.13} rotation-x={-Math.PI / 2} receiveShadow><circleGeometry args={[r + 0.6, 40]} /><meshStandardMaterial color="#B9AE9C" roughness={0.95} /></mesh>
+          <mesh position-y={0.16} rotation-x={-Math.PI / 2}><circleGeometry args={[r, 40]} /><meshStandardMaterial color="#6FA3B8" roughness={0.15} metalness={0.1} /></mesh>
+          {[0.2, 1.4, 2.6, 4.1, 5.3].map((a, i) => (
+            <mesh key={i} position={[Math.cos(a) * r * 0.55, 0.18, Math.sin(a) * r * 0.55]} rotation-x={-Math.PI / 2}><circleGeometry args={[0.35 + (i % 2) * 0.15, 12]} /><meshStandardMaterial color="#7FAF63" /></mesh>
+          ))}
+        </group>
+      );
+    }
+    case 'park_sign':
+      return <ParkSign text={p.text ?? '公园'} />;
     case 'mailbox':
       return (
         <group>
@@ -224,6 +238,21 @@ export function Car({ color, seed = 1, wheelsRef, brakeRef }: { color: string; s
       <mesh position={[0, 0.5, -L / 2 - 0.02]} rotation-y={Math.PI}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
       {/* 后视镜 */}
       {[1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.08), 1.0, 0.75]} material={paint}><boxGeometry args={[0.16, 0.12, 0.2]} /></mesh>)}
+    </group>
+  );
+}
+
+/** 公园入口名牌：石座 + 木牌（两面都有字） */
+function ParkSign({ text }: { text: string }) {
+  const tex = useMemo(() => signTex(text, '#5B4632', '#FFF3DA', 768, 128), [text]);
+  const w = Math.min(5.2, 1.2 + text.length * 0.32);
+  return (
+    <group>
+      <mesh position-y={0.35} castShadow><boxGeometry args={[w + 0.4, 0.7, 0.7]} /><meshStandardMaterial color="#A89F92" roughness={0.95} /></mesh>
+      {[-1, 1].map((sg) => <mesh key={sg} position={[sg * (w / 2 - 0.1), 1.3, 0]} castShadow><boxGeometry args={[0.16, 1.4, 0.16]} /><meshStandardMaterial color="#5B4632" /></mesh>)}
+      <mesh position-y={1.55}><boxGeometry args={[w, 0.75, 0.12]} /><meshStandardMaterial color="#5B4632" /></mesh>
+      <mesh position={[0, 1.55, 0.065]}><planeGeometry args={[w - 0.1, 0.7]} /><meshBasicMaterial map={tex} toneMapped={false} /></mesh>
+      <mesh position={[0, 1.55, -0.065]} rotation-y={Math.PI}><planeGeometry args={[w - 0.1, 0.7]} /><meshBasicMaterial map={tex} toneMapped={false} /></mesh>
     </group>
   );
 }

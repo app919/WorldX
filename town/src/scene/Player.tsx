@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { Group, Vector3 } from 'three';
+import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { Chibi, GhostChibi } from './Chibi';
 import { compiledOf, navOf, streetOfDoor } from '../world';
 import { Zone } from '../world/nav';
@@ -16,6 +16,7 @@ import { RESIDENTS } from '../data/seed';
 import { playerRuntime, residentAnchor, useTown } from '../store/useTown';
 import { input } from './input';
 import { hitsCar, trafficRuntime } from '../world/traffic';
+import { useWork } from '../store/useWork';
 import { dist, inOBB, inPolygon } from '../world/geom';
 
 const WALK = 4.4;
@@ -36,7 +37,10 @@ export function Player() {
   const pathIdx = useRef(0);
   const lastDoor = useRef<string | null>(null);
   const roadHint = useRef(0);
+  const restHint = useRef(0);
   const ghost = useRef<Group | null>(null);
+  const ring = useRef<Mesh>(null);
+  const beacon = useRef<Group>(null);
   const { camera, gl } = useThree();
   const camTarget = useRef(new Vector3(avatar.position.x, 0, avatar.position.z));
 
@@ -53,6 +57,7 @@ export function Player() {
       if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
       keys.current[e.key.toLowerCase()] = true;
       if (e.key === ' ') happy.current = -1;
+      if (e.key.toLowerCase() === 'f') playerRuntime.locateAt = performance.now();
     };
     const up = (e: KeyboardEvent) => (keys.current[e.key.toLowerCase()] = false);
     const wheel = (e: WheelEvent) => { camDist.current = Math.max(0.5, Math.min(1.7, camDist.current * (1 + Math.sign(e.deltaY) * 0.08))); };
@@ -113,6 +118,12 @@ export function Player() {
       group.current.scale.set(1 / sq, sq, 1 / sq);
     }
 
+    // 「找到我」：镜头立即回到角色身上，脚下光圈放大闪烁，头顶出现大箭头
+    const sinceLocate = (performance.now() - playerRuntime.locateAt) / 1000;
+    if (sinceLocate < 0.1) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); camDist.current = 1; }
+    const pulse = sinceLocate < 3 ? 1 + Math.abs(Math.sin(sinceLocate * 6)) * 1.6 : 1 + Math.sin(now * 3) * 0.08;
+    if (ring.current) { ring.current.scale.setScalar(pulse); (ring.current.material as MeshBasicMaterial).opacity = sinceLocate < 3 ? 0.95 : 0.7; }
+    if (beacon.current) { beacon.current.visible = sinceLocate < 3.5; beacon.current.position.y = 3.6 + Math.abs(Math.sin(now * 5)) * 0.6; }
     // 镜头：俯视约 55°，柔和跟随
     camTarget.current.lerp(new Vector3(playerRuntime.x, 0, playerRuntime.z), Math.min(1, dt * 3));
     const off = new Vector3(0, 40, 22).multiplyScalar(camDist.current);
@@ -127,7 +138,9 @@ export function Player() {
       const door = cd.doors.find((d) => dist(d.trigger, playerRuntime) < 0.75);
       if (door && door.id !== lastDoor.current && !s.chatOpc && !s.card) {
         lastDoor.current = door.id;
-        if (door.lotId) s.enterLot(door.lotId);
+        // 打工：取货 / 送达 / 到店帮工
+        if (door.lotId && useWork.getState().arrive(door.lotId)) { /* 已处理 */ }
+        else if (door.lotId) s.enterLot(door.lotId);
         else if (door.label) {
           const b = cd.def.buildings.find((x) => x.id === door.buildingId);
           if (b?.archiveId) { s.openCard({ kind: 'landmark', id: b.archiveId }); s.visit(b.archiveId); }
@@ -135,13 +148,31 @@ export function Player() {
         }
       }
       if (!door) lastDoor.current = null;
-      // 被建筑挡住了吗？沿视线（每向镜头方向 1 个单位升高约 1.8）检查建筑占地与高度
+      // 在公园里歇一歇：站着不动时慢慢恢复体力
+      const inPark = cd.parks.find((pk) => inOBB(pk.box, playerRuntime));
+      if (inPark && !playerRuntime.moving) {
+        const w = useWork.getState();
+        if (w.purse.stamina < 100) {
+          w.restTick(0.3);
+          if (now > restHint.current) { restHint.current = now + 30; s.toast(`在${inPark.label.replace(/（.*?）/g, '')}歇一会儿，体力慢慢恢复 ⚡`, 'info'); }
+        }
+      }
+      // 被建筑或树冠挡住了吗？沿视线（每向镜头方向 1 个单位升高约 1.8）检查建筑占地与高度、行道树树冠
       if (ghost.current) {
         let hidden = false;
         for (let d = 1; d <= 16 && !hidden; d += 0.8) {
           const p = { x: playerRuntime.x, z: playerRuntime.z + d * 0.48 };
           const h = 1.2 + d * 0.48 * 1.82;
           hidden = cd.def.buildings.some((b) => (b.polygon ? inPolygon(b.polygon, p) : inOBB(b.box!, p)) && (b.kind === 'wukang_mansion' ? 11 : b.floors * 1.35 + 2) > h);
+        }
+        if (!hidden) {
+          // 树冠大约在 2.4–6.5 高、半径约 2：视线在这一高度段经过树冠就算被挡住
+          hidden = cd.props.some((t) => {
+            if (t.kind !== 'tree') return false;
+            const dz = t.p.z - playerRuntime.z, dx = Math.abs(t.p.x - playerRuntime.x);
+            const sc = t.scale ?? 1;
+            return dx < 2.1 * sc && dz > -1.2 && dz < 3.6 * sc;
+          });
         }
         ghost.current.visible = hidden;
       }
@@ -170,6 +201,17 @@ export function Player() {
       <group ref={group} position={[avatar.position.x, 0.16, avatar.position.z]}>
         <Chibi look={avatar.look} movingRef={moving} happyRef={happy} />
         <GhostChibi look={avatar.look} movingRef={moving} happyRef={happy} groupRef={ghost} />
+        {/* 脚下定位光圈：永远画在最上层，被树和楼挡住也能看到自己在哪 */}
+        <mesh ref={ring} position-y={0.05} rotation-x={-Math.PI / 2} renderOrder={1000}>
+          <ringGeometry args={[0.62, 0.86, 40]} />
+          <meshBasicMaterial color="#FF8A3D" transparent opacity={0.7} depthTest={false} depthWrite={false} toneMapped={false} fog={false} />
+        </mesh>
+        <group ref={beacon} visible={false}>
+          <mesh rotation-x={Math.PI} renderOrder={1001}>
+            <coneGeometry args={[0.55, 1.1, 4]} />
+            <meshBasicMaterial color="#FF8A3D" depthTest={false} depthWrite={false} toneMapped={false} fog={false} />
+          </mesh>
+        </group>
         <Html position={[0, 2.3, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
           <div className="whitespace-nowrap rounded-full bg-almond-300 px-2 py-0.5 text-[11px] font-bold text-cocoa-800 shadow-soft">我 · {avatar.nickname}</div>
         </Html>

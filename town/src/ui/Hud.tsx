@@ -6,6 +6,8 @@ import { input } from '../scene/input';
 import { DISTRICTS, DISTRICT_ORDER, navOf } from '../world';
 import { LIFE_TAGS } from './Onboarding';
 import { Btn } from './kit';
+import { PurseChip } from './Work';
+import { APP_BUILD_NOTE, APP_VERSION } from '../version';
 
 export function TopBar() {
   const hour = useTown((s) => s.hour);
@@ -27,7 +29,7 @@ export function TopBar() {
     <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 p-3">
       <div className="pointer-events-auto glass relative flex items-center gap-3 rounded-blob px-4 py-2">
         <div>
-          <div className="text-base font-black leading-tight text-cocoa-800">{DISTRICTS[district].name}</div>
+          <div className="text-base font-black leading-tight text-cocoa-800">{DISTRICTS[district].name} <span title={APP_BUILD_NOTE} data-testid="version" className="rounded-full bg-cocoa-800 px-1.5 py-0.5 align-middle text-[9px] font-bold text-cream-50">v{APP_VERSION}</span></div>
           <div className="text-[11px] text-stone-600" data-testid="status-line">{tag?.emoji} 正在{street}散步</div>
         </div>
         <div className="h-8 w-px bg-cream-300" />
@@ -53,6 +55,7 @@ export function TopBar() {
           <button onClick={toggleNight} title="昼夜切换" data-testid="daynight" className="jelly grid h-8 w-8 place-items-center bg-cream-100 text-lg">{isNight(hour) ? '🌙' : '☀️'}</button>
           <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '暂停时间' : '时间流动'} className="text-sm font-bold tabular-nums text-cocoa-600">{hourLabel(hour)} {timeFlow ? '' : '⏸'}</button>
         </div>
+        <PurseChip />
         <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="glass flex items-center gap-3 rounded-full px-3 py-1 text-xs font-bold" data-testid="wallet">
           <span>⭐ {wallet.stars}</span><span className="text-sage-700">🌱 {wallet.growth}</span><span className="text-stone-400">ⓘ</span>
         </button>

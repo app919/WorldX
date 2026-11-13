@@ -195,6 +195,20 @@ const pMat = new MeshStandardMaterial({ map: paintTex('P'), transparent: true, r
 function Area({ kind, o, onClick }: { kind: string; o: OBB; onClick: (e: never) => void }) {
   const M = mats();
   if (kind === 'plaza') return <group onClick={onClick as never}><Slab o={o} y={0} h={SIDEWALK_H} mat={M.tileCream} unit={2} /></group>;
+  if (kind === 'park') {
+    // 公园：草地 + 四周矮绿篱（每条边中间留出入口）
+    const half = (e: OBB): OBB[] => {
+      const long = e.w > e.d, L = long ? e.w : e.d, seg = (L - 3.6) / 2;
+      const ax = long ? { x: Math.cos(e.rot), z: -Math.sin(e.rot) } : { x: Math.sin(e.rot), z: Math.cos(e.rot) };
+      return [-1, 1].map((sg) => ({ ...e, cx: e.cx + ax.x * sg * (seg / 2 + 1.8), cz: e.cz + ax.z * sg * (seg / 2 + 1.8), w: long ? seg : e.w, d: long ? e.d : seg }));
+    };
+    return (
+      <group>
+        <Slab o={o} y={0} h={0.1} mat={M.grass} unit={6} />
+        {edges(o).flatMap(half).map((e, i) => <Slab key={i} o={e} y={0.08} h={0.5} mat={M.hedge} unit={1} />)}
+      </group>
+    );
+  }
   if (kind === 'lawn') {
     return (
       <group>

@@ -1,7 +1,7 @@
 {
   "name": "shanghai-opc-town",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "沪上软萌生意街 · SHANGHAI OPC TOWN — 在上海，逛着逛着，就可能找到下一位客户。",
   "scripts": {

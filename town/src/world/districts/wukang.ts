@@ -95,7 +95,11 @@ export const WUKANG: DistrictDef = {
   },
   areas: [
     // 宋庆龄故居花园围墙（不可通行）
-    { id: 'soong_garden', kind: 'lawn', box: { cx: 22, cz: 25, w: 26, d: 26, rot: 0 } },
+    { id: 'soong_garden', kind: 'lawn', box: { cx: 22, cz: 25, w: 26, d: 26, rot: 0 }, label: '宋庆龄故居花园' },
+    // 公园与绿地（位置按真实方位示意：襄阳公园在淮海中路东段北侧；徐家汇公园在天平路往南的方向）
+    { id: 'xiangyang_park', kind: 'park', box: { cx: 152, cz: -36, w: 64, d: 50, rot: 0 }, label: '襄阳公园（示意位置）' },
+    { id: 'xjh_park', kind: 'park', box: { cx: -98, cz: 80, w: 84, d: 72, rot: 0 }, label: '徐家汇公园（示意方向）' },
+    { id: 'hengfu_green', kind: 'park', box: { cx: 112, cz: 72, w: 90, d: 66, rot: 0 }, label: '衡复风貌区街心绿地（示意）' },
     // 武康大楼船头前的小广场（真实街角是人们拍照的地方）
     { id: 'prow_plaza', kind: 'plaza', box: { cx: MANSION_POLY[4].x - 3.2, cz: MANSION_POLY[4].z + 0.4, w: 6, d: 3.2, rot: -0.28 }, label: '拍照打卡点' },
   ],

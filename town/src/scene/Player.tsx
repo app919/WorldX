@@ -136,11 +136,14 @@ export function Player() {
       // 进门：站到门口触发点
       const cd = compiledOf(s.district);
       const door = cd.doors.find((d) => dist(d.trigger, playerRuntime) < 0.75);
-      if (door && door.id !== lastDoor.current && !s.chatOpc && !s.card) {
+      // 打工：取货 / 送达 / 到店帮工（路过别的店弹出的名片不影响送货）
+      if (door && door.id !== lastDoor.current && door.lotId && useWork.getState().active && useWork.getState().arrive(door.lotId)) {
         lastDoor.current = door.id;
-        // 打工：取货 / 送达 / 到店帮工
-        if (door.lotId && useWork.getState().arrive(door.lotId)) { /* 已处理 */ }
-        else if (door.lotId) s.enterLot(door.lotId);
+        if (s.card) s.openCard(undefined);
+        if (s.chatOpc) s.openChat(undefined);
+      } else if (door && door.id !== lastDoor.current && !s.chatOpc && !s.card) {
+        lastDoor.current = door.id;
+        if (door.lotId) s.enterLot(door.lotId);
         else if (door.label) {
           const b = cd.def.buildings.find((x) => x.id === door.buildingId);
           if (b?.archiveId) { s.openCard({ kind: 'landmark', id: b.archiveId }); s.visit(b.archiveId); }

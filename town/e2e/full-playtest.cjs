@@ -484,9 +484,11 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await evalTown(() => window.__town.useTown.getState().setTab('city'));
     const ok = await evalTown(() => ['wukang', 'yangjing', 'sichuan_n'].every((d) => window.__town.props(d).some((p) => p.kind === 'notice_board')));
     must(ok, '有街区缺公告栏');
-    await evalTown(() => window.__town.nearLot('wk_w2'));
+    await closeAll();
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openCard(undefined); t.enterLot('wk_w2'); });
     await T('agent-chat').waitFor({ timeout: 20000 });
     must(await T('shop-chain').count() > 0, '店铺没有显示产业链位置');
+    must(await T('shop-credit').count() > 0, '店铺没有显示信用记录');
     await T('agent-chat').getByLabel('关闭').click();
   });
 

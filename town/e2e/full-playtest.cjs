@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE = (process.env.BASE_URL || 'http://localhost:4173') + '/?e2e&lowgfx';
-const OUT = path.join(__dirname, 'playtest');
+const OUT = process.env.OUT_DIR || path.join(__dirname, 'playtest');
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];

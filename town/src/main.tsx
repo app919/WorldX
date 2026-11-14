@@ -9,6 +9,8 @@ import { useCenter } from './store/useCenter';
 import { trafficRuntime } from './world/traffic';
 import { lotPlan } from './domain/lots';
 import { allLots, compiledOf, navOf, DISTRICT_ORDER } from './world';
+import { cam } from './scene/input';
+import { signFor } from './scene/Buildings';
 
 // 自动化测试钩子：只在 URL 带 ?e2e 时暴露，用于把角色放到门口附近（仍然走导航与门口触发规则）
 /** 放置角色：同时更新存档位置与运行时位置（切换街区时也不会被重置回出生点） */
@@ -26,6 +28,8 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
     useCenter,
     signals: () => { const tr = trafficRuntime.tr; return tr ? { junctions: [...tr.signals.values()].filter((s) => s.roads.length > 1).length, pedCrossings: tr.cwSignal.filter(Boolean).length, centers: [...tr.signals.values()].filter((s) => s.roads.length > 1).map((s) => s.center) } : null; },
     lotPlan: (d: string) => lotPlan(d as 'wukang'),
+    cam,
+    roofs: () => { const out: Record<string, number> = {}; for (const d of DISTRICT_ORDER) for (const l of allLots().filter((x) => x.district === d)) { const c = signFor(l.door.lotId)?.cat; if (c) out[c] = (out[c] ?? 0) + 1; } return out; },
     playerRuntime,
     props: (d: string) => compiledOf(d as 'wukang').props.map((p) => ({ kind: p.kind, x: p.p.x, z: p.p.z })),
     parks: (d: string) => compiledOf(d as 'wukang').parks.map((p) => ({ id: p.id, label: p.label, cx: p.box.cx, cz: p.box.cz })),

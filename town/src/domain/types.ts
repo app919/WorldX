@@ -5,7 +5,13 @@
  */
 
 /** 玩家自选的生活标签 —— 不是职业审核，随时可换 */
-export type LifeTag = 'worker' | 'freelancer' | 'opc' | 'retiree' | 'student' | 'explorer';
+/**
+ * 身份（进街区时选择，随时可换）：投资人 / 在职看副业 / OPC 主理人 / 商业服务者 / 品牌方 / 游客。
+ * 旧版的生活标签（worker / freelancer / retiree / student / explorer）仍然兼容，用于老存档与演示居民。
+ */
+export type LifeTag = 'investor' | 'side_hustle' | 'opc' | 'service' | 'brand' | 'visitor' | 'worker' | 'freelancer' | 'retiree' | 'student' | 'explorer';
+/** 着装风格：一类人一种着装（OPC 粉色背带裤、【例】蓝色背带裤……） */
+export type Outfit = 'overalls' | 'suit' | 'office' | 'vest' | 'jacket' | 'tee' | 'casual';
 
 export type DistrictId = 'xuhui' | 'jingan' | 'huangpu' | 'changning' | 'pudong' | 'hongkou' | 'other';
 
@@ -31,6 +37,12 @@ export interface AvatarLook {
   skin: string;
   hair: string;
   accessory: 'none' | 'beret' | 'headphones' | 'scarf' | 'glasses' | 'cap';
+  gender?: 'f' | 'm';
+  outfit?: Outfit;
+  /** 裤子 / 背带裤颜色 */
+  pants?: string;
+  /** 点缀色：领带、工牌、背包 */
+  accent?: string;
 }
 
 export interface Avatar {

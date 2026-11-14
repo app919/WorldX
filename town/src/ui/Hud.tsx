@@ -2,10 +2,11 @@ import { useRef, useState } from 'react';
 import { useTown, vitality, type Tab } from '../store/useTown';
 import { hourLabel, isNight } from '../scene/clock';
 import { ECONOMY_NOTICE } from '../domain/economy';
-import { input } from '../scene/input';
+import { input, zoomBy } from '../scene/input';
 import { DISTRICTS, DISTRICT_ORDER, navOf } from '../world';
-import { LIFE_TAGS } from './Onboarding';
+import { identityOf } from '../domain/identity';
 import { Btn } from './kit';
+import { NeedBox } from './NeedBox';
 import { PurseChip } from './Work';
 import { APP_BUILD_NOTE, APP_VERSION } from '../version';
 
@@ -22,7 +23,7 @@ export function TopBar() {
   const intros = useTown((s) => s.intros);
   const myEvents = useTown((s) => s.myEvents);
   const [pop, setPop] = useState<'vital' | 'wallet' | null>(null);
-  const tag = LIFE_TAGS.find((t) => t.tag === avatar?.lifeTag);
+  const tag = avatar ? identityOf(avatar.lifeTag) : undefined;
   const v = vitality(district, { myOpc, intros, myEvents });
 
   return (
@@ -177,11 +178,18 @@ export function Controls() {
   if (tab !== 'city') return null;
   return (
     <>
+      {/* 镜头缩放：＋ 拉近 / － 拉远（也支持滚轮、双指捏合、键盘 + -） */}
+      <div className="pointer-events-auto absolute left-4 top-[46%] z-20 flex flex-col overflow-hidden rounded-2xl bg-cream-50/90 shadow-soft ring-1 ring-cream-200" data-testid="zoom-controls">
+        <button aria-label="拉近" data-testid="zoom-in" onClick={() => zoomBy(0.8)} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">＋</button>
+        <div className="h-px bg-cream-200" />
+        <button aria-label="拉远" data-testid="zoom-out" onClick={() => zoomBy(1.25)} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">－</button>
+      </div>
       <div ref={pad} className="pointer-events-auto absolute bottom-24 left-4 z-20 grid h-24 w-24 touch-none place-items-center rounded-full bg-cream-50/60 shadow-soft ring-2 ring-cream-200 md:hidden"
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={(e) => e.buttons && move(e)} onPointerUp={end} onPointerCancel={end}>
         <div ref={knob} className="h-10 w-10 rounded-full bg-almond-400 shadow-jelly" />
       </div>
       <div className="pointer-events-auto absolute bottom-24 right-4 z-20 flex flex-col items-end gap-2">
+        <NeedBox />
         <Btn tone={myOpc ? 'sakura' : 'cream'} onClick={() => (myOpc ? enterLot(myOpc.lotId) : setWizard(true))} data-testid="my-shop-btn">🏪 {myOpc ? '我的小店' : '开一家小店'}</Btn>
         <Btn size="lg" onClick={stroll} data-testid="autowalk">🚶 随便逛逛</Btn>
       </div>

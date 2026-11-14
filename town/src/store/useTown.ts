@@ -15,6 +15,7 @@ import { COUNTERPARTIES, RESIDENTS, SHOPS, entityById, residentById } from '../d
 import { EVENTS, type TownEvent } from '../data/events';
 import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
 import { shopAtLot, useServer } from './useServer';
+import { exampleAtLot } from '../domain/lots';
 
 export const ME = 'me';
 export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'center' | 'community' | 'messages' | 'me';
@@ -34,6 +35,7 @@ export type Card =
   | { kind: 'entity'; id: string }
   | { kind: 'landmark'; id: string }
   | { kind: 'lot'; id: string }
+  | { kind: 'example'; id: string }
   | { kind: 'door'; label: string };
 
 interface TownState {
@@ -92,6 +94,7 @@ interface TownState {
   clearPath(): void;
   setStreet(n: string): void;
   setLifeTag(t: LifeTag): void;
+  setLook(patch: Partial<Avatar['look']>): void;
   setBiz(type: BizRelType, focus?: string): void;
   setShowMarkers(v: boolean): void;
   focusEvent(id?: string): void;
@@ -218,7 +221,9 @@ export const useTown = create<TownState>()(
         },
         clearPath: () => set({ walkPath: undefined }),
         setStreet: (streetName) => { if (get().streetName !== streetName) set({ streetName }); },
-        setLifeTag: (t) => set((s) => (s.avatar ? { avatar: { ...s.avatar, lifeTag: t } } : {})),
+        // 换身份 = 换着装：着装跟身份走（见 domain/identity.ts），清掉旧的着装字段
+        setLifeTag: (t) => set((s) => (s.avatar ? { avatar: { ...s.avatar, lifeTag: t, look: { ...s.avatar.look, outfit: undefined, pants: undefined, accent: undefined } } } : {})),
+        setLook: (patch) => set((s) => (s.avatar ? { avatar: { ...s.avatar, look: { ...s.avatar.look, ...patch } } } : {})),
         setBiz: (bizType, bizFocus) => set({ bizType, bizFocus }),
         setShowMarkers: (showMarkers) => set({ showMarkers }),
         focusEvent: (eventFocus) => set({ eventFocus }),
@@ -252,6 +257,8 @@ export const useTown = create<TownState>()(
           if (shop) { s.fxPush({ kind: 'door', from: playerRuntime }); return s.openChat(shop.id); }
           const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);
           if (ent) return s.openCard({ kind: 'entity', id: ent.id });
+          const ex = exampleAtLot(lotId);
+          if (ex) { s.fxPush({ kind: 'door', from: playerRuntime }); return s.openCard({ kind: 'example', id: ex.id }); }
           s.openCard({ kind: 'lot', id: lotId });
         },
 

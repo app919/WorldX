@@ -10,7 +10,10 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { Group } from 'three';
 import { Chibi } from './Chibi';
-import { navOf } from '../world';
+import { lotById, navOf } from '../world';
+import { dress, EXAMPLE_DRESS, IDENTITIES } from '../domain/identity';
+import { examplesOf, type ExampleOpc } from '../data/examples';
+import { lotPlan } from '../domain/lots';
 import { rng, type V2 } from '../world/geom';
 import { RESIDENTS, type Resident } from '../data/seed';
 import { residentAnchor, useBusinessMap, useTown } from '../store/useTown';
@@ -24,6 +27,7 @@ export function People({ district }: { district: DistrictKey }) {
   return (
     <group>
       {list.map((r) => <Owner key={r.id} r={r} isCustomer={customers.has(r.entityId)} />)}
+      {examplesOf(district).map((e, i) => { const lot = lotPlan(district).examples[i]; return lot ? <ExampleOwner key={e.id} ex={e} lotId={lot} district={district} /> : null; })}
       {Array.from({ length: 7 }).map((_, i) => <Walker key={`${district}${i}`} district={district} seed={i + 1} />)}
     </group>
   );
@@ -67,7 +71,7 @@ function Owner({ r, isCustomer }: { r: Resident; isCustomer: boolean }) {
       onPointerOver={() => (document.body.style.cursor = 'pointer')}
       onPointerOut={() => (document.body.style.cursor = '')}
     >
-      <Chibi look={r.look} movingRef={moving} happyRef={happy} scale={0.92} />
+      <Chibi look={dress(r.look, r.lifeTag)} movingRef={moving} happyRef={happy} scale={0.92} />
       <mesh position-y={0.9} visible={false}><cylinderGeometry args={[0.6, 0.6, 1.9, 8]} /></mesh>
       <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
         <div className="flex items-center gap-1 whitespace-nowrap rounded-full bg-cream-50/90 px-2 py-0.5 text-[10px] font-semibold text-cocoa-600 shadow-soft">
@@ -80,20 +84,65 @@ function Owner({ r, isCustomer }: { r: Resident; isCustomer: boolean }) {
   );
 }
 
-const WALKER_LOOKS: AvatarLook[] = [
-  { body: '#D9C7B0', skin: '#F2D4BE', hair: '#3B3B3B', accessory: 'none' },
-  { body: '#A9BFD0', skin: '#F6DCC8', hair: '#5A3E2B', accessory: 'cap' },
-  { body: '#E6B9A6', skin: '#EFCFB4', hair: '#2E2420', accessory: 'none' },
-  { body: '#BFD3B5', skin: '#F6DCC8', hair: '#7A5539', accessory: 'glasses' },
-  { body: '#EAD9A6', skin: '#F2D4BE', hair: '#D8D3CC', accessory: 'scarf' },
-];
+/** 路人：六种身份轮流出现，各穿各的身份着装，男女都有 */
+const HAIRS = ['#3B3B3B', '#5A3E2B', '#2E2420', '#7A5539', '#D8D3CC', '#4A3426'];
+const SKINS = ['#F2D4BE', '#F6DCC8', '#EFCFB4'];
+const walkerLook = (seed: number): AvatarLook => {
+  const id = IDENTITIES[seed % IDENTITIES.length];
+  return { body: id.body, pants: id.pants, accent: id.accent, outfit: id.outfit, accessory: seed % 4 === 3 ? 'glasses' : id.accessory, hair: HAIRS[seed % HAIRS.length], skin: SKINS[seed % SKINS.length], gender: seed % 2 ? 'f' : 'm' };
+};
+
+/** 【例】示范店的主理人：统一蓝色背带裤，在店门口附近溜达，点一下打开示范店介绍 */
+function ExampleOwner({ ex, lotId, district }: { ex: ExampleOpc; lotId: string; district: DistrictKey }) {
+  const nav = navOf(district);
+  const door = lotById(lotId)?.door.p ?? nav.cd.def.spawn;
+  const home = useMemo(() => nav.nearestWalkable(door, 4) ?? door, [nav, door]);
+  const g = useRef<Group>(null);
+  const moving = useRef(0);
+  const happy = useRef(0);
+  const st = useRef({ p: { ...home }, path: [] as V2[], i: 0, wait: Math.random() * 3 });
+  const openCard = useTown((s) => s.openCard);
+  const look = useMemo<AvatarLook>(() => ({ ...EXAMPLE_DRESS, skin: SKINS[ex.id.length % 3], hair: HAIRS[ex.id.length % HAIRS.length], gender: ex.owner.gender, accessory: 'none' }), [ex]);
+  useFrame((_, dtRaw) => {
+    const dt = Math.min(dtRaw, 0.05);
+    const s = st.current;
+    if (s.wait > 0) {
+      s.wait -= dt; moving.current = 0;
+      if (s.wait <= 0) {
+        const a = Math.random() * Math.PI * 2;
+        const t = nav.nearestWalkable({ x: home.x + Math.cos(a) * 2, z: home.z + Math.sin(a) * 2 }, 3);
+        s.path = (t && nav.findPath(s.p, t)) ?? []; s.i = 0;
+        if (!s.path.length) s.wait = 2;
+      }
+    } else if (s.path.length) {
+      const tgt = s.path[Math.min(s.i, s.path.length - 1)];
+      const dx = tgt.x - s.p.x, dz = tgt.z - s.p.z, L = Math.hypot(dx, dz);
+      if (L < 0.2) { s.i++; if (s.i >= s.path.length) { s.path = []; s.wait = 4 + Math.random() * 5; } }
+      else { s.p.x += (dx / L) * 1.1 * dt; s.p.z += (dz / L) * 1.1 * dt; moving.current = 1; if (g.current) g.current.rotation.y = Math.atan2(dx, dz); }
+    } else s.wait = 2;
+    g.current?.position.set(s.p.x, 0.16, s.p.z);
+  });
+  return (
+    <group ref={g} position={[home.x, 0.16, home.z]} userData={{ example: ex.id }}
+      onClick={(e) => { e.stopPropagation(); openCard({ kind: 'example', id: ex.id }); happy.current = performance.now() / 1000 + 1; }}
+      onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
+      <Chibi look={look} movingRef={moving} happyRef={happy} scale={0.9} />
+      <mesh position-y={0.9} visible={false}><cylinderGeometry args={[0.6, 0.6, 1.9, 8]} /></mesh>
+      <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="flex items-center gap-1 whitespace-nowrap rounded-full bg-[#EAF2FC]/95 px-2 py-0.5 text-[10px] font-semibold text-[#24548F] shadow-soft">
+          <span className="rounded bg-[#3E86D8] px-1 text-[9px] font-black text-white">例</span>{ex.owner.nickname} · {ex.direction}
+        </div>
+      </Html>
+    </group>
+  );
+}
 
 function Walker({ district, seed }: { district: DistrictKey; seed: number }) {
   const key = `walker-${seed}`;
   useEffect(() => () => { trafficRuntime.peds.delete(key); }, [key]);
   const nav = navOf(district);
   const R = useMemo(() => rng(seed * 991 + district.length), [seed, district]);
-  const look = WALKER_LOOKS[seed % WALKER_LOOKS.length];
+  const look = useMemo(() => walkerLook(seed + district.length), [seed, district]);
   const randomSpot = () => {
     const b = nav.cd.def.bounds;
     for (let k = 0; k < 40; k++) {

@@ -20,15 +20,15 @@ const tianai: RoadDef = {
 };
 
 const tianaiBranch: RoadDef = {
-  id: 'tianai_branch', name: '甜爱支路（示意）', a: v(104, -12), b: v(104, -150), carriage: 5, sidewalk: 3, lanes: 1,
+  id: 'tianai_branch', name: '甜爱支路', a: v(104, -12), b: v(104, -150), carriage: 5, sidewalk: 3, lanes: 1,
   centerLine: 'none', oneWay: true, trees: 'ginkgo', treeSpacing: 6, paving: 'brick_red',
 };
 const shanyin: RoadDef = {
-  id: 'shanyin', name: '山阴路（示意）', a: v(0, -96), b: v(104, -96), carriage: 6, sidewalk: 3.2, lanes: 2,
+  id: 'shanyin', name: '山阴路', a: v(0, -96), b: v(104, -96), carriage: 6, sidewalk: 3.2, lanes: 2,
   centerLine: 'dashed', trees: 'plane', treeSpacing: 6, paving: 'tile_grey',
 };
 const hengbang: RoadDef = {
-  id: 'hengbang', name: '横浜路（示意）', a: v(0, 80), b: v(-150, 80), carriage: 7, sidewalk: 3.4, lanes: 2,
+  id: 'hengbang', name: '横浜路', a: v(0, 80), b: v(-150, 80), carriage: 7, sidewalk: 3.4, lanes: 2,
   centerLine: 'dashed', trees: 'plane', treeSpacing: 6.5, paving: 'tile_grey',
 };
 
@@ -37,7 +37,7 @@ const POEMS = ['愿得一心人，白头不相离', '两情若是久长时，又
 export const SICHUAN: DistrictDef = {
   id: 'sichuan_n',
   name: '甜爱路及四川北路',
-  subtitle: '虹口区 · 商业主街与情诗小路（示意）',
+  subtitle: '虹口区 · 商业主街与情诗小路',
   geoRef: { lat: 31.266, lng: 121.481, note: '街道级近似位置；路口与建筑为示意' },
   ground: 'grass',
   ambience: '老字号、骑楼、情诗墙、爱心邮筒',
@@ -66,7 +66,7 @@ export const SICHUAN: DistrictDef = {
     { id: 'ta_lawn', kind: 'lawn', box: { cx: 52, cz: 3, w: 52, d: 17, rot: 0 }, label: '甜爱路街心花园' },
     // 鲁迅公园就在四川北路北端西侧、甜爱路对面；四川北路公园在四川北路南段东侧
     { id: 'luxun_park', kind: 'park', box: { cx: -56, cz: -103, w: 88, d: 74, rot: 0 }, label: '鲁迅公园' },
-    { id: 'sc_park', kind: 'park', box: { cx: 68, cz: 92, w: 78, d: 116, rot: 0 }, label: '四川北路公园（示意位置）' },
+    { id: 'sc_park', kind: 'park', box: { cx: 68, cz: 92, w: 78, d: 116, rot: 0 }, label: '四川北路公园' },
   ],
   buildings: [
     // 四川北路西侧：骑楼与近代建筑（右侧 = 西侧，因为道路向南）
@@ -88,7 +88,7 @@ export const SICHUAN: DistrictDef = {
     { id: 'tan3', kind: 'shop', box: frontage(tianai, 70, 'L', 10, 8, 1), floors: 2, palette: 'pink', doors: [{ offset: 0, lotId: 'ta_n1' }], seed: 53 },
   ],
   props: [
-    { kind: 'mailbox', ...(() => { const b = buildingside(tianai, 45.1, 'L', 0.5); return { p: b.p, rot: b.rot }; })(), text: '甜爱路爱心邮筒（示意）' },
+    { kind: 'mailbox', ...(() => { const b = buildingside(tianai, 45.1, 'L', 0.5); return { p: b.p, rot: b.rot }; })(), text: '甜爱路爱心邮筒' },
     ...POEMS.map((t, i) => ({ kind: 'poem_wall' as const, p: v(22 + i * 12, -12 + 2.5 + 3.2 + 0.05), rot: Math.PI, text: t })),
   ],
   spawn: v(-6.5, -20),

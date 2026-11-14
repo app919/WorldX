@@ -42,7 +42,7 @@ async function login(page, phone) {
   return code;
 }
 async function onboard(page, name) {
-  await page.getByText('学生', { exact: true }).click();
+  await page.getByText('游客', { exact: true }).click();
   const nick = page.getByPlaceholder(/昵称/);
   if (await nick.count()) await nick.fill(name);
   await page.getByText('下一步').click();
@@ -70,7 +70,7 @@ const phoneA = `1370${RUN}1`.slice(0, 11), phoneB = `1371${RUN}2`.slice(0, 11);
     must((await A.getByTestId('login-msg').innerText()).includes('同意'), '没有要求同意协议');
     await A.getByTestId('login-agree').check();
     await A.getByTestId('login-submit').click();
-    await A.getByText('学生', { exact: true }).waitFor({ timeout: 30000 });
+    await A.getByText('游客', { exact: true }).waitFor({ timeout: 30000 });
     await A.screenshot({ path: path.join(OUT, '01-after-login.png') });
   });
   await step('新手引导后进入街区（资料保存到服务端）', A, async () => {

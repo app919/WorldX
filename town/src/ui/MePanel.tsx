@@ -34,11 +34,15 @@ export function MePanel() {
     <Drawer testId="me-panel" title={`🧸 ${avatar.nickname}`} subtitle="角色 · OPC · AI 分身 · 隐私设置" onClose={() => setTab('city')}>
       <div className="space-y-3">
         <Card className="!p-3">
-          <div className="text-xs font-bold text-stone-600">我的生活标签（随时可换，不是职业审核）</div>
+          <div className="text-xs font-bold text-stone-600">我的身份（随时可换，不是职业审核；着装跟身份走）</div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {LIFE_TAGS.map((t) => (
-              <button key={t.tag} onClick={() => setLifeTag(t.tag)} className={`chip ${avatar.lifeTag === t.tag ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>{t.emoji} {t.label}</button>
+              <button key={t.tag} data-testid={`me-identity-${t.tag}`} onClick={() => setLifeTag(t.tag)} className={`chip ${avatar.lifeTag === t.tag ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>{t.emoji} {t.label}</button>
             ))}
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-xs text-stone-600">性别</span>
+            {(['f', 'm'] as const).map((g) => <button key={g} onClick={() => useTown.getState().setLook({ gender: g })} className={`chip ${(avatar.look.gender ?? 'f') === g ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>{g === 'f' ? '👧 女生' : '👦 男生'}</button>)}
           </div>
         </Card>
 

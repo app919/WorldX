@@ -3,39 +3,40 @@
  *
  * 表达的是浦东老社区的典型街景：六层“新村”住宅、社区菜场、底商、社区服务中心、
  * 香樟与桂花、社区小广场与健身器材、路边停车位、公交站。
- * 道路名称、建筑位置均为示意，不对应具体门牌；正式版需按授权路网校准。
+ * 道路与公园名称为洋泾街道真实名称（源深路、张杨路、羽山路、灵山路、巨野路；泾南公园位于羽山路，
+ * 源深体育中心位于张杨路源深路口）；道路相对位置与建筑为示意，不对应具体门牌。
  */
 import type { DistrictDef, RoadDef } from '../types';
 import { v } from '../geom';
 import { frontage } from '../helpers';
 
 const main: RoadDef = {
-  id: 'yj_main', name: '洋泾社区主路（示意）', a: v(-140, 0), b: v(170, 0), carriage: 12, sidewalk: 4, lanes: 2,
+  id: 'yj_main', name: '张杨路', a: v(-140, 0), b: v(170, 0), carriage: 12, sidewalk: 4, lanes: 2,
   centerLine: 'double_yellow', trees: 'camphor', treeSpacing: 7.5, paving: 'tile_grey',
   note: '南侧为路边停车带',
 };
 const cross: RoadDef = {
-  id: 'yj_cross', name: '社区支路（示意）', a: v(20, -130), b: v(20, 122), carriage: 7, sidewalk: 3.4, lanes: 2,
+  id: 'yj_cross', name: '羽山路', a: v(20, -130), b: v(20, 122), carriage: 7, sidewalk: 3.4, lanes: 2,
   centerLine: 'dashed', trees: 'osmanthus', treeSpacing: 6, paving: 'tile_cream',
 };
 
 const west: RoadDef = {
-  id: 'yj_west', name: '社区西路（示意）', a: v(-80, -130), b: v(-80, 122), carriage: 7, sidewalk: 3.4, lanes: 2,
+  id: 'yj_west', name: '源深路', a: v(-80, -130), b: v(-80, 122), carriage: 7, sidewalk: 3.4, lanes: 2,
   centerLine: 'dashed', trees: 'camphor', treeSpacing: 7, paving: 'tile_grey',
 };
 const east: RoadDef = {
-  id: 'yj_east', name: '社区东路（示意）', a: v(112, -130), b: v(112, 122), carriage: 7, sidewalk: 3.4, lanes: 2,
+  id: 'yj_east', name: '灵山路', a: v(112, -130), b: v(112, 122), carriage: 7, sidewalk: 3.4, lanes: 2,
   centerLine: 'dashed', trees: 'osmanthus', treeSpacing: 6, paving: 'tile_cream',
 };
 const north: RoadDef = {
-  id: 'yj_north', name: '社区北路（示意）', a: v(-140, -96), b: v(170, -96), carriage: 9, sidewalk: 3.8, lanes: 2,
+  id: 'yj_north', name: '巨野路', a: v(-140, -96), b: v(170, -96), carriage: 9, sidewalk: 3.8, lanes: 2,
   centerLine: 'double_yellow', trees: 'camphor', treeSpacing: 7.5, paving: 'tile_grey',
 };
 
 export const YANGJING: DistrictDef = {
   id: 'yangjing',
   name: '洋泾社区',
-  subtitle: '浦东新区 · 社区生活街区（示意）',
+  subtitle: '浦东新区洋泾街道 · 张杨路社区生活街区',
   geoRef: { lat: 31.236, lng: 121.53, note: '街道级近似位置；道路与建筑为典型社区街景示意' },
   ground: 'grass',
   ambience: '菜场、邻里、香樟树荫、社区团购',
@@ -59,8 +60,8 @@ export const YANGJING: DistrictDef = {
   },
   areas: [
     { id: 'yj_plaza', kind: 'plaza', box: { cx: 50, cz: 19.2, w: 24, d: 19.6, rot: 0 }, label: '社区小广场' },
-    { id: 'yj_park', kind: 'park', box: { cx: -27, cz: -52, w: 62, d: 38, rot: 0 }, label: '洋泾街心公园（示意）' },
-    { id: 'yj_sport', kind: 'park', box: { cx: 66, cz: 66, w: 56, d: 64, rot: 0 }, label: '社区运动公园（示意）' },
+    { id: 'yj_park', kind: 'park', box: { cx: -27, cz: -52, w: 62, d: 38, rot: 0 }, label: '源深体育中心' },
+    { id: 'yj_sport', kind: 'park', box: { cx: 66, cz: 66, w: 56, d: 64, rot: 0 }, label: '泾南公园' },
     { id: 'yj_lawn1', kind: 'lawn', box: { cx: -26, cz: -16, w: 72, d: 9, rot: 0 } },
     { id: 'yj_parking', kind: 'parking', box: { cx: -34, cz: 4.9, w: 40, d: 2.2, rot: 0 }, label: '路边停车位' },
   ],
@@ -68,7 +69,7 @@ export const YANGJING: DistrictDef = {
     // 北侧：六层新村住宅（退界 + 绿化）
     { id: 'yjn1', kind: 'workers_housing', box: frontage(main, 98, 'L', 26, 10, 9), floors: 6, palette: 'cream', doors: [{ offset: -6 }, { offset: 6 }], setback: 9, seed: 21 },
     { id: 'yjn2', kind: 'workers_housing', box: frontage(main, 128, 'L', 22, 10, 9), floors: 6, palette: 'pink', doors: [{ offset: 0 }], setback: 9, seed: 22 },
-    { id: 'yjn3', kind: 'civic', box: frontage(main, 176, 'L', 16, 11, 4), floors: 3, name: '社区服务中心（示意）', palette: 'white', doors: [{ offset: 0, label: '社区服务中心（示意）' }], setback: 4, seed: 23 },
+    { id: 'yjn3', kind: 'civic', box: frontage(main, 176, 'L', 16, 11, 4), floors: 3, name: '社区服务中心', palette: 'white', doors: [{ offset: 0, label: '社区服务中心' }], setback: 4, seed: 23 },
     { id: 'yjn4', kind: 'shop', box: frontage(main, 194, 'L', 9, 7), floors: 2, palette: 'blue', doors: [{ offset: 0, lotId: 'yj_n1' }], seed: 24 },
     { id: 'yjn5', kind: 'shop', box: frontage(main, 204.5, 'L', 9, 7), floors: 2, palette: 'cream', doors: [{ offset: 0, lotId: 'yj_n2' }], seed: 25 },
     // 南侧：社区菜场 + 底商

@@ -197,49 +197,95 @@ const chrome = new MeshStandardMaterial({ color: '#D9DDE0', metalness: 0.85, rou
 const tyre = new MeshStandardMaterial({ color: '#2C2B2A', roughness: 0.9 });
 const rim = new MeshStandardMaterial({ color: '#BFC3C6', metalness: 0.7, roughness: 0.3 });
 
+/** 车型：轿车 / 两厢 / SUV / 出租车 / MPV 面包车 / 迷你电动车 / 快递小货车（长度都不超过交通仿真的车长） */
+export type CarKind = 'sedan' | 'hatch' | 'suv' | 'taxi' | 'mpv' | 'mini' | 'delivery';
+const CAR_KINDS: CarKind[] = ['sedan', 'hatch', 'suv', 'taxi', 'mpv', 'mini', 'sedan', 'delivery', 'suv', 'hatch'];
+export const carKindOf = (seed: number): CarKind => CAR_KINDS[Math.abs(Math.round(seed)) % CAR_KINDS.length];
+
+interface CarShape { W: number; L: number; bodyH: number; bodyY: number; cabW: number; cabH: number; cabL: number; cabZ: number; wheelR: number; axle: number; frontRake: number; rearRake: number }
+const SHAPES: Record<CarKind, CarShape> = {
+  sedan: { W: 1.86, L: 4.2, bodyH: 0.62, bodyY: 0.6, cabW: 1.64, cabH: 0.58, cabL: 2.2, cabZ: -0.2, wheelR: 0.34, axle: 1.32, frontRake: 0.5, rearRake: 0.5 },
+  hatch: { W: 1.8, L: 3.8, bodyH: 0.64, bodyY: 0.6, cabW: 1.6, cabH: 0.64, cabL: 2.3, cabZ: -0.4, wheelR: 0.33, axle: 1.2, frontRake: 0.55, rearRake: 0.12 },
+  suv: { W: 1.95, L: 4.3, bodyH: 0.8, bodyY: 0.72, cabW: 1.75, cabH: 0.66, cabL: 2.6, cabZ: -0.35, wheelR: 0.4, axle: 1.36, frontRake: 0.45, rearRake: 0.15 },
+  taxi: { W: 1.84, L: 4.25, bodyH: 0.62, bodyY: 0.6, cabW: 1.62, cabH: 0.58, cabL: 2.2, cabZ: -0.2, wheelR: 0.34, axle: 1.32, frontRake: 0.5, rearRake: 0.5 },
+  mpv: { W: 1.92, L: 4.35, bodyH: 0.78, bodyY: 0.66, cabW: 1.82, cabH: 0.86, cabL: 3.3, cabZ: -0.35, wheelR: 0.35, axle: 1.42, frontRake: 0.6, rearRake: 0.05 },
+  mini: { W: 1.55, L: 3.0, bodyH: 0.6, bodyY: 0.55, cabW: 1.42, cabH: 0.66, cabL: 1.8, cabZ: -0.25, wheelR: 0.3, axle: 0.95, frontRake: 0.45, rearRake: 0.2 },
+  delivery: { W: 1.9, L: 4.35, bodyH: 0.66, bodyY: 0.62, cabW: 1.8, cabH: 0.7, cabL: 1.2, cabZ: 1.15, wheelR: 0.36, axle: 1.38, frontRake: 0.35, rearRake: 0 },
+};
+const TAXI_PAINT = '#56B7A6';
+
 /**
- * 小汽车（局部 z 轴为车头方向）：车身、轮拱、四面车窗、前大灯与尾灯、后视镜、上海蓝色车牌（虚构号码）。
+ * 小汽车（局部 z 轴为车头方向）：七种车型，按车辆编号分配；车身、轮拱、四面车窗、前大灯与尾灯、后视镜、上海蓝色车牌（虚构号码）。
+ * 出租车顶灯、SUV 行李架、MPV 侧滑门、快递车货箱、迷你电动车圆润车身 —— 街上不再“每辆车都长一样”。
  * wheelSpin / brake 由交通系统驱动，让车轮转动、刹车灯亮起。
  */
-export function Car({ color, seed = 1, wheelsRef, brakeRef }: { color: string; seed?: number; wheelsRef?: React.MutableRefObject<Group[]>; brakeRef?: React.MutableRefObject<MeshStandardMaterial | null> }) {
+export function Car({ color, seed = 1, wheelsRef, brakeRef, kind }: { color: string; seed?: number; wheelsRef?: React.MutableRefObject<Group[]>; brakeRef?: React.MutableRefObject<MeshStandardMaterial | null>; kind?: CarKind }) {
   const M = mats();
-  const paint = paintOf(color);
+  const k = kind ?? carKindOf(seed);
+  const S = SHAPES[k];
+  const paint = paintOf(k === 'taxi' ? TAXI_PAINT : k === 'delivery' ? '#F4F1EA' : color);
   const plate = useMemo(() => signTex(`沪${PLATE_LETTERS[Math.abs(seed) % PLATE_LETTERS.length]}·${String(10000 + (Math.abs(seed * 7919) % 89999)).slice(0, 5)}`, '#1F4E8C', '#FFFFFF', 256, 80), [seed]);
+  const boxColor = ['#E8833A', '#3E86D8', '#4E9F6B'][Math.abs(Math.round(seed)) % 3];
+  const roofSign = useMemo(() => (k === 'taxi' ? signTex('TAXI 出租', '#FFF4C8', '#2E5E55', 256, 80) : k === 'delivery' ? signTex('同城快送', boxColor, '#FFFFFF', 512, 128) : null), [k, boxColor]);
   const tail = useMemo(() => (brakeRef ? tailMat.clone() : tailMat), [brakeRef]);
   if (brakeRef) brakeRef.current = tail;
-  const W = 1.86, L = 4.2;
+  const { W, L, bodyH, bodyY, cabW, cabH, cabL, cabZ, wheelR, axle } = S;
+  const cabY = bodyY + bodyH / 2 + cabH / 2 - 0.06;
+  const r = Math.min(0.24, bodyH * 0.35);
   return (
     <group>
       {/* 车身下半部 */}
-      <RoundedBox args={[W, 0.62, L]} radius={0.22} smoothness={3} position-y={0.6} material={paint} castShadow receiveShadow />
-      {/* 车舱：前窄后宽的斜面感用两个圆角块叠出 */}
-      <RoundedBox args={[W - 0.22, 0.58, 2.2]} radius={0.24} smoothness={3} position={[0, 1.12, -0.2]} material={paint} castShadow />
+      <RoundedBox args={[W, bodyH, L]} radius={k === 'mini' ? 0.3 : r} smoothness={3} position-y={bodyY} material={paint} castShadow receiveShadow />
+      {/* 车舱 / 货箱 */}
+      {k === 'delivery' ? (
+        <>
+          <RoundedBox args={[cabW, cabH, cabL]} radius={0.18} smoothness={3} position={[0, cabY, cabZ]} material={paint} castShadow />
+          <RoundedBox args={[W, 1.35, 2.75]} radius={0.08} smoothness={2} position={[0, bodyY + bodyH / 2 + 0.62, -0.7]} castShadow><meshStandardMaterial color={boxColor} roughness={0.7} /></RoundedBox>
+          {[1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.005), bodyY + bodyH / 2 + 0.7, -0.7]} rotation-y={sg * Math.PI / 2}><planeGeometry args={[2.3, 0.62]} /><meshStandardMaterial map={roofSign!} /></mesh>)}
+        </>
+      ) : (
+        <RoundedBox args={[cabW, cabH, cabL]} radius={k === 'mini' ? 0.3 : 0.24} smoothness={3} position={[0, cabY, cabZ]} material={paint} castShadow />
+      )}
       {/* 车窗：前挡、后挡、两侧 */}
-      <mesh position={[0, 1.15, 0.92]} rotation-x={-0.5} material={M.glass}><planeGeometry args={[W - 0.42, 0.62]} /></mesh>
-      <mesh position={[0, 1.15, -1.32]} rotation={[0.5, Math.PI, 0]} material={M.glass}><planeGeometry args={[W - 0.42, 0.55]} /></mesh>
+      <mesh position={[0, cabY + 0.02, cabZ + cabL / 2 + 0.01]} rotation-x={-S.frontRake} material={M.glass}><planeGeometry args={[cabW - 0.2, cabH * 0.95]} /></mesh>
+      {k !== 'delivery' && <mesh position={[0, cabY + 0.02, cabZ - cabL / 2 - 0.01]} rotation={[S.rearRake, Math.PI, 0]} material={M.glass}><planeGeometry args={[cabW - 0.2, cabH * 0.85]} /></mesh>}
       {[1, -1].map((sg) => (
-        <mesh key={sg} position={[sg * (W / 2 - 0.1), 1.17, -0.2]} rotation-y={sg * Math.PI / 2} material={M.glass}><planeGeometry args={[1.9, 0.4]} /></mesh>
+        <mesh key={sg} position={[sg * (cabW / 2 + 0.01), cabY + 0.04, cabZ]} rotation-y={sg * Math.PI / 2} material={M.glass}><planeGeometry args={[cabL - 0.3, cabH * 0.6]} /></mesh>
       ))}
+      {/* MPV 侧滑门导轨 */}
+      {k === 'mpv' && [1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.01), bodyY + 0.1, -0.3]} rotation-y={sg * Math.PI / 2} material={M.frameDark}><planeGeometry args={[0.03, bodyH * 0.9]} /></mesh>)}
+      {/* SUV 行李架 */}
+      {k === 'suv' && [1, -1].map((sg) => <mesh key={sg} position={[sg * (cabW / 2 - 0.12), cabY + cabH / 2 + 0.05, cabZ]} material={chrome}><boxGeometry args={[0.05, 0.05, cabL * 0.85]} /></mesh>)}
+      {/* 出租车顶灯 */}
+      {k === 'taxi' && (
+        <group position={[0, cabY + cabH / 2 + 0.12, cabZ]}>
+          <RoundedBox args={[0.7, 0.22, 0.32]} radius={0.06} smoothness={2}><meshStandardMaterial color="#FFF4C8" emissive="#FFE89A" emissiveIntensity={0.4} /></RoundedBox>
+          <mesh position-z={0.165}><planeGeometry args={[0.64, 0.2]} /><meshStandardMaterial map={roofSign!} /></mesh>
+          <mesh position-z={-0.165} rotation-y={Math.PI}><planeGeometry args={[0.64, 0.2]} /><meshStandardMaterial map={roofSign!} /></mesh>
+        </group>
+      )}
+      {/* 出租车腰线 */}
+      {k === 'taxi' && [1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.005), bodyY + 0.05, 0]} rotation-y={sg * Math.PI / 2}><planeGeometry args={[L - 0.6, 0.08]} /><meshStandardMaterial color="#F7F3EA" /></mesh>)}
       {/* 轮拱与车轮 */}
-      {[[-1, 1.32], [1, 1.32], [-1, -1.32], [1, -1.32]].map(([sx, z], i) => (
-        <group key={i} position={[sx * (W / 2 - 0.12), 0.34, z]}>
-          <mesh rotation-z={Math.PI / 2} material={M.frameDark} position-x={sx * 0.03}><cylinderGeometry args={[0.42, 0.42, 0.2, 18, 1, true, 0, Math.PI]} /></mesh>
+      {[[-1, axle], [1, axle], [-1, -axle], [1, -axle]].map(([sx, z], i) => (
+        <group key={i} position={[sx * (W / 2 - 0.12), wheelR, z]}>
+          <mesh rotation-z={Math.PI / 2} material={M.frameDark} position-x={sx * 0.03}><cylinderGeometry args={[wheelR + 0.08, wheelR + 0.08, 0.2, 18, 1, true, 0, Math.PI]} /></mesh>
           <group ref={(g) => { if (g && wheelsRef) wheelsRef.current[i] = g; }}>
-            <mesh rotation-z={Math.PI / 2} material={tyre} castShadow><cylinderGeometry args={[0.34, 0.34, 0.24, 18]} /></mesh>
-            <mesh rotation-z={Math.PI / 2} position-x={sx * 0.125} material={rim}><cylinderGeometry args={[0.2, 0.2, 0.02, 12]} /></mesh>
-            <mesh position={[sx * 0.13, 0.12, 0]} material={chrome}><boxGeometry args={[0.02, 0.08, 0.14]} /></mesh>
+            <mesh rotation-z={Math.PI / 2} material={tyre} castShadow><cylinderGeometry args={[wheelR, wheelR, 0.24, 18]} /></mesh>
+            <mesh rotation-z={Math.PI / 2} position-x={sx * 0.125} material={rim}><cylinderGeometry args={[wheelR * 0.58, wheelR * 0.58, 0.02, 12]} /></mesh>
+            <mesh position={[sx * 0.13, wheelR * 0.35, 0]} material={chrome}><boxGeometry args={[0.02, 0.08, 0.14]} /></mesh>
           </group>
         </group>
       ))}
       {/* 前大灯、格栅、尾灯 */}
-      {[-0.62, 0.62].map((x) => <mesh key={x} position={[x, 0.72, L / 2 - 0.02]} material={M.lampHead}><boxGeometry args={[0.38, 0.16, 0.06]} /></mesh>)}
-      <mesh position={[0, 0.58, L / 2 - 0.01]} material={chrome}><boxGeometry args={[0.7, 0.12, 0.04]} /></mesh>
-      {[-0.66, 0.66].map((x) => <mesh key={x} position={[x, 0.76, -L / 2 + 0.01]} material={tail}><boxGeometry args={[0.34, 0.14, 0.05]} /></mesh>)}
+      {[-1, 1].map((sg) => <mesh key={sg} position={[sg * (W / 2 - 0.32), bodyY + 0.12, L / 2 - 0.02]} material={M.lampHead}>{k === 'mini' ? <sphereGeometry args={[0.13, 12, 10]} /> : <boxGeometry args={[0.38, 0.16, 0.06]} />}</mesh>)}
+      <mesh position={[0, bodyY - 0.02, L / 2 - 0.01]} material={chrome}><boxGeometry args={[k === 'suv' ? 0.9 : 0.7, k === 'suv' ? 0.2 : 0.12, 0.04]} /></mesh>
+      {[-1, 1].map((sg) => <mesh key={sg} position={[sg * (W / 2 - 0.27), bodyY + 0.16, -L / 2 + 0.01]} material={tail}><boxGeometry args={[0.34, 0.14, 0.05]} /></mesh>)}
       {/* 车牌 */}
-      <mesh position={[0, 0.48, L / 2 + 0.02]}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
-      <mesh position={[0, 0.5, -L / 2 - 0.02]} rotation-y={Math.PI}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
+      <mesh position={[0, bodyY - 0.12, L / 2 + 0.02]}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
+      <mesh position={[0, bodyY - 0.1, -L / 2 - 0.02]} rotation-y={Math.PI}><planeGeometry args={[0.62, 0.2]} /><meshStandardMaterial map={plate} /></mesh>
       {/* 后视镜 */}
-      {[1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.08), 1.0, 0.75]} material={paint}><boxGeometry args={[0.16, 0.12, 0.2]} /></mesh>)}
+      {[1, -1].map((sg) => <mesh key={sg} position={[sg * (W / 2 + 0.08), cabY - cabH / 2 + 0.12, cabZ + cabL / 2 - 0.2]} material={paint}><boxGeometry args={[0.16, 0.12, 0.2]} /></mesh>)}
     </group>
   );
 }

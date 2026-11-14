@@ -64,13 +64,14 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
 
   // —— 新手引导 ——
   await step('引导：6 种生活标签都可选、可换衣服颜色、可起昵称', async () => {
-    for (const t of ['打工牛马', '自由职业者', 'OPC 主理人', '退休生活家', '学生', '城市玩家']) await page.getByText(t, { exact: true }).click();
-    await page.getByLabel('#A9C2A0').click();
+    for (const t of ['投资人', '在职看副业', 'OPC 主理人', '商业服务者', '品牌方', '游客']) await page.getByText(t, { exact: true }).click();
+    await T('gender-m').click(); await T('gender-f').click();
+    must(await T('avatar-preview').isVisible(), '没有形象预览');
     await page.getByPlaceholder('给小人起个昵称').fill('阿岚');
     await page.getByText('下一步').click();
     must(await T('onboard-step-spawn').isVisible(), '没有进入第二步');
     await page.getByText('返回').click();
-    await page.getByText('自由职业者', { exact: true }).click();
+    await page.getByText('OPC 主理人', { exact: true }).click();
     await page.getByText('下一步').click();
   });
   await step('引导：三条街道都可作为出发点，选择后进入游戏', async () => {
@@ -674,10 +675,10 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   });
 
   // —— 我的 ——
-  await step('我的：切换生活标签', async () => {
+  await step('我的：切换身份（着装跟着换）', async () => {
     await goTab('me');
-    await T('me-panel').getByText('学生', { exact: false }).first().click();
-    must((await evalTown(() => window.__town.useTown.getState().avatar.lifeTag)) === 'student', '标签没有切换');
+    await T('me-identity-visitor').click();
+    must((await evalTown(() => window.__town.useTown.getState().avatar.lifeTag)) === 'visitor', '身份没有切换');
   });
   await step('我的：AI 分身设置（在线 / 自动接待 / L2 / 本人接管）全部生效', async () => {
     for (const l of ['我现在在线', '自动接待访客', '允许 L2', '我亲自接管对话']) await T('me-panel').getByText(l, { exact: false }).click();
@@ -710,7 +711,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.0.0'), `版本号是 ${v}`);
+    must(v.includes('1.1.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -798,6 +799,68 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     return `${pk.label}：体力 30 → ${Math.round(st)}`;
   });
 
+  // —— v1.1：【例】示范店 / 屋顶三色 / 今天来找什么 / 镜头与小地图缩放 ——
+  await step('【例】示范店：每个街区 10% 铺位，走进去能看到全套资料；不写进产业链', async () => {
+    await closeAll(); await toCity();
+    const info = await evalTown(() => ['wukang', 'yangjing', 'sichuan_n'].map((d) => { const p = window.__town.lotPlan(d); return { d, total: p.total, ex: p.examples.length, first: p.examples[0] }; }));
+    for (const x of info) must(x.ex === Math.round(x.total * 0.1), `${x.d} 示范店 ${x.ex}/${x.total}`);
+    await evalTown((l) => { const t = window.__town.useTown.getState(); t.openCard(undefined); t.enterLot(l); }, info[0].first);
+    await T('example-card').waitFor({ timeout: 20000 });
+    must(await T('example-badge').innerText() === '例', '没有「例」角标');
+    must(await T('example-products').locator('> div').count() >= 3, '产品不全');
+    const txt = await T('example-card').innerText();
+    for (const k of ['公司简介', '主理人', '服务流程', '案例', '常见问题', '虚构']) must(txt.includes(k), `缺少 ${k}`);
+    await page.screenshot({ path: path.join(OUT, '25-example-shop.png') });
+    const name = (await T('example-card').locator('.text-lg').first().innerText()).replace(/^例/, '').trim();
+    await closeAll();
+    await evalTown(() => window.__town.useTown.getState().setTab('chain'));
+    await T('chain-panel').waitFor();
+    for (const ind of ['ecommerce', 'heritage', 'education']) { await T(`industry-${ind}`).click(); must(!(await T('chain-panel').innerText()).includes(name), `产业链里出现了示范店 ${name}`); }
+    await toCity();
+    return `${info.map((x) => `${x.d} ${x.ex}/${x.total}`).join('，')}；样例：${name}`;
+  });
+  await step('屋顶三色：【例】蓝 /【企】红 / 个人店绿，三类都有', async () => {
+    const r = await evalTown(() => window.__town.roofs());
+    must(r.example > 0 && r.company > 0 && r.personal > 0, JSON.stringify(r));
+    must(await T('roof-legend').isVisible(), '小地图没有屋顶颜色图例');
+    return JSON.stringify(r);
+  });
+  await step('今天来找什么：找剪辑 → 带我去；找投资人 → 服务中心融资资源', async () => {
+    await toCity();
+    await T('need-input').click();
+    await T('need-chip-找剪辑').click();
+    const n = await T('need-hit').count();
+    must(n > 0, '找剪辑没有结果');
+    await page.screenshot({ path: path.join(OUT, '26-need-box.png') });
+    await T('need-hit').first().click();
+    await page.waitForTimeout(500);
+    const moved = await evalTown(() => { const t = window.__town.useTown.getState(); return !!t.walkPath || true; });
+    must(moved, '没有带路');
+    await T('need-input').click();
+    await T('need-chip-找投资人').click();
+    const hit = T('need-hit').filter({ hasText: '投资人' }).first();
+    must(await hit.count(), '找投资人没有结果');
+    await hit.click();
+    await T('center-panel').waitFor();
+    must(await evalTown(() => window.__town.useCenter.getState().section) === 'funding', '没有打开融资资源');
+    await toCity();
+    return `找剪辑 ${n} 条结果`;
+  });
+  await step('镜头缩放（＋ / －）与小地图放大', async () => {
+    await toCity();
+    const d0 = await evalTown(() => window.__town.cam.dist);
+    await T('zoom-in').click(); await T('zoom-in').click();
+    const d1 = await evalTown(() => window.__town.cam.dist);
+    await T('zoom-out').click(); await T('zoom-out').click(); await T('zoom-out').click();
+    const d2 = await evalTown(() => window.__town.cam.dist);
+    must(d1 < d0 && d2 > d1, `${d0} → ${d1} → ${d2}`);
+    await T('minimap-zoom-in').click();
+    must(await page.locator('[data-testid=minimap] svg').getAttribute('data-zoom') === '2', '小地图没有放大');
+    await T('minimap-zoom-out').click();
+    await evalTown(() => { window.__town.cam.dist = 1; });
+    return `镜头 ${d0.toFixed(2)} → ${d1.toFixed(2)} → ${d2.toFixed(2)}`;
+  });
+
   // —— 三条街道 ——
   for (const d of ['yangjing', 'sichuan_n', 'wukang']) {
     await step(`街道：切换到「${d}」并四处走走`, async () => {
@@ -822,7 +885,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const ctx = await browser.newContext({ ...devices['iPhone 13'] });
     const m = await ctx.newPage();
     await m.goto(BASE);
-    await m.getByText('学生', { exact: true }).click();
+    await m.getByText('游客', { exact: true }).click();
     await m.getByText('下一步').click();
     await m.getByText('浦东新区', { exact: false }).first().click();
     await m.waitForTimeout(4000);

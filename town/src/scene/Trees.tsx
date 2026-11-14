@@ -36,25 +36,59 @@ function limb(a: Vector3, b: Vector3, r0: number, r1: number, bark: (i: number) 
   return colorize(g, (_y, i) => bark(i));
 }
 
-/** 一团叶子：带噪声起伏的二十面体，顶部偏亮、底部偏暗 */
-function clump(c: Vector3, r: number, squash: number, base: string, light: string, R: () => number, accent?: string): Part {
+/**
+ * 一团叶子：带噪声起伏的二十面体。
+ * 立体感来自三件事：① 朝上的面亮、朝下的面暗（按法线着色）；② 靠近树冠中心的部分更暗（像有阴影）；③ 颜色带细微抖动。
+ */
+function clump(c: Vector3, r: number, squash: number, base: string, light: string, R: () => number, accent?: string, center?: Vector3): Part {
   const ico = new IcosahedronGeometry(r, LOW_GFX ? 1 : 2);
   ico.deleteAttribute('uv'); ico.deleteAttribute('normal');
   const g = mergeVertices(ico); // 合并顶点后再加噪声，保证叶团是连续、圆润的
   const p = g.getAttribute('position');
   for (let i = 0; i < p.count; i++) {
-    const k = 1 + (R() - 0.5) * 0.22;
+    const k = 1 + (R() - 0.5) * 0.26;
     p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * squash, p.getZ(i) * k);
   }
   g.translate(c.x, c.y, c.z);
   g.computeVertexNormals();
-  const cb = new Color(base), cl = new Color(light), ca = accent ? new Color(accent) : null;
-  return colorize(g, (y) => {
-    const t = Math.max(0, Math.min(1, (y - (c.y - r * squash)) / (2 * r * squash)));
-    const col = cb.clone().lerp(cl, t * t * 0.7);
-    if (ca && R() < 0.0) return ca.clone();
-    return col.offsetHSL(0, 0, (R() - 0.5) * 0.04);
-  });
+  const ng = g.toNonIndexed();
+  const pos = ng.getAttribute('position'), nor = ng.getAttribute('normal');
+  const cb = new Color(base), cl = new Color(light), dark = new Color(base).multiplyScalar(0.62), ca = accent ? new Color(accent) : null;
+  const ctr = center ?? c;
+  const col = new Float32Array(pos.count * 3);
+  const tmp = new Color();
+  for (let i = 0; i < pos.count; i++) {
+    const up = nor.getY(i) * 0.5 + 0.5; // 0 = 朝下，1 = 朝上
+    tmp.copy(dark).lerp(cb, Math.min(1, up * 1.6)).lerp(cl, Math.max(0, up - 0.55) * 1.6);
+    // 靠近树冠中心 / 低处更暗
+    const dx = pos.getX(i) - ctr.x, dz = pos.getZ(i) - ctr.z;
+    const out = Math.min(1, Math.hypot(dx, dz) / (r * 1.6));
+    tmp.multiplyScalar(0.82 + 0.18 * out);
+    if (ca && R() < 0.035) tmp.lerp(ca, 0.85); // 桂花的点点小花
+    tmp.offsetHSL((R() - 0.5) * 0.015, 0, (R() - 0.5) * 0.05);
+    col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+  }
+  ng.setAttribute('color', new BufferAttribute(col, 3));
+  return ng;
+}
+
+/** 蓬松的树冠：一大团 + 表面冒出的几团小叶簇（卡通“棉花糖”轮廓，不再是一个球） */
+function crown(parts: Part[], c: Vector3, r: number, squash: number, base: string, light: string, R: () => number, accent?: string, center?: Vector3) {
+  parts.push(clump(c, r, squash, base, light, R, accent, center));
+  const n = LOW_GFX ? 2 : 5;
+  for (let k = 0; k < n; k++) {
+    const a = R() * Math.PI * 2, el = 0.15 + R() * 0.9; // 主要分布在上半球与侧面
+    const d = r * 0.82;
+    const pc = new Vector3(c.x + Math.cos(a) * Math.cos(el) * d, c.y + Math.sin(el) * d * squash, c.z + Math.sin(a) * Math.cos(el) * d);
+    parts.push(clump(pc, r * (0.38 + R() * 0.18), Math.min(1, squash + 0.15), base, light, R, accent, center ?? c));
+  }
+}
+
+/** 树根：底部微微张开的根部 */
+function rootFlare(parts: Part[], r: number, bark: (i: number) => Color) {
+  const g = new CylinderGeometry(r, r * 1.7, 0.35, 8, 1);
+  g.translate(0, 0.17, 0);
+  parts.push(colorize(g, (_y, i) => bark(i)));
 }
 
 const BARK_PLANE = ['#C9C2AE', '#A9A48F', '#DCD6C3', '#8E8B78'];
@@ -84,10 +118,11 @@ export function treeGeometry(species: TreeSpecies, variant: number): BufferGeome
       // 每根分枝末端 2–3 团叶子，层叠成宽冠
       const n = 2 + Math.floor(R() * 2);
       for (let k = 0; k < n; k++) {
-        parts.push(clump(end.clone().add(v3((R() - 0.5) * 1.0, (R() - 0.2) * 0.6, (R() - 0.5) * 1.0)), 0.85 + R() * 0.35, 0.7, '#4F8A3C', '#8EC25E', R));
+        crown(parts, end.clone().add(v3((R() - 0.5) * 1.0, (R() - 0.2) * 0.6, (R() - 0.5) * 1.0)), 0.85 + R() * 0.35, 0.7, '#4F8A3C', '#9BCB66', R, undefined, top.clone().add(v3(0, 1.4, 0)));
       }
     }
-    parts.push(clump(top.clone().add(v3(0, 1.8, 0)), 1.0, 0.65, '#4F8A3C', '#96C766', R));
+    crown(parts, top.clone().add(v3(0, 1.8, 0)), 1.0, 0.65, '#4F8A3C', '#A2CF6E', R);
+    rootFlare(parts, 0.26, bark);
   } else if (species === 'camphor') {
     const bark = barkFn(BARK, R);
     const top = v3(0, 1.9, 0);
@@ -96,22 +131,23 @@ export function treeGeometry(species: TreeSpecies, variant: number): BufferGeome
       const a = (i / 3) * Math.PI * 2 + R();
       const end = top.clone().add(v3(Math.cos(a) * 1.4, 0.8, Math.sin(a) * 1.4));
       parts.push(limb(top, end, 0.18, 0.1, bark));
-      parts.push(clump(end.clone().add(v3(0, 0.5, 0)), 1.2 + R() * 0.3, 0.62, '#3F7A3A', '#82B25A', R));
+      crown(parts, end.clone().add(v3(0, 0.5, 0)), 1.2 + R() * 0.3, 0.62, '#3F7A3A', '#8EBE62', R, undefined, v3(0, 3, 0));
     }
-    parts.push(clump(v3(0, 3.4, 0), 1.35, 0.6, '#3F7A3A', '#8CBB62', R));
+    crown(parts, v3(0, 3.4, 0), 1.35, 0.6, '#3F7A3A', '#96C46A', R);
+    rootFlare(parts, 0.3, bark);
   } else if (species === 'osmanthus') {
     const bark = barkFn(BARK, R);
     parts.push(limb(v3(0, 0, 0), v3(0, 0.9, 0), 0.14, 0.11, bark));
     for (let i = 0; i < 7; i++) {
       const a = R() * Math.PI * 2, rr = R() * 0.6;
-      parts.push(clump(v3(Math.cos(a) * rr, 1.5 + R() * 0.9, Math.sin(a) * rr), 0.55 + R() * 0.2, 0.9, '#3F6B3F', '#7FA868', R, '#F2C55C'));
+      parts.push(clump(v3(Math.cos(a) * rr, 1.5 + R() * 0.9, Math.sin(a) * rr), 0.55 + R() * 0.2, 0.9, '#3F6B3F', '#86B06E', R, '#F2C55C', v3(0, 1.9, 0)));
     }
   } else if (species === 'ginkgo') {
     const bark = barkFn(BARK, R);
     parts.push(limb(v3(0, 0, 0), v3(0, 3.2, 0), 0.18, 0.1, bark));
     for (let i = 0; i < 6; i++) {
       const y = 1.6 + i * 0.45, rr = 1.1 - i * 0.14;
-      parts.push(clump(v3((R() - 0.5) * 0.3, y, (R() - 0.5) * 0.3), Math.max(0.35, rr), 0.6, '#A4BB55', '#E4D777', R));
+      parts.push(clump(v3((R() - 0.5) * 0.3, y, (R() - 0.5) * 0.3), Math.max(0.35, rr), 0.6, '#9DB552', '#EADB7C', R, undefined, v3(0, y, 0)));
     }
   }
   const merged = mergeGeometries(parts.map((p) => { if (p.getAttribute('uv')) p.deleteAttribute('uv'); if (!p.getAttribute('normal')) p.computeVertexNormals(); return p; }));
@@ -122,7 +158,7 @@ export function treeGeometry(species: TreeSpecies, variant: number): BufferGeome
 export function shrubGeometry(variant: number): BufferGeometry {
   const R = rng(variant * 53 + 3);
   const parts: Part[] = [];
-  for (let i = 0; i < 4; i++) parts.push(clump(new Vector3((R() - 0.5) * 0.8, 0.35 + R() * 0.2, (R() - 0.5) * 0.8), 0.42 + R() * 0.15, 0.85, '#55804A', '#93BB76', R, variant % 2 ? '#F0A9B4' : undefined));
+  for (let i = 0; i < 4; i++) parts.push(clump(new Vector3((R() - 0.5) * 0.8, 0.35 + R() * 0.2, (R() - 0.5) * 0.8), 0.42 + R() * 0.15, 0.85, '#55804A', '#9CC47E', R, variant % 2 ? '#F0A9B4' : undefined, new Vector3(0, 0.3, 0)));
   return mergeGeometries(parts);
 }
 

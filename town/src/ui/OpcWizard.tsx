@@ -4,9 +4,8 @@ import { api } from '../net/api';
 import { remoteToOpc } from '../net/shopMap';
 import { draftAgentKnowledge } from '../domain/agent';
 import type { FacadeStyle, OpcProfile, Product, StartupStage } from '../domain/types';
-import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { allLots, districtName } from '../world';
-import { checkOwner, isGolden, maskPhone, validPhone, validUSCC } from '../domain/lots';
+import { checkOwner, isGolden, maskPhone, takenByDemo, validPhone, validUSCC } from '../domain/lots';
 import { useLots } from '../store/useLots';
 import { ME, defaultAgent, useTown } from '../store/useTown';
 import { Btn, Chip, Disclaimer, Modal, Panel } from './kit';
@@ -35,10 +34,10 @@ function WizardInner() {
   const preferred = useTown((s) => s.preferredLot);
   const district = useTown((s) => s.district);
   const freeLots = useMemo(() => {
-    const taken = new Set([...SHOPS.map((x) => x.lotId), ...COUNTERPARTIES.map((c) => c.place.lotId).filter(Boolean)]);
+    const taken = takenByDemo(); // 演示店铺 / 主体 /【例】示范店
     // 黄金位留给赞助商：OPC 只能在 60% 的招租位开店
     for (const s of useServer.getState().shops) taken.add(s.lotId);
-    return allLots().filter((l) => !taken.has(l.door.lotId) && !isGolden(l.door.lotId!)).sort((a, b) => (a.district === district ? -1 : 0) - (b.district === district ? -1 : 0));
+    return allLots().filter((l) => !taken.has(l.door.lotId!) && !isGolden(l.door.lotId!)).sort((a, b) => (a.district === district ? -1 : 0) - (b.district === district ? -1 : 0));
   }, [district]);
   const [step, setStep] = useState(0);
   const [facade, setFacade] = useState<FacadeStyle>('studio');

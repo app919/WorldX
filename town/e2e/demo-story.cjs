@@ -30,7 +30,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok }); console.l
   await page.reload();
   await page.getByTestId('onboard-step-avatar').waitFor();
   await shot('01-onboarding');
-  await page.getByText('自由职业者').click();
+  await page.getByText('OPC 主理人').click();
   await page.getByPlaceholder('给小人起个昵称').fill('阿岚');
   await page.getByText('下一步').click();
   await page.getByText('淮海中路 × 武康路').click();

@@ -10,29 +10,52 @@ import { allLots, DISTRICTS } from '../world';
 import type { DistrictKey } from './commerce';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { dist } from '../world/geom';
+import { examplesOf, type ExampleOpc } from '../data/examples';
 
 export const GOLDEN_RATIO = 0.4;
+/** 每个街区约 10% 的铺位由【例】示范 OPC 预设占用（从 OPC 招租位里选，不占黄金位） */
+export const EXAMPLE_RATIO = 0.1;
 
-export interface LotPlan { total: number; golden: string[]; opc: string[] }
+export interface LotPlan { total: number; golden: string[]; opc: string[]; /** 【例】示范店占用的铺位（与 examplesOf(d) 一一对应） */ examples: string[] }
 const cache = new Map<string, LotPlan>();
 
 /** 已被演示店铺 / 主体占用的铺位 */
-export const takenByDemo = () => new Set([...SHOPS.map((x) => x.lotId), ...COUNTERPARTIES.map((c) => c.place.lotId).filter(Boolean) as string[]]);
+const baseTaken = () => new Set([...SHOPS.map((x) => x.lotId), ...COUNTERPARTIES.map((c) => c.place.lotId).filter(Boolean) as string[]]);
+/** 已被演示店铺 / 主体 /【例】示范店占用的铺位（不能再开店） */
+export const takenByDemo = () => new Set([...baseTaken(), ...(['wukang', 'yangjing', 'sichuan_n'] as DistrictKey[]).flatMap((d) => lotPlan(d).examples)]);
 
 export function lotPlan(d: DistrictKey): LotPlan {
   const hit = cache.get(d);
   if (hit) return hit;
   const def = DISTRICTS[d];
   const lots = allLots().filter((l) => l.district === d);
-  const taken = takenByDemo();
+  const taken = baseTaken();
   const main = def.roads[0].name;
   const score = (l: (typeof lots)[number]) => dist(l.door.p, def.spawn) - (l.street === main ? 30 : 0);
   const n = Math.round(lots.length * GOLDEN_RATIO);
   const golden = lots.filter((l) => !taken.has(l.door.lotId!)).sort((a, b) => score(a) - score(b)).slice(0, n).map((l) => l.door.lotId!);
   const g = new Set(golden);
-  const plan = { total: lots.length, golden, opc: lots.filter((l) => !g.has(l.door.lotId!)).map((l) => l.door.lotId!) };
+  // 【例】：离入口较近、未被占用的招租位里隔一个取一个，既容易被看到，又不扎堆
+  const exs = examplesOf(d);
+  const ne = Math.min(exs.length, Math.round(lots.length * EXAMPLE_RATIO));
+  const free = lots.filter((l) => !g.has(l.door.lotId!) && !taken.has(l.door.lotId!)).sort((a, b) => dist(a.door.p, def.spawn) - dist(b.door.p, def.spawn));
+  const step = free.length >= ne * 2 ? 2 : 1;
+  const examples = Array.from({ length: ne }, (_, i) => free[i * step]?.door.lotId).filter(Boolean) as string[];
+  const plan = { total: lots.length, golden, opc: lots.filter((l) => !g.has(l.door.lotId!)).map((l) => l.door.lotId!), examples };
   cache.set(d, plan);
   return plan;
+}
+
+const DKEYS: DistrictKey[] = ['wukang', 'yangjing', 'sichuan_n'];
+/** 这个铺位上的【例】示范店（没有则 undefined） */
+export function exampleAtLot(lotId: string): ExampleOpc | undefined {
+  for (const d of DKEYS) { const i = lotPlan(d).examples.indexOf(lotId); if (i >= 0) return examplesOf(d)[i]; }
+  return undefined;
+}
+/** 示范店所在铺位 */
+export function lotOfExample(id: string): string | undefined {
+  for (const d of DKEYS) { const i = examplesOf(d).findIndex((e) => e.id === id); if (i >= 0) return lotPlan(d).examples[i]; }
+  return undefined;
 }
 
 export const isGolden = (lotId: string) => (['wukang', 'yangjing', 'sichuan_n'] as DistrictKey[]).some((d) => lotPlan(d).golden.includes(lotId));

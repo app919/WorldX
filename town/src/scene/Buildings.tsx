@@ -9,7 +9,7 @@
  * - 新村住宅：六层、成排阳台、空调外机、单元门。
  * - 菜场：大跨坡屋顶、开敞门面。  - 沿街小店：橱窗、遮阳棚、招牌。
  */
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { RoundedBox } from '@react-three/drei';
@@ -18,16 +18,26 @@ import type { BuildingDef, DistrictDef } from '../world/types';
 import type { V2 } from '../world/geom';
 import { mats } from './materials';
 import { extrudePolygon, worldBox } from './geo';
-import { signTex } from './textures';
+import { ROOF_COLORS, signTex, type ShopCategory } from './textures';
 import { rng } from '../world/geom';
 import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
-import { isGolden } from '../domain/lots';
+import { exampleAtLot, isGolden } from '../domain/lots';
 import { useLots } from '../store/useLots';
 import { shopAtLot, useServer } from '../store/useServer';
 
 const FH = 1.35; // 层高（游戏单位）
+
+/** 店铺屋顶染色：【例】蓝 /【企】砖红 / 个人店 绿；其他建筑保持原样 */
+const RoofTint = createContext<Material | null>(null);
+const tintMats = new Map<ShopCategory, Material>();
+const tintMat = (c: ShopCategory) => {
+  if (!tintMats.has(c)) tintMats.set(c, new MeshStandardMaterial({ color: ROOF_COLORS[c], roughness: 0.72, metalness: 0 }));
+  return tintMats.get(c)!;
+};
+const useRoof = (fallback: Material) => useContext(RoofTint) ?? fallback;
+const RANK: Record<ShopCategory, number> = { example: 3, company: 2, personal: 1 };
 const GF = 1.8; // 商铺底层层高
 
 export interface WinSpec { x: number; y: number; z: number; ry: number; w: number; h: number }
@@ -69,10 +79,13 @@ export function Buildings({ def }: { def: DistrictDef }) {
         }
         const o = b.box!;
         const signs = b.doors.map((d) => ({ ...d, sign: signFor(d.lotId, myOpc && myOpc.lotId === d.lotId ? myOpc.name : undefined, !!myOpc?.license) }));
+        const cat = signs.reduce<ShopCategory | undefined>((a, x) => (x.sign?.cat && (!a || RANK[x.sign.cat] > RANK[a]) ? x.sign.cat : a), undefined);
         return (
           <Cutaway key={b.id} cx={o.cx} cz={o.cz} reach={Math.max(o.w, o.d) / 2} height={b.floors * FH + 2.5}>
-            <group position={[o.cx, 0, o.cz]} rotation-y={o.rot}>
-              <Model b={b} signs={signs} />
+            <group position={[o.cx, 0, o.cz]} rotation-y={o.rot} userData={{ roof: cat }}>
+              <RoofTint.Provider value={cat ? tintMat(cat) : null}>
+                <Model b={b} signs={signs} />
+              </RoofTint.Provider>
             </group>
           </Cutaway>
         );
@@ -95,16 +108,20 @@ function Cutaway({ cx, cz, reach, children }: { cx: number; cz: number; reach: n
   return <group ref={g}>{children}</group>;
 }
 
-function signFor(lotId?: string, mine?: string, mineLicensed?: boolean): { text: string; bg: string; fg: string; empty: boolean } | undefined {
+/** 招牌 + 店铺类别（决定屋顶颜色）：example =【例】示范店，company =【企】有执照，personal = 个人开的店 */
+export function signFor(lotId?: string, mine?: string, mineLicensed?: boolean): { text: string; bg: string; fg: string; empty: boolean; cat?: ShopCategory } | undefined {
   if (!lotId) return undefined;
-  if (mine) return { text: `${mineLicensed ? '企|' : ''}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false };
+  const C = (licensed: boolean): ShopCategory => (licensed ? 'company' : 'personal');
+  if (mine) return { text: `${mineLicensed ? '企|' : ''}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false, cat: C(!!mineLicensed) };
   // 真实用户开的店（来自后端）
   const remote = shopAtLot(lotId);
-  if (remote) return { text: `${remote.licensed ? '企|' : ''}${remote.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false };
+  if (remote) return { text: `${remote.licensed ? '企|' : ''}${remote.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat: C(remote.licensed) };
   const shop = SHOPS.find((s) => s.lotId === lotId);
-  if (shop) return { text: `${shop.entityStatus !== 'personal_page' ? '企|' : ''}${shop.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false };
+  if (shop) return { text: `${shop.entityStatus !== 'personal_page' ? '企|' : ''}${shop.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat: C(shop.entityStatus !== 'personal_page') };
   const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);
-  if (ent) return { text: `${ent.kind === 'merchant' ? '企|' : ''}${ent.name.replace('（虚构）', '').replace('（示意）', '')}`, bg: '#F4EBDA', fg: '#7A5539', empty: false };
+  if (ent) return { text: `${ent.kind === 'merchant' ? '企|' : ''}${ent.name.replace('（虚构）', '').replace('（示意）', '')}`, bg: '#F4EBDA', fg: '#7A5539', empty: false, cat: ent.kind === 'prospect' ? undefined : C(ent.kind === 'merchant') };
+  const ex = exampleAtLot(lotId);
+  if (ex) return { text: `例|${ex.name}`, bg: '#EAF2FC', fg: '#24548F', empty: false, cat: 'example' };
   const sp = useLots.getState().sponsorOf(lotId);
   if (sp && sp.status === 'live') return { text: `赞|${sp.name.replace('（虚构）', '')}`, bg: '#F6E3A6', fg: '#6B4E12', empty: false };
   if (isGolden(lotId)) return { text: '黄金位 · 赞助招商', bg: '#F2D27A', fg: '#6B4E12', empty: false };
@@ -155,7 +172,8 @@ function Box({ w, h, d, y = 0, x = 0, z = 0, mat, unit = 4, cast = true }: { w: 
   return <mesh geometry={g} material={mat} position={[x, y + h / 2, z]} castShadow={cast} receiveShadow />;
 }
 
-function HipRoof({ w, d, y, h, mat }: { w: number; d: number; y: number; h: number; mat: Material }) {
+function HipRoof({ w, d, y, h, mat: m0 }: { w: number; d: number; y: number; h: number; mat: Material }) {
+  const mat = useRoof(m0);
   return (
     <mesh position={[0, y + h / 2, 0]} rotation-y={Math.PI / 4} scale={[w / Math.SQRT2, 1, d / Math.SQRT2]} material={mat} castShadow>
       <coneGeometry args={[1.08, h, 4, 1]} />
@@ -165,7 +183,8 @@ function HipRoof({ w, d, y, h, mat }: { w: number; d: number; y: number; h: numb
 
 
 /** 双坡屋顶：屋脊沿 x 方向，三角形截面挤出 */
-function Gable({ w, d, y, h, mat }: { w: number; d: number; y: number; h: number; mat: Material }) {
+function Gable({ w, d, y, h, mat: m0 }: { w: number; d: number; y: number; h: number; mat: Material }) {
+  const mat = useRoof(m0);
   const g = useMemo(() => {
     const sh = new Shape([new Vector2(-d / 2, 0), new Vector2(d / 2, 0), new Vector2(0, h)]);
     const geo = new ExtrudeGeometry(sh, { depth: w, bevelEnabled: false });
@@ -232,6 +251,7 @@ function Shop({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
   const awnings = ['#A9C2A0', '#E6A3A7', '#9DB6CA', '#E8C77A', '#C98068'];
   const wins = useMemo(() => facadeWindows(w, d, upper, GF, Math.max(2, Math.floor(w / 2.4)), 0.8, 0.85), [w, d, upper]);
   const pitched = R() > 0.45;
+  const tint = useContext(RoofTint);
   return (
     <group>
       <Box w={w} h={0.25} d={d} mat={M.stoneDark} />
@@ -246,7 +266,7 @@ function Shop({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       ))}
       {pitched ? <HipRoof w={w + 0.5} d={d + 0.5} y={H} h={1.4} mat={R() > 0.5 ? M.roofRed : M.roofGrey} /> : (
         <>
-          <Box w={w + 0.2} h={0.3} d={d + 0.2} y={H} mat={M.roofFlat} />
+          <Box w={w + 0.2} h={0.3} d={d + 0.2} y={H} mat={tint ?? M.roofFlat} />
           <RoofDetails w={w} d={d} y={H + 0.3} seed={b.seed ?? 1} />
         </>
       )}
@@ -296,6 +316,7 @@ function ShikumenRow({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
   const H = b.floors * FH + 0.3;
   const units = signs.length;
   const uw = w / units;
+  const tint = useContext(RoofTint);
   const wins = useMemo(() => {
     const out: WinSpec[] = [];
     for (let u = 0; u < units; u++) {
@@ -332,7 +353,7 @@ function ShikumenRow({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
         <group key={i} position={[-w / 2 + uw * (i + 0.5), H + 0.5, d * 0.18]}>
           <Box w={0.9} h={0.7} d={0.8} mat={M.stuccoWhite} />
           <mesh material={M.glass} position={[0, 0.35, 0.41]}><boxGeometry args={[0.55, 0.45, 0.04]} /></mesh>
-          <mesh material={M.roofGrey} position={[0, 0.85, 0]} rotation-y={Math.PI / 4} scale={[0.75, 1, 0.75]}><coneGeometry args={[0.85, 0.4, 4]} /></mesh>
+          <mesh material={tint ?? M.roofGrey} position={[0, 0.85, 0]} rotation-y={Math.PI / 4} scale={[0.75, 1, 0.75]}><coneGeometry args={[0.85, 0.4, 4]} /></mesh>
         </group>
       ))}
     </group>
@@ -347,6 +368,7 @@ function ArtDeco({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
   const cols = Math.max(3, Math.floor(w / 2.1));
   const wins = useMemo(() => facadeWindows(w, d, b.floors - 1, GF, cols, 0.85, 0.95), [w, d, b.floors, cols]);
   const shop = signs.find((s) => s.lotId);
+  const tint = useContext(RoofTint);
   return (
     <group>
       <Box w={w} h={GF} d={d} mat={M.stone} />
@@ -358,8 +380,9 @@ function ArtDeco({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       <Windows list={wins} />
       {/* 阶梯式顶部 */}
       <Box w={w * 0.7} h={0.9} d={d * 0.8} y={H} mat={wall} />
-      <Box w={w * 0.36} h={0.8} d={d * 0.6} y={H + 0.9} mat={M.trim} />
-      <Box w={w + 0.2} h={0.2} d={d + 0.2} y={H} mat={M.trim} />
+      <Box w={w * 0.36} h={0.8} d={d * 0.6} y={H + 0.9} mat={tint ?? M.trim} />
+      <Box w={w + 0.2} h={0.2} d={d + 0.2} y={H} mat={tint ?? M.trim} />
+      {tint && <Box w={w * 0.7 + 0.1} h={0.12} d={d * 0.8 + 0.1} y={H + 0.9} mat={tint} />}
       {shop ? <Storefront x={0} z={d / 2} w={w * 0.6} sign={shop.sign} awning="#C98068" /> : (
         <>
           <mesh material={M.glass} position={[-w * 0.3, 0.95, d / 2 + 0.03]}><boxGeometry args={[w * 0.3, 1.2, 0.05]} /></mesh>
@@ -378,6 +401,7 @@ function Arcade({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
   const over = 4.3; // 出挑覆盖人行道的深度（与 build.ts 柱位一致：人行道宽 - 0.7）
   const H = GF + 0.4 + (b.floors - 1) * FH;
   const wins = useMemo(() => facadeWindows(w, d + over, b.floors - 1, GF + 0.4, Math.max(3, Math.floor(w / 2.2)), 0.8, 0.9, undefined, false).map((x) => ({ ...x, z: x.z })), [w, d, b.floors]);
+  const tint = useContext(RoofTint);
   return (
     <group>
       {/* 底层（退后的店面） */}
@@ -392,7 +416,7 @@ function Arcade({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       <group position-z={over / 2}>
         <Box w={w} h={H - GF - 0.4} d={d + over} y={GF + 0.4} mat={wall} />
         <Box w={w + 0.2} h={0.25} d={d + over + 0.2} y={GF + 0.3} mat={M.trim} />
-        <Box w={w + 0.2} h={0.3} d={d + over + 0.2} y={H} mat={M.trim} />
+        <Box w={w + 0.2} h={0.3} d={d + over + 0.2} y={H} mat={tint ?? M.trim} />
       </group>
       <group position-z={over / 2}><Windows list={wins} /></group>
       {/* 柱廊 */}

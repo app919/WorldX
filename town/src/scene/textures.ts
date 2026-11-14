@@ -104,10 +104,14 @@ export const soilTex = () => make('soil', 64, (g, s) => {
   noise(g, s, 200, ['#8C705A', '#A88B6F'], [0.6, 1.5], 41);
 });
 
+/** 店铺屋顶颜色：一眼区分【例】示范店、【企】有执照的公司、个人开的店 */
+export const ROOF_COLORS = { example: '#3E86D8', company: '#C0533A', personal: '#5FB27A' } as const;
+export type ShopCategory = keyof typeof ROOF_COLORS;
+
 /** 招牌：圆角底板 + 文字（中文使用系统字体） */
 export function signTex(text: string, bg: string, fg: string, w = 512, h = 128): Texture {
-  // 文字以「企|」或「赞|」开头时，在招牌左上角画角标
-  const badge = /^(企|赞)\|/.test(text) ? text[0] : '';
+  // 文字以「企|」「赞|」「例|」开头时，在招牌左上角画角标
+  const badge = /^(企|赞|例)\|/.test(text) ? text[0] : '';
   const body = badge ? text.slice(2) : text;
   return make(`sign_${text}_${bg}_${fg}_${w}`, w, (g) => {
     g.canvas.height = h;
@@ -121,9 +125,9 @@ export function signTex(text: string, bg: string, fg: string, w = 512, h = 128):
     let size = Math.round(h * 0.46);
     while (g.measureText(body).width > w - (badge ? 120 : 40) && size > 14) { size -= 2; g.font = `bold ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`; }
     g.fillText(body, w / 2, h / 2 + 2);
-    // 角标：「企」= 有营业执照的公司；「赞」= 黄金位赞助商
+    // 角标：「企」= 有营业执照的公司；「赞」= 黄金位赞助商；「例」= 示范 OPC（虚构示例）
     if (badge) {
-      g.fillStyle = badge === '企' ? '#C0533A' : '#B8860B';
+      g.fillStyle = badge === '企' ? ROOF_COLORS.company : badge === '例' ? ROOF_COLORS.example : '#B8860B';
       g.beginPath(); g.moveTo(4, 4); g.lineTo(h * 0.95, 4); g.lineTo(4, h * 0.95); g.closePath(); g.fill();
       g.fillStyle = '#FFFFFF';
       g.font = `bold ${Math.round(h * 0.3)}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`;
@@ -164,7 +168,8 @@ export function roadNameTex(text: string): Texture {
 
 const ROAD_EN: Record<string, string> = {
   淮海中路: 'Middle Huaihai Rd.', 武康路: 'Wukang Rd.', 天平路: 'Tianping Rd.', 兴国路: 'Xingguo Rd.', 安福路: 'Anfu Rd.',
-  四川北路: 'N. Sichuan Rd.', 甜爱路: "Tian'ai Rd.", 山阴路: 'Shanyin Rd.', 横浜路: 'Hengbang Rd.',
+  四川北路: 'N. Sichuan Rd.', 甜爱路: "Tian'ai Rd.", 山阴路: 'Shanyin Rd.', 横浜路: 'Hengbang Rd.', 甜爱支路: "Tian'ai Branch Rd.",
+  张杨路: 'Zhangyang Rd.', 源深路: 'Yuanshen Rd.', 羽山路: 'Yushan Rd.', 灵山路: 'Lingshan Rd.', 巨野路: 'Juye Rd.',
 };
 
 /** 上海样式的蓝底白字路名牌（附英文路名，示意道路不写英文） */

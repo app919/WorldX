@@ -16,11 +16,14 @@ export function MiniMap() {
   const tab = useTown((s) => s.tab);
   const walkTo = useTown((s) => s.walkTo);
   const [open, setOpen] = useState(true);
+  const [zoom, setZoom] = useState(1);
   const me = useRef<SVGGElement>(null);
+  const svg = useRef<SVGSVGElement>(null);
   const cd = useMemo(() => compiledOf(district), [district]);
   const active = useWork((s) => s.active);
   const lots = useMemo(() => allLots().filter((l) => l.district === district), [district]);
   const goldenSet = useMemo(() => new Set(lotPlan(district).golden), [district]);
+  const exampleSet = useMemo(() => new Set(lotPlan(district).examples), [district]);
   const tl = jobTargetLot(active);
   const target = tl ? placeOfLot(tl) : undefined;
   const b = cd.def.bounds;
@@ -31,7 +34,14 @@ export function MiniMap() {
   useEffect(() => {
     let raf = 0;
     const loop = () => {
-      if (me.current) me.current.setAttribute('transform', `translate(${sx(playerRuntime.x)},${sz(playerRuntime.z)}) rotate(${(-playerRuntime.heading * 180) / Math.PI + 180})`);
+      if (me.current) me.current.setAttribute('transform', `translate(${sx(playerRuntime.x)},${sz(playerRuntime.z)}) rotate(${(-playerRuntime.heading * 180) / Math.PI + 180}) scale(${1 / zoom})`);
+      // 放大时以自己为中心
+      if (svg.current) {
+        const w = W / zoom, h = H / zoom;
+        const cx = zoom === 1 ? W / 2 : Math.max(w / 2, Math.min(W - w / 2, sx(playerRuntime.x)));
+        const cy = zoom === 1 ? H / 2 : Math.max(h / 2, Math.min(H - h / 2, sz(playerRuntime.z)));
+        svg.current.setAttribute('viewBox', `${cx - w / 2} ${cy - h / 2} ${w} ${h}`);
+      }
       raf = requestAnimationFrame(loop);
     };
     loop();
@@ -45,16 +55,24 @@ export function MiniMap() {
   return (
     <div className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 overflow-hidden rounded-2xl p-1.5 md:bottom-24 md:left-3 md:right-auto md:top-auto" data-testid="minimap">
       <div className="flex items-center justify-between px-1 pb-1 text-[10px] font-bold text-stone-600">
-        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span></span>
+        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span> <span className="text-[#3E86D8]">●例</span></span>
         <span className="flex items-center gap-2">
+          <span className="flex overflow-hidden rounded-full bg-cream-100">
+            <button data-testid="minimap-zoom-in" aria-label="放大小地图" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z * 2))} className="px-1.5 font-black disabled:opacity-30">＋</button>
+            <button data-testid="minimap-zoom-out" aria-label="缩小小地图" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z / 2))} className="px-1.5 font-black disabled:opacity-30">－</button>
+          </span>
           <button data-testid="find-me" onClick={() => { playerRuntime.locateAt = performance.now(); }} className="rounded-full bg-[#FF8A3D] px-2 py-0.5 text-[10px] font-black text-white">📍 找到我 (F)</button>
           <button onClick={() => setOpen(false)} aria-label="收起小地图">✕</button>
         </span>
       </div>
-      <svg width={W} height={H} className="block cursor-crosshair rounded-xl bg-[#DCE8C8]"
+      <svg ref={svg} width={W} height={H} viewBox={`0 0 ${W} ${H}`} data-zoom={zoom} className="block cursor-crosshair rounded-xl bg-[#DCE8C8]"
+        onWheel={(e) => setZoom((z) => (e.deltaY < 0 ? Math.min(4, z * 2) : Math.max(1, z / 2)))}
         onClick={(e) => {
-          const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
-          walkTo({ x: b.minX + (e.clientX - r.left - ox) / scale, z: b.minZ + (e.clientY - r.top - oz) / scale });
+          const el = e.currentTarget as SVGSVGElement;
+          const m = el.getScreenCTM();
+          const pt = el.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+          const q = m ? pt.matrixTransform(m.inverse()) : pt;
+          walkTo({ x: b.minX + (q.x - ox) / scale, z: b.minZ + (q.y - oz) / scale });
         }}>
         {/* 公园 / 绿地 */}
         {cd.def.areas.filter((a) => (a.kind === 'park' || a.kind === 'lawn') && a.box).map((a) => (
@@ -77,21 +95,21 @@ export function MiniMap() {
           if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
           return (
             <text key={`t${r.id}`} x={mx} y={mz} transform={`rotate(${ang} ${mx} ${mz})`} textAnchor="middle" dominantBaseline="central"
-              fontSize="9" fontWeight="800" fill="#1F4E8C" stroke="#FFFFFF" strokeWidth="2.6" paintOrder="stroke">
+              fontSize={9 / Math.sqrt(zoom)} fontWeight="800" fill="#1F4E8C" stroke="#FFFFFF" strokeWidth={2.6 / Math.sqrt(zoom)} paintOrder="stroke">
               {r.name.replace('（示意）', '')}
             </text>
           );
         })}
         {/* 铺位：金色 = 黄金赞助位（40%），绿色 = OPC 招租位（60%） */}
         {lots.map((l) => (
-          <circle key={l.door.lotId} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={1.5} fill={goldenSet.has(l.door.lotId!) ? '#D4A017' : '#5E8C6A'} opacity={0.9} />
+          <circle key={l.door.lotId} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={(exampleSet.has(l.door.lotId!) ? 2 : 1.5) / Math.sqrt(zoom)} fill={exampleSet.has(l.door.lotId!) ? '#3E86D8' : goldenSet.has(l.door.lotId!) ? '#D4A017' : '#5E8C6A'} opacity={0.9} />
         ))}
         {cd.tunnels.map((t, i) => (
           <circle key={`tn${i}`} cx={sx(t.box.cx)} cy={sz(t.box.cz)} r={2.2} fill="#3E4048" />
         ))}
         {cd.def.areas.filter((a) => a.kind === 'park' && a.box && a.label).map((a) => (
-          <text key={`pl${a.id}`} x={sx(a.box!.cx)} y={sz(a.box!.cz)} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="800"
-            fill="#2F5A22" stroke="#FFFFFF" strokeWidth="2.2" paintOrder="stroke">🌳{a.label!.replace(/（.*?）/g, '')}</text>
+          <text key={`pl${a.id}`} x={sx(a.box!.cx)} y={sz(a.box!.cz)} textAnchor="middle" dominantBaseline="central" fontSize={8 / Math.sqrt(zoom)} fontWeight="800"
+            fill="#2F5A22" stroke="#FFFFFF" strokeWidth={2.2 / Math.sqrt(zoom)} paintOrder="stroke">🌳{a.label!.replace(/（.*?）/g, '')}</text>
         ))}
         {target && target.district === district && (
           <g transform={`translate(${sx(target.trigger.x)},${sz(target.trigger.z)})`}>
@@ -102,9 +120,14 @@ export function MiniMap() {
           <circle r="5.5" fill="#E8C77A" stroke="#4A3426" strokeWidth="1.5" />
           <path d="M0,-9 L4,-3 L-4,-3 Z" fill="#4A3426" />
         </g>
-        <text x={W - 10} y={12} fontSize="10" fontWeight="900" fill="#4A3426" textAnchor="middle">北</text>
-        <path d={`M${W - 10},15 l3,6 l-3,-2 l-3,2 z`} fill="#4A3426" />
+        {zoom === 1 && <text x={W - 10} y={12} fontSize="10" fontWeight="900" fill="#4A3426" textAnchor="middle">北</text>}
+        {zoom === 1 && <path d={`M${W - 10},15 l3,6 l-3,-2 l-3,2 z`} fill="#4A3426" />}
       </svg>
+      <div className="flex items-center gap-2 px-1 pt-1 text-[9px] font-bold text-stone-500" data-testid="roof-legend">
+        屋顶颜色：<span className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm bg-[#3E86D8]" />例 示范店</span>
+        <span className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm bg-[#C0533A]" />企 公司</span>
+        <span className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm bg-[#5FB27A]" />个人店</span>
+      </div>
     </div>
   );
 }

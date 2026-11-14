@@ -50,22 +50,22 @@ export const COUNTERPARTIES: Counterparty[] = [
 
   // —— 洋泾社区 ——
   C({ id: 'e_market', name: '社区菜场摊主联盟（示意）', kind: 'merchant', summary: '十几位摊主联合运营线上订菜，想让更多年轻住户知道', industries: ['community', 'food'],
-    place: { district: 'yangjing', street: '洋泾社区主路', lotId: 'yj_market' }, districts: ['pudong'], capabilities: ['grocery'],
+    place: { district: 'yangjing', street: '张杨路', lotId: 'yj_market' }, districts: ['pudong'], capabilities: ['grocery'],
     publishedNeeds: [{ tag: 'video', detail: '摊位与线上订菜的宣传短视频' }, { tag: 'software', detail: '订菜小程序维护' }],
     budgetRange: { min: 2000, max: 5000 }, ownerId: 'u_laozhang', intents: ['long_term'] }),
   C({ id: 'e_meiyu', name: '美玉阿姨 · 邻里团', kind: 'individual', summary: '社区团购团长，熟悉周边几个小区', industries: ['community', 'marketing'],
-    place: { district: 'yangjing', street: '洋泾社区主路' }, districts: ['pudong'], capabilities: ['community_ops'], publishedNeeds: [{ tag: 'copywriting', detail: '团购文案' }],
+    place: { district: 'yangjing', street: '张杨路' }, districts: ['pudong'], capabilities: ['community_ops'], publishedNeeds: [{ tag: 'copywriting', detail: '团购文案' }],
     ownerId: 'u_meiyu', intents: ['part_time', 'long_term'] }),
   C({ id: 'e_fitness', name: '轻燃健身（虚构）', kind: 'prospect', summary: '社区健身房，团课与私教（公开信息，演示）', industries: ['fitness'],
-    place: { district: 'yangjing', street: '社区支路', lotId: 'yj_c1' }, districts: ['pudong'], capabilities: ['fitness_coach'], publishedNeeds: [] }),
+    place: { district: 'yangjing', street: '羽山路', lotId: 'yj_c1' }, districts: ['pudong'], capabilities: ['fitness_coach'], publishedNeeds: [] }),
   C({ id: 'e_huike', name: '邻里会客厅', kind: 'opc', summary: '共享会议室 / 沙龙场地，按小时预约', industries: ['space'],
-    place: { district: 'yangjing', street: '洋泾社区主路', lotId: 'yj_n1' }, districts: ['pudong'], capabilities: ['venue_provider'],
+    place: { district: 'yangjing', street: '张杨路', lotId: 'yj_n1' }, districts: ['pudong'], capabilities: ['venue_provider'],
     publishedNeeds: [{ tag: 'client', detail: '活动主办方、培训机构' }], priceRange: { min: 120, max: 600 }, ownerId: 'u_lin', intents: ['long_term'] }),
   C({ id: 'e_apo', name: '阿婆糕团店（虚构）', kind: 'merchant', summary: '手工糕团、节令点心，三十年社区老店', industries: ['food', 'community'],
-    place: { district: 'yangjing', street: '洋泾社区主路', lotId: 'yj_s1' }, districts: ['pudong'], capabilities: ['bakery'], publishedNeeds: [],
+    place: { district: 'yangjing', street: '张杨路', lotId: 'yj_s1' }, districts: ['pudong'], capabilities: ['bakery'], publishedNeeds: [],
     ownerId: 'u_apo', intents: ['long_term'] }),
   C({ id: 'e_dawei', name: '大伟 · AI 伴侣玩偶计划', kind: 'individual', summary: '下班后做 AI 伴侣玩偶，正在找队友', industries: ['hardware', 'tech'],
-    place: { district: 'yangjing', street: '社区支路' }, districts: ['pudong'], capabilities: ['hardware_eng'],
+    place: { district: 'yangjing', street: '羽山路' }, districts: ['pudong'], capabilities: ['hardware_eng'],
     publishedNeeds: [{ tag: 'industrial_design' }, { tag: 'ai_app' }, { tag: 'graphic' }, { tag: 'ai_video', detail: '众筹宣传片' }],
     ownerId: 'u_dawei', intents: ['team_up'] }),
 
@@ -91,23 +91,24 @@ export const COUNTERPARTIES: Counterparty[] = [
     publishedNeeds: [{ tag: 'client', detail: '读书会、作者见面会主办方' }], priceRange: { min: 300, max: 1200 }, ownerId: 'u_shuyi', intents: ['long_term'] }),
 ];
 
-const look = (body: string, hair: string, accessory: AvatarLook['accessory'], skin = '#F6DCC8'): AvatarLook => ({ body, hair, accessory, skin });
+/** 演示居民的外观：着装由身份决定（见 domain/identity.ts 的 dress），这里只定发色、配饰、肤色和性别（均为虚构角色设定） */
+const look = (body: string, hair: string, accessory: AvatarLook['accessory'], skin = '#F6DCC8', gender: 'f' | 'm' = 'f'): AvatarLook => ({ body, hair, accessory, skin, gender });
 
 export const RESIDENTS: Resident[] = [
-  { id: 'u_xiaoman', nickname: '小满', lifeTag: 'opc', look: look('#A47B5B', '#4A3426', 'beret'), bio: '梧桐豆子主理人，常在店里烘豆子。', online: false, demoAcceptsHello: true, district: 'wukang', entityId: 'e_wutong', contact: '演示：wutong-beans（虚构）' },
-  { id: 'u_aqiang', nickname: '阿强', lifeTag: 'freelancer', look: look('#5E7D96', '#2E2420', 'cap', '#EFCFB4'), bio: '摄影师，有间小摄影棚。', online: true, demoAcceptsHello: true, district: 'wukang', entityId: 'e_guangying', contact: '演示：aqiang-photo（虚构）' },
-  { id: 'u_zhou', nickname: '周老师', lifeTag: 'opc', look: look('#86A57C', '#3B3B3B', 'glasses', '#EFCFB4'), bio: '一人营销公司，视频常外包。', online: false, demoAcceptsHello: true, district: 'wukang', entityId: 'e_xiaobu', contact: '演示：zhou-mkt（虚构）' },
-  { id: 'u_lulu', nickname: '鹿鹿', lifeTag: 'freelancer', look: look('#F0C4C6', '#7A5539', 'glasses'), bio: '平面设计师，喜欢小而美的品牌。', online: true, demoAcceptsHello: true, district: 'wukang', entityId: 'e_lulu', contact: '演示：lulu-design（虚构）' },
-  { id: 'u_laozhang', nickname: '老张', lifeTag: 'opc', look: look('#9DB6CA', '#3B3B3B', 'cap', '#EFCFB4'), bio: '菜场摊主联盟的召集人。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_market', contact: '演示：yj-market（虚构）' },
-  { id: 'u_meiyu', nickname: '美玉阿姨', lifeTag: 'retiree', look: look('#C5D6BE', '#D8D3CC', 'scarf', '#F2D4BE'), bio: '社区团购团长，认识很多邻居。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_meiyu', contact: '演示：meiyu-tuan（虚构）' },
-  { id: 'u_lin', nickname: '小林', lifeTag: 'opc', look: look('#C2D3E0', '#4A3426', 'headphones', '#EFCFB4'), bio: '经营一间共享会客厅。', online: false, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_huike', contact: '演示：lin-space（虚构）' },
-  { id: 'u_apo', nickname: '阿婆', lifeTag: 'retiree', look: look('#E8C77A', '#E6E1DA', 'scarf', '#F2D4BE'), bio: '做了三十年糕团。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_apo', contact: '演示：apo-cake（虚构）' },
-  { id: 'u_dawei', nickname: '大伟', lifeTag: 'worker', look: look('#6F8BA4', '#2E2420', 'none', '#EFCFB4'), bio: '朝九晚六的硬件工程师。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_dawei', contact: '演示：dawei-hw（虚构）' },
-  { id: 'u_xiaotian', nickname: '小甜', lifeTag: 'opc', look: look('#F0C4C6', '#5A3E2B', 'beret'), bio: '甜爱文创主理人。', online: false, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_tianai', contact: '演示：tianai-shop（虚构）' },
-  { id: 'u_ajie', nickname: '阿杰', lifeTag: 'opc', look: look('#F7F3EA', '#2E2420', 'none', '#EFCFB4'), bio: '写真馆摄影师。', online: true, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_wedding', contact: '演示：ajie-photo（虚构）' },
-  { id: 'u_asheng', nickname: '阿声', lifeTag: 'freelancer', look: look('#C2D3E0', '#3B3B3B', 'headphones'), bio: '自由配音演员。', online: true, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_asheng', contact: '演示：asheng-voice（虚构）' },
-  { id: 'u_xiaoyu', nickname: '小鱼', lifeTag: 'student', look: look('#E8C77A', '#5A3E2B', 'headphones'), bio: '大三学生，兼职写文案。', online: true, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_xiaoyu', contact: '演示：xiaoyu-writes（虚构）' },
-  { id: 'u_shuyi', nickname: '书逸', lifeTag: 'opc', look: look('#86A57C', '#4A3426', 'glasses', '#EFCFB4'), bio: '街角书店店主。', online: false, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_books', contact: '演示：corner-books（虚构）' },
+  { id: 'u_xiaoman', nickname: '小满', lifeTag: 'opc', look: look('#A47B5B', '#4A3426', 'beret', '#F6DCC8', 'f'), bio: '梧桐豆子主理人，常在店里烘豆子。', online: false, demoAcceptsHello: true, district: 'wukang', entityId: 'e_wutong', contact: '演示：wutong-beans（虚构）' },
+  { id: 'u_aqiang', nickname: '阿强', lifeTag: 'freelancer', look: look('#5E7D96', '#2E2420', 'cap', '#EFCFB4', 'm'), bio: '摄影师，有间小摄影棚。', online: true, demoAcceptsHello: true, district: 'wukang', entityId: 'e_guangying', contact: '演示：aqiang-photo（虚构）' },
+  { id: 'u_zhou', nickname: '周老师', lifeTag: 'opc', look: look('#86A57C', '#3B3B3B', 'glasses', '#EFCFB4', 'm'), bio: '一人营销公司，视频常外包。', online: false, demoAcceptsHello: true, district: 'wukang', entityId: 'e_xiaobu', contact: '演示：zhou-mkt（虚构）' },
+  { id: 'u_lulu', nickname: '鹿鹿', lifeTag: 'freelancer', look: look('#F0C4C6', '#7A5539', 'glasses', '#F6DCC8', 'f'), bio: '平面设计师，喜欢小而美的品牌。', online: true, demoAcceptsHello: true, district: 'wukang', entityId: 'e_lulu', contact: '演示：lulu-design（虚构）' },
+  { id: 'u_laozhang', nickname: '老张', lifeTag: 'opc', look: look('#9DB6CA', '#3B3B3B', 'cap', '#EFCFB4', 'm'), bio: '菜场摊主联盟的召集人。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_market', contact: '演示：yj-market（虚构）' },
+  { id: 'u_meiyu', nickname: '美玉阿姨', lifeTag: 'retiree', look: look('#C5D6BE', '#D8D3CC', 'scarf', '#F2D4BE', 'f'), bio: '社区团购团长，认识很多邻居。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_meiyu', contact: '演示：meiyu-tuan（虚构）' },
+  { id: 'u_lin', nickname: '小林', lifeTag: 'opc', look: look('#C2D3E0', '#4A3426', 'headphones', '#EFCFB4', 'm'), bio: '经营一间共享会客厅。', online: false, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_huike', contact: '演示：lin-space（虚构）' },
+  { id: 'u_apo', nickname: '阿婆', lifeTag: 'retiree', look: look('#E8C77A', '#E6E1DA', 'scarf', '#F2D4BE', 'f'), bio: '做了三十年糕团。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_apo', contact: '演示：apo-cake（虚构）' },
+  { id: 'u_dawei', nickname: '大伟', lifeTag: 'worker', look: look('#6F8BA4', '#2E2420', 'none', '#EFCFB4', 'm'), bio: '朝九晚六的硬件工程师。', online: true, demoAcceptsHello: true, district: 'yangjing', entityId: 'e_dawei', contact: '演示：dawei-hw（虚构）' },
+  { id: 'u_xiaotian', nickname: '小甜', lifeTag: 'opc', look: look('#F0C4C6', '#5A3E2B', 'beret', '#F6DCC8', 'f'), bio: '甜爱文创主理人。', online: false, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_tianai', contact: '演示：tianai-shop（虚构）' },
+  { id: 'u_ajie', nickname: '阿杰', lifeTag: 'opc', look: look('#F7F3EA', '#2E2420', 'none', '#EFCFB4', 'm'), bio: '写真馆摄影师。', online: true, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_wedding', contact: '演示：ajie-photo（虚构）' },
+  { id: 'u_asheng', nickname: '阿声', lifeTag: 'freelancer', look: look('#C2D3E0', '#3B3B3B', 'headphones', '#F6DCC8', 'm'), bio: '自由配音演员。', online: true, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_asheng', contact: '演示：asheng-voice（虚构）' },
+  { id: 'u_xiaoyu', nickname: '小鱼', lifeTag: 'student', look: look('#E8C77A', '#5A3E2B', 'headphones', '#F6DCC8', 'f'), bio: '大三学生，兼职写文案。', online: true, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_xiaoyu', contact: '演示：xiaoyu-writes（虚构）' },
+  { id: 'u_shuyi', nickname: '书逸', lifeTag: 'opc', look: look('#86A57C', '#4A3426', 'glasses', '#EFCFB4', 'm'), bio: '街角书店店主。', online: false, demoAcceptsHello: true, district: 'sichuan_n', entityId: 'e_books', contact: '演示：corner-books（虚构）' },
 ];
 
 const P = (id: string, opcId: string, name: string, description: string, priceFrom?: number, unit?: string) =>

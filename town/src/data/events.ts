@@ -53,7 +53,7 @@ export const EVENTS: TownEvent[] = [
     bringProduct: false, matchmaking: true, needsApproval: false, aiHost: true, isDemo: true,
   },
   {
-    id: 'ev_opc_night', title: '周三 OPC 创业者交流会', space: 'startup_lounge', district: 'yangjing', address: '洋泾社区主路 · 邻里会客厅（示意）',
+    id: 'ev_opc_night', title: '周三 OPC 创业者交流会', space: 'startup_lounge', district: 'yangjing', address: '张杨路 · 邻里会客厅',
     online: false, date: '本周三', time: '19:30–21:00', deadline: '周三 12:00 截止', capacity: 20,
     attendees: ['e_huike', 'e_market', 'e_dawei', 'e_meiyu'], attendeeTypes: ['一人公司主理人', '社区商家', '自由职业者'],
     audience: '正在做或想做一人公司的人', gains: ['3 分钟介绍自己的业务', '社区商家现场发布需求', 'AI 主持人会后整理可能的合作'],

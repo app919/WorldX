@@ -10,6 +10,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { Chibi, GhostChibi } from './Chibi';
+import { cam, zoomBy } from './input';
+import { dress } from '../domain/identity';
 import { compiledOf, navOf, streetOfDoor } from '../world';
 import { Zone } from '../world/nav';
 import { RESIDENTS } from '../data/seed';
@@ -24,13 +26,13 @@ const RUN = 7.6;
 
 export function Player() {
   const avatar = useTown((s) => s.avatar)!;
+  const dressed = dress(avatar.look, avatar.lifeTag);
   const district = useTown((s) => s.district);
   const walkPath = useTown((s) => s.walkPath);
   const group = useRef<Group>(null);
   const moving = useRef(0);
   const happy = useRef(0);
   const keys = useRef<Record<string, boolean>>({});
-  const camDist = useRef(1);
   const tick = useRef(0);
   const lastSave = useRef(0);
   const nearby = useRef<Set<string>>(new Set());
@@ -62,11 +64,36 @@ export function Player() {
       if (e.key.toLowerCase() === 'f') playerRuntime.locateAt = performance.now();
     };
     const up = (e: KeyboardEvent) => (keys.current[e.key.toLowerCase()] = false);
-    const wheel = (e: WheelEvent) => { camDist.current = Math.max(0.5, Math.min(1.7, camDist.current * (1 + Math.sign(e.deltaY) * 0.08))); };
+    const wheel = (e: WheelEvent) => zoomBy(1 + Math.sign(e.deltaY) * 0.08);
+    // 双指捏合缩放（手机 / 触控板）
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinch0 = 0;
+    const span = () => { const [a, b] = [...touches.values()]; return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0; };
+    const pdown = (e: PointerEvent) => { if (e.pointerType !== 'touch') return; touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (touches.size === 2) pinch0 = span(); };
+    const pmove = (e: PointerEvent) => {
+      if (!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2 && pinch0 > 0) { const d = span(); if (d > 0) { zoomBy(pinch0 / d); pinch0 = d; } }
+    };
+    const pup = (e: PointerEvent) => { touches.delete(e.pointerId); pinch0 = touches.size === 2 ? span() : 0; };
+    const keyZoom = (e: KeyboardEvent) => {
+      const t = (e.target as HTMLElement)?.tagName;
+      if (t === 'INPUT' || t === 'TEXTAREA') return;
+      if (e.key === '+' || e.key === '=') zoomBy(0.88);
+      if (e.key === '-' || e.key === '_') zoomBy(1.14);
+    };
     window.addEventListener('keydown', down);
+    window.addEventListener('keydown', keyZoom);
     window.addEventListener('keyup', up);
-    gl.domElement.addEventListener('wheel', wheel, { passive: true });
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); gl.domElement.removeEventListener('wheel', wheel); };
+    const el = gl.domElement;
+    el.addEventListener('wheel', wheel, { passive: true });
+    el.addEventListener('pointerdown', pdown); el.addEventListener('pointermove', pmove);
+    el.addEventListener('pointerup', pup); el.addEventListener('pointercancel', pup);
+    return () => {
+      window.removeEventListener('keydown', down); window.removeEventListener('keydown', keyZoom); window.removeEventListener('keyup', up);
+      el.removeEventListener('wheel', wheel); el.removeEventListener('pointerdown', pdown); el.removeEventListener('pointermove', pmove);
+      el.removeEventListener('pointerup', pup); el.removeEventListener('pointercancel', pup);
+    };
   }, [gl]);
 
   useFrame((state, dtRaw) => {
@@ -132,13 +159,13 @@ export function Player() {
 
     // 「找到我」：镜头立即回到角色身上，脚下光圈放大闪烁，头顶出现大箭头
     const sinceLocate = (performance.now() - playerRuntime.locateAt) / 1000;
-    if (sinceLocate < 0.1) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); camDist.current = 1; }
+    if (sinceLocate < 0.1) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); cam.dist = 1; }
     const pulse = sinceLocate < 3 ? 1 + Math.abs(Math.sin(sinceLocate * 6)) * 1.6 : 1 + Math.sin(now * 3) * 0.08;
     if (ring.current) { ring.current.scale.setScalar(pulse); (ring.current.material as MeshBasicMaterial).opacity = sinceLocate < 3 ? 1 : 0.85; }
     if (beacon.current) { beacon.current.visible = sinceLocate < 3.5; beacon.current.position.y = 3.6 + Math.abs(Math.sin(now * 5)) * 0.6; }
     // 镜头：俯视约 55°，柔和跟随
     camTarget.current.lerp(new Vector3(playerRuntime.x, 0, playerRuntime.z), Math.min(1, dt * 3));
-    const off = new Vector3(0, 40, 22).multiplyScalar(camDist.current);
+    const off = new Vector3(0, 40, 22).multiplyScalar(cam.dist);
     camera.position.lerp(camTarget.current.clone().add(off), Math.min(1, dt * 3));
     camera.lookAt(camTarget.current.x, 0.8, camTarget.current.z);
 
@@ -214,8 +241,8 @@ export function Player() {
   return (
     <>
       <group ref={group} position={[avatar.position.x, 0.16, avatar.position.z]}>
-        <Chibi look={avatar.look} movingRef={moving} happyRef={happy} />
-        <GhostChibi look={avatar.look} movingRef={moving} happyRef={happy} groupRef={ghost} />
+        <Chibi look={dressed} movingRef={moving} happyRef={happy} />
+        <GhostChibi look={dressed} movingRef={moving} happyRef={happy} groupRef={ghost} />
         {/* 脚下定位光圈：永远画在最上层，被树和楼挡住也能看到自己在哪 */}
         <mesh ref={ring} position-y={0.05} rotation-x={-Math.PI / 2} renderOrder={1000}>
           <ringGeometry args={[0.62, 0.86, 40]} />

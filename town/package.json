@@ -16,7 +16,8 @@
     "playtest": "node e2e/full-playtest.cjs",
     "server": "tsx watch server/src/server.ts",
     "server:start": "NODE_ENV=production tsx server/src/server.ts",
-    "server:typecheck": "tsc -p server/tsconfig.json"
+    "server:typecheck": "tsc -p server/tsconfig.json",
+    "start": "npm run build && tsx server/src/server.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

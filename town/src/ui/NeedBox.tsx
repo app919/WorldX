@@ -11,6 +11,8 @@ import { useServer } from '../store/useServer';
 import { useCenter } from '../store/useCenter';
 import { residentOfEntity } from '../data/seed';
 import { track } from '../net/api';
+import { useLive } from '../store/useLive';
+import { emitGame } from '../store/gameEvents';
 import { ROLE_COLORS } from '../domain/palette';
 import type { DistrictKey } from '../domain/commerce';
 
@@ -31,27 +33,30 @@ export function NeedBox() {
   const hits = useMemo(() => searchTown(q, {
     lotOfExample,
     districtOfLot: (l) => lotById(l)?.district,
-    remote: remote.map((r) => ({ id: r.id, lotId: r.lotId, name: r.name, tagline: r.tagline, category: r.category, licensed: r.licensed })),
+    remote: remote.map((r) => ({ id: r.id, lotId: r.lotId, name: r.name, tagline: r.tagline, category: r.category, licensed: r.licensed, ownerUserId: r.ownerUserId })),
   }), [q, remote]);
 
-  const ask = (text: string) => { setQ(text); setOpen(true); track('action', 'need_box', 'search', { q: text.slice(0, 40) }); };
+  const ask = (text: string) => { setQ(text); setOpen(true); emitGame('search'); track('action', 'need_box', 'search', { q: text.slice(0, 40) }); };
 
+  /** 一键「打个飞的」：直接落在店门口，打开店铺 AI 分身（示范店打开示范介绍） */
   const act = (h: SearchHit) => {
-    track('action', 'need_box', `go_${h.kind}`, { q: q.slice(0, 40), id: h.id });
+    track('action', 'need_box', `go_${h.kind}`, { q: q.slice(0, 40), id: h.id, rank: String(hits.indexOf(h) + 1) });
     const t = useTown.getState();
+    setOpen(false);
     if (h.kind === 'provider' || h.kind === 'contact') {
       useCenter.getState().setSection(h.kind === 'provider' ? 'services' : 'funding');
       t.setTab('center');
+      if (h.kind === 'contact') emitGame('view_investor'); else emitGame('center_service');
       return;
     }
-    if (h.lotId) {
-      const lot = lotById(h.lotId);
-      if (lot && goNear(lot.district, lot.door.p)) { t.toast(`🧭 正在带你去「${h.title}」，走到门口就能进店`, 'info'); setOpen(false); }
+    if (h.kind === 'remote' && h.lotId) {
+      useLive.getState().fly({ title: h.title, lotId: h.lotId });
       return;
     }
-    // 没有铺位的个人：走到 TA 常出没的地方，并打开名片
+    if (h.lotId) { useLive.getState().fly({ title: h.title, lotId: h.lotId }); return; }
+    // 没有铺位的个人：飞到 TA 常出没的地方，并打开名片
     const r = residentOfEntity(h.id.replace(/^ent_/, ''));
-    if (r) { const a = residentAnchor(r); goNear(a.district, a.p); t.openCard({ kind: 'resident', id: r.id }); setOpen(false); }
+    if (r) { const a = residentAnchor(r); useLive.getState().fly({ title: h.title, at: { district: a.district, x: a.p.x, z: a.p.z }, then: () => t.openCard({ kind: 'resident', id: r.id }) }); }
   };
 
   return (
@@ -78,11 +83,18 @@ export function NeedBox() {
                       <span className="truncate">{h.title}</span>
                     </span>
                     <span className="mt-0.5 line-clamp-2 block text-[11px] text-stone-600">{h.sub}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] text-stone-500" data-testid="hit-rep">
+                      <b className="text-cocoa-700">评价分 {h.rep.score}</b>
+                      <span>{h.rep.reviews ? `⭐${h.rep.rating.toFixed(1)}（${h.rep.reviews}）` : '新店'}</span>
+                      <span>信用 {h.rep.credit}</span>
+                      <span>活跃 {h.rep.activity}</span>
+                      {h.kind !== 'example' && h.ownerId !== undefined && <span>{h.rep.online ? '🟢在线' : '⚪离线'}</span>}
+                    </span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-almond-400 px-2 py-0.5 text-[10px] font-bold text-cocoa-800">{h.kind === 'provider' || h.kind === 'contact' ? '去看看' : '带我去'}</span>
+                  <span className="shrink-0 rounded-full bg-almond-400 px-2 py-0.5 text-[10px] font-bold text-cocoa-800">{h.kind === 'provider' || h.kind === 'contact' ? '去看看' : '✈️ 打个飞的'}</span>
                 </button>
               ))}
-              {hits.some((h) => h.kind === 'example') && <div className="text-[10px] text-stone-400">「例」是示范店（虚构示例），可以参观学习，不能下单。</div>}
+              {hits.length > 0 && <div className="text-[10px] text-stone-400">按评价分排序（评分 + 信用等级 + 活跃度）。{hits.some((h) => h.kind === 'example') && '「例」是系统示范店（虚构示例），可以参观学习，不能交易，排在最后。'}</div>}
             </div>
           )}
         </div>

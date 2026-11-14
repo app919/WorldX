@@ -7,7 +7,10 @@
  * - 服务中心的认证服务商、投资人 / 园区 / 专家。
  * 同义词扩展：剪辑 ≈ 视频 / 后期；拍摄 ≈ 摄影 / 拍照；投资人 ≈ 投资 / 融资……
  */
-import { COUNTERPARTIES, SHOPS } from '../data/seed';
+import { COUNTERPARTIES, RESIDENTS, SHOPS } from '../data/seed';
+import { INDUSTRY_CHAINS } from '../data/chains';
+import { creditOf } from './deal';
+import { reputationOf, type Reputation } from './reputation';
 import { EXAMPLE_OPCS } from '../data/examples';
 import { CONTACTS, CONTACT_LABEL, SERVICE_CAT, SERVICE_PROVIDERS } from '../data/center';
 import { capLabel, getCap } from './taxonomy';
@@ -45,7 +48,14 @@ export interface SearchHit {
   badge?: string;
   district?: DistrictKey;
   lotId?: string;
+  /** 与搜索词的相关度 */
   score: number;
+  /** 评价分（排序依据）：评分 + 信用等级 + 活跃度 */
+  rep: Reputation;
+  /** 店主（演示角色 id）；有店主才能「聊一聊」 */
+  ownerId?: string;
+  /** 能不能交易：【例】示范店、未入驻商家不能 */
+  canTrade: boolean;
 }
 
 /** 把一句话拆成要找的词（去掉“找、我要、有没有”等），并做同义词扩展 */
@@ -65,43 +75,52 @@ const scoreText = (hay: string, terms: string[]) => {
   return terms.reduce((a, t) => a + (h.includes(t) ? (t.length >= 2 ? 2 : 1) : 0), 0);
 };
 
-export interface RemoteLike { id: string; lotId: string; name: string; tagline?: string; category?: string; licensed?: boolean }
+export interface RemoteLike { id: string; lotId: string; name: string; tagline?: string; category?: string; licensed?: boolean; ownerUserId?: string }
 
 export function searchTown(q: string, opts: { lotOfExample: (id: string) => string | undefined; districtOfLot: (lotId: string) => DistrictKey | undefined; remote?: RemoteLike[] }): SearchHit[] {
   const terms = needTerms(q);
   if (!terms.length) return [];
   const hits: SearchHit[] = [];
   const push = (h: Omit<SearchHit, 'score'>, hay: string, boost = 0) => { const sc = scoreText(hay, terms); if (sc > 0) hits.push({ ...h, score: sc + boost }); };
+  const ownerOnline = (ownerId?: string) => !!RESIDENTS.find((r) => r.id === ownerId)?.online;
+  const memberCredit = (entityId?: string) => { const m = entityId ? INDUSTRY_CHAINS.flatMap((x) => x.members).find((mm) => mm.entityId === entityId) : undefined; return m ? creditOf(m.id) : undefined; };
 
   for (const r of opts.remote ?? []) {
-    push({ id: `remote_${r.id}`, kind: 'remote', title: r.name, sub: r.tagline || r.category || '', badge: r.licensed ? '企' : undefined, lotId: r.lotId, district: opts.districtOfLot(r.lotId) }, `${r.name} ${r.tagline ?? ''} ${r.category ?? ''}`, 2);
+    push({ id: `remote_${r.id}`, kind: 'remote', title: r.name, sub: r.tagline || r.category || '', badge: r.licensed ? '企' : undefined, lotId: r.lotId, district: opts.districtOfLot(r.lotId),
+      rep: reputationOf(r.id, { isNew: true, certified: r.licensed }), ownerId: r.ownerUserId, canTrade: true }, `${r.name} ${r.tagline ?? ''} ${r.category ?? ''}`, 2);
   }
   for (const s of SHOPS) {
     const ent = COUNTERPARTIES.find((c) => c.ownerId === s.ownerId);
     const caps = (ent?.capabilities ?? []).map((c) => `${capLabel(c)} ${(getCap(c)?.keywords ?? []).join(' ')}`).join(' ');
-    push({ id: `shop_${s.id}`, kind: 'shop', title: s.name, sub: s.tagline, badge: badgeOf(s.lotId), lotId: s.lotId, district: opts.districtOfLot(s.lotId) },
+    const cr = memberCredit(ent?.id);
+    push({ id: `shop_${s.id}`, kind: 'shop', title: s.name, sub: s.tagline, badge: badgeOf(s.lotId), lotId: s.lotId, district: opts.districtOfLot(s.lotId),
+      rep: reputationOf(s.id, { online: ownerOnline(s.ownerId), certified: s.entityStatus === 'verified_company' || cr?.certified, done: cr?.done || undefined, rating: cr?.rating || undefined }), ownerId: s.ownerId, canTrade: true },
       `${s.name} ${s.tagline} ${s.category} ${s.products.map((p) => `${p.name} ${p.description}`).join(' ')} ${caps}`, 1);
   }
   for (const c of COUNTERPARTIES) {
     if (SHOPS.some((s) => s.lotId && s.lotId === c.place.lotId)) continue;
     const caps = c.capabilities.map((x) => `${capLabel(x)} ${(getCap(x)?.keywords ?? []).join(' ')}`).join(' ');
-    push({ id: `ent_${c.id}`, kind: 'entity', title: c.name.replace('（虚构）', '').replace('（示意）', ''), sub: c.summary, badge: c.place.lotId ? badgeOf(c.place.lotId) : c.badge, lotId: c.place.lotId, district: c.place.district },
+    const cr = memberCredit(c.id);
+    push({ id: `ent_${c.id}`, kind: 'entity', title: c.name.replace('（虚构）', '').replace('（示意）', ''), sub: c.summary, badge: c.place.lotId ? badgeOf(c.place.lotId) : c.badge, lotId: c.place.lotId, district: c.place.district,
+      rep: reputationOf(c.id, { online: ownerOnline(c.ownerId), certified: cr?.certified || c.kind === 'merchant', done: cr?.done || undefined, rating: cr?.rating || undefined, isNew: c.kind === 'prospect' }), ownerId: c.ownerId, canTrade: c.kind !== 'prospect' },
       `${c.name} ${c.summary} ${caps}`, 1);
   }
   for (const e of EXAMPLE_OPCS) {
     const lotId = opts.lotOfExample(e.id);
-    push({ id: `ex_${e.id}`, kind: 'example', title: e.name, sub: `${e.direction} · ${e.tagline}`, badge: '例', lotId, district: e.district },
+    push({ id: `ex_${e.id}`, kind: 'example', title: e.name, sub: `${e.direction} · ${e.tagline}`, badge: '例', lotId, district: e.district, rep: reputationOf(e.id), canTrade: false },
       `${e.name} ${e.direction} ${e.tagline} ${e.keywords.join(' ')} ${e.products.map((p) => p.name).join(' ')}`);
   }
   for (const p of SERVICE_PROVIDERS) {
-    push({ id: `sv_${p.id}`, kind: 'provider', title: p.name.replace('（虚构）', ''), sub: `${SERVICE_CAT[p.cat]} · ${p.summary}`, badge: p.certified ? '认证' : undefined },
+    push({ id: `sv_${p.id}`, kind: 'provider', title: p.name.replace('（虚构）', ''), sub: `${SERVICE_CAT[p.cat]} · ${p.summary}`, badge: p.certified ? '认证' : undefined,
+      rep: reputationOf(p.id, { rating: p.rating, done: p.done, certified: p.certified, online: true }), canTrade: true },
       `${p.name} ${SERVICE_CAT[p.cat]} ${p.summary} ${p.packages.map((k) => k.name).join(' ')}`);
   }
   for (const c of CONTACTS) {
-    push({ id: `ct_${c.id}`, kind: 'contact', title: `${c.name.replace('（虚构）', '')} · ${c.org.replace('（虚构）', '')}`, sub: c.summary, badge: CONTACT_LABEL[c.kind] },
+    push({ id: `ct_${c.id}`, kind: 'contact', title: `${c.name.replace('（虚构）', '')} · ${c.org.replace('（虚构）', '')}`, sub: c.summary, badge: CONTACT_LABEL[c.kind], rep: reputationOf(c.id, { online: true }), canTrade: true },
       `${CONTACT_LABEL[c.kind]} ${c.name} ${c.org} ${c.summary} ${c.offers.join(' ')} ${c.ticket ?? ''}`, 1);
   }
-  // 真实入驻优先，其次【例】，同分按标题
-  const order = { remote: 0, shop: 1, entity: 2, provider: 3, contact: 3, example: 4 } as const;
-  return hits.sort((a, b) => b.score - a.score || order[a.kind] - order[b.kind] || a.title.localeCompare(b.title)).slice(0, 12);
+  // 先筛相关（去掉只沾一点边的），再按「评价分」排序；【例】示范店无法交易，排在最后
+  const top = Math.max(0, ...hits.map((h) => h.score));
+  const relevant = hits.filter((h) => h.score >= Math.max(1, Math.ceil(top * 0.3)));
+  return relevant.sort((a, b) => Number(a.kind === 'example') - Number(b.kind === 'example') || b.rep.score - a.rep.score || b.score - a.score || a.title.localeCompare(b.title)).slice(0, 12);
 }

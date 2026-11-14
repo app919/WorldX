@@ -16,6 +16,7 @@ import { CityCards } from './ui/CityCards';
 import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
+import { FlyOverlay, LiveChat } from './ui/LiveChat';
 import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
@@ -61,6 +62,8 @@ export default function App() {
             {tab === 'me' && <MePanel />}
             <BottomNav />
             <AgentChat />
+            <LiveChat />
+            <FlyOverlay />
             <ActiveJobBar />
             <JobBoard />
             <ShiftGame />

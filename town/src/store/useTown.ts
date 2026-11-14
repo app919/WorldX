@@ -16,6 +16,7 @@ import { EVENTS, type TownEvent } from '../data/events';
 import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
 import { shopAtLot, useServer } from './useServer';
 import { exampleAtLot } from '../domain/lots';
+import { emitGame } from './gameEvents';
 
 export const ME = 'me';
 export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'center' | 'community' | 'messages' | 'me';
@@ -121,6 +122,8 @@ interface TownState {
   fxPush(f: Omit<Fx, 'id' | 'at'>): void;
   toast(text: string, tone?: 'ok' | 'warn' | 'info'): void;
   markRead(kind?: InboxKind): void;
+  /** 往「消息」里放一条通知 */
+  notify(i: Omit<InboxItem, 'id' | 'at' | 'read'>): void;
   setMarketing(v: boolean): void;
   markWalked(): void;
   reset(): void;
@@ -184,6 +187,7 @@ export const useTown = create<TownState>()(
       };
 
       return {
+        notify: (i) => inbox(i),
         phase: 'onboarding', intros: [], meetings: [], audit: [], wallet: emptyWallet(), inbox: [], joinedEvents: [], myEvents: [], savedLeads: [],
         chats: {}, collectedNeeds: [], marketingOptIn: true, tutorial: initialTutorial, friends: [], visited: [],
         tab: 'city', district: 'wukang', hour: 14.5, timeFlow: true, wizardOpen: false, bizType: 'customer', showMarkers: true,
@@ -254,11 +258,11 @@ export const useTown = create<TownState>()(
           const remote = shopAtLot(lotId);
           if (remote) { s.fxPush({ kind: 'door', from: playerRuntime }); return useServer.getState().openShop(remote.id); }
           const shop = SHOPS.find((x) => x.lotId === lotId);
-          if (shop) { s.fxPush({ kind: 'door', from: playerRuntime }); return s.openChat(shop.id); }
+          if (shop) { s.fxPush({ kind: 'door', from: playerRuntime }); emitGame('enter_shop'); return s.openChat(shop.id); }
           const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);
           if (ent) return s.openCard({ kind: 'entity', id: ent.id });
           const ex = exampleAtLot(lotId);
-          if (ex) { s.fxPush({ kind: 'door', from: playerRuntime }); return s.openCard({ kind: 'example', id: ex.id }); }
+          if (ex) { s.fxPush({ kind: 'door', from: playerRuntime }); emitGame('visit_example'); return s.openCard({ kind: 'example', id: ex.id }); }
           s.openCard({ kind: 'lot', id: lotId });
         },
 

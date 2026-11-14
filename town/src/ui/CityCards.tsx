@@ -131,6 +131,7 @@ function ExampleCard({ id }: { id: string }) {
       <Sec t="常见问题">{e.faqs.map((f) => <div key={f.q} className="mt-1"><b>问：{f.q}</b><div>答：{f.a}</div></div>)}</Sec>
       <Sec t="正在寻找">{e.lookingFor.join('、')}</Sec>
       <div className="mt-3 flex flex-wrap gap-2">
+        <Btn tone="cream" disabled data-testid="example-chat-disabled" title="系统示范店，无法交易">💬 聊一聊（示范店不可交易）</Btn>
         <Btn tone="cream" onClick={() => { openCard(undefined); useTown.getState().setWizard(true); }}>照着它，开一家我的小店</Btn>
       </div>
     </Panel>

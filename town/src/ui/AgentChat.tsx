@@ -7,6 +7,8 @@ import { creditOf } from '../domain/deal';
 import { useOpp } from '../store/useOpp';
 import { Btn, Chip, Disclaimer, Panel } from './kit';
 import { placeOfLot, useWork } from '../store/useWork';
+import { useLive } from '../store/useLive';
+import { emitGame } from '../store/gameEvents';
 
 const ENTITY_LABEL = { personal_page: '个人创业主页（未注册主体）', opc_entity: 'OPC 经营主体（自述，未核验）', verified_company: '已认证企业' } as const;
 const LEVEL_TONE = { L1: 'sage', L2: 'almond', L3: 'sakura' } as const;
@@ -41,7 +43,7 @@ export function AgentChat() {
   const chainPos = ent ? INDUSTRY_CHAINS.flatMap((ind) => ind.members.filter((m) => m.entityId === ent.id).map((m) => ({ id: `${ind.id}_${m.stage}`, ind: ind.id, stage: m.stage, label: `${ind.name.split(' · ')[0]} · ${ind.stages.find((s) => s.id === m.stage)?.name}` }))) : [];
   const member = ent ? INDUSTRY_CHAINS.flatMap((x) => x.members).find((m) => m.entityId === ent.id) : undefined;
   const credit = member ? creditOf(member.id) : undefined;
-  const send = (text: string) => { if (text.trim()) { ask(opc.id, text.trim()); setQ(''); } };
+  const send = (text: string) => { if (text.trim()) { ask(opc.id, text.trim()); setQ(''); emitGame('agent_ask'); } };
   const quick = ['你们是做什么的？', '多少钱？', '可以打个折吗？', '有案例吗？', '想预约聊聊', '你是真人吗？'];
 
   return (
@@ -88,7 +90,10 @@ export function AgentChat() {
         )}
         {opc.openNeeds.length > 0 && <div className="mt-2 text-xs"><b>正在寻找：</b>{opc.openNeeds.join('、')}</div>}
         {!mine && owner && (
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Btn size="sm" tone={ownerOnline ? 'sage' : 'almond'} data-testid="live-chat-btn" onClick={() => useLive.getState().openLive(owner.id)}>
+              💬 聊一聊{ownerOnline ? '（在线）' : '（留需求）'}
+            </Btn>
             {intro ? <Btn size="sm" tone="sage" onClick={() => { close(undefined); setTab('messages'); }}>已联系 · 查看进度</Btn>
               : profile ? <Btn size="sm" onClick={() => openHello(owner.id)} data-testid="chat-hello">💌 给主理人打招呼</Btn>
               : <Btn size="sm" tone="cream" onClick={() => { close(undefined); setTab('biz'); }}>先让 AI 认识我</Btn>}

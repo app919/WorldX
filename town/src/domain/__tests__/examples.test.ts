@@ -76,6 +76,21 @@ describe('今天来找什么', () => {
     expect(hits.some((h) => h.kind === 'contact' && h.badge === '投资人')).toBe(true);
   });
   it('空输入不返回结果', () => { expect(searchTown('   ', opts)).toEqual([]); });
+  it('按评价分排序（评分 + 信用等级 + 活跃度），【例】排在最后', () => {
+    for (const q of ['找剪辑', '找拍摄', '找设计', '找 AI 开发']) {
+      const hits = searchTown(q, opts);
+      const real = hits.filter((h) => h.kind !== 'example');
+      for (let i = 1; i < real.length; i++) expect(real[i - 1].rep.score).toBeGreaterThanOrEqual(real[i].rep.score);
+      const firstEx = hits.findIndex((h) => h.kind === 'example');
+      if (firstEx >= 0) expect(hits.slice(firstEx).every((h) => h.kind === 'example')).toBe(true);
+      for (const h of hits) { expect(h.rep.score).toBeGreaterThan(0); expect(['AAA', 'AA', 'A', 'B', '新']).toContain(h.rep.credit); }
+    }
+  });
+  it('【例】不能交易；有店主的店可以「聊一聊」', () => {
+    const hits = searchTown('找拍摄', opts);
+    expect(hits.filter((h) => h.kind === 'example').every((h) => !h.canTrade)).toBe(true);
+    expect(hits.some((h) => h.canTrade && h.ownerId)).toBe(true);
+  });
 });
 
 describe('身份与着装', () => {

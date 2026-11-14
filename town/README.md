@@ -35,6 +35,8 @@
 
 ## 快速开始
 
+> **完整的、可直接运行的启动步骤（含后端、管理后台、上线配置）见 [docs/START.md](docs/START.md)。** 一句话：`npm install && ADMIN_PHONES=13900000000 npm start`，打开 http://localhost:8787 。
+
 ```bash
 cd town
 npm install

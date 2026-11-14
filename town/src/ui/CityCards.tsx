@@ -19,7 +19,7 @@ export function CityCards() {
   const tab = useTown((s) => s.tab);
   if (tab !== 'city' || !card) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-24 z-20 flex justify-center md:inset-x-auto md:bottom-auto md:right-3 md:top-24 md:w-96">
+    <div className="pointer-events-none absolute inset-x-3 bottom-24 z-20 flex justify-center md:inset-x-auto md:bottom-auto md:right-3 md:top-[10.5rem] md:max-h-[calc(100vh-17rem)] md:w-96">
       {card.kind === 'resident' && <ResidentCard id={card.id} />}
       {card.kind === 'entity' && <EntityCard id={card.id} />}
       {card.kind === 'landmark' && <LandmarkCard id={card.id} />}
@@ -109,7 +109,7 @@ function ExampleCard({ id }: { id: string }) {
   );
   return (
     <Panel testId="example-card" title={<span><span data-testid="example-badge" className="mr-1 rounded bg-[#3E86D8] px-1 align-middle text-xs font-black text-white">例</span>{e.name}</span>}
-      subtitle={`${e.direction} · ${e.tagline}`} onClose={() => openCard(undefined)} className="max-h-[70vh] w-full max-w-md">
+      subtitle={`${e.direction} · ${e.tagline}`} onClose={() => openCard(undefined)} className="max-h-[60vh] w-full max-w-md md:max-h-[calc(100vh-17rem)]">
       <div className="flex flex-wrap gap-1.5"><Pill tone="haze">示范 OPC · 虚构示例</Pill><Pill tone="cream">主理人 {e.owner.nickname}</Pill><Pill tone="cream">{e.direction}</Pill></div>
       <div className="mt-2 rounded-2xl bg-[#EAF2FC] p-2 text-[11px] text-[#24548F]">这是一家【例】示范店，用来展示一家完整的 OPC 小店应该写清楚哪些内容。店名、主理人、案例与数据都是虚构的，不进入产业链，也不能下单。</div>
       <Sec t="公司简介"><p>{e.about}</p><p className="mt-1 text-stone-500">{e.status}</p></Sec>

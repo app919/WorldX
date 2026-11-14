@@ -11,6 +11,7 @@ import type { DistrictKey } from './commerce';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { dist } from '../world/geom';
 import { examplesOf, type ExampleOpc } from '../data/examples';
+import { BADGE_ROLE, type ShopCategory } from './palette';
 
 export const GOLDEN_RATIO = 0.4;
 /** 每个街区约 10% 的铺位由【例】示范 OPC 预设占用（从 OPC 招租位里选，不占黄金位） */
@@ -56,6 +57,17 @@ export function exampleAtLot(lotId: string): ExampleOpc | undefined {
 export function lotOfExample(id: string): string | undefined {
   for (const d of DKEYS) { const i = examplesOf(d).findIndex((e) => e.id === id); if (i >= 0) return lotPlan(d).examples[i]; }
   return undefined;
+}
+
+/** 演示数据里这个铺位的身份色类别（例 / 企 / 投 / 品 / 个人）；空铺、未入驻商家返回 undefined */
+export function demoRoleOfLot(lotId: string): ShopCategory | undefined {
+  if (exampleAtLot(lotId)) return 'example';
+  const shop = SHOPS.find((s) => s.lotId === lotId);
+  const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId) ?? (shop ? COUNTERPARTIES.find((c) => c.ownerId === shop.ownerId) : undefined);
+  if (ent?.badge) return BADGE_ROLE[ent.badge];
+  if (shop) return shop.entityStatus !== 'personal_page' ? 'company' : 'personal';
+  if (!ent || ent.kind === 'prospect') return undefined;
+  return ent.kind === 'merchant' ? 'company' : 'personal';
 }
 
 export const isGolden = (lotId: string) => (['wukang', 'yangjing', 'sichuan_n'] as DistrictKey[]).some((d) => lotPlan(d).golden.includes(lotId));

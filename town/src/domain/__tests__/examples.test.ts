@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { EXAMPLE_OPCS, examplesOf } from '../../data/examples';
-import { EXAMPLE_RATIO, exampleAtLot, isGolden, lotOfExample, lotPlan, takenByDemo } from '../lots';
+import { EXAMPLE_RATIO, demoRoleOfLot, exampleAtLot, isGolden, lotOfExample, lotPlan, takenByDemo } from '../lots';
 import { COUNTERPARTIES, SHOPS } from '../../data/seed';
 import { INDUSTRY_CHAINS } from '../../data/chains';
 import { searchTown, needTerms } from '../search';
-import { dress, identityOf, IDENTITIES } from '../identity';
+import { dress, identityOf, IDENTITIES, EXAMPLE_DRESS } from '../identity';
+import { ROLE_COLORS } from '../palette';
 import { lotById } from '../../world';
 import type { DistrictKey } from '../commerce';
 
@@ -82,10 +83,25 @@ describe('身份与着装', () => {
     expect(IDENTITIES.map((i) => i.label)).toEqual(['投资人', '在职看副业', 'OPC 主理人', '商业服务者', '品牌方', '游客']);
     expect(new Set(IDENTITIES.map((i) => i.outfit)).size).toBe(6);
   });
-  it('OPC 主理人穿粉色背带裤；旧标签自动换成对应身份的着装', () => {
-    const opc = dress({ body: '#000000', skin: '#F6DCC8', hair: '#333333', accessory: 'none' }, 'opc');
-    expect(opc.outfit).toBe('overalls');
-    expect(opc.body.toLowerCase()).toBe('#f29bb5');
+  it('全站身份色：例 粉 / 企 蓝 / 投 黑 / 品 金 / 其他 紫；服装与屋顶同色', () => {
+    const base = { body: '#000000', skin: '#F6DCC8', hair: '#333333', accessory: 'none' as const };
+    expect(dress(base, 'opc').outfit).toBe('overalls');
+    expect(dress(base, 'opc').body).toBe(ROLE_COLORS.personal);
+    expect(dress(base, 'investor').body).toBe(ROLE_COLORS.investor);
+    expect(dress(base, 'brand').body).toBe(ROLE_COLORS.brand);
+    expect(dress(base, 'opc', { company: true }).body).toBe(ROLE_COLORS.company);
+    expect(EXAMPLE_DRESS.body).toBe(ROLE_COLORS.example);
     expect(identityOf('worker').tag).toBe('side_hustle');
+    expect(Object.isFrozen(ROLE_COLORS)).toBe(true);
+  });
+  it('铺位身份色：示范店 = 例，投资机构 = 投，品牌 = 品，有执照 = 企，个人 = 紫', () => {
+    const roles = new Set<string>();
+    for (const d of DS) for (const l of lotPlan(d).examples) expect(demoRoleOfLot(l)).toBe('example');
+    expect(demoRoleOfLot('wukang_lot30')).toBe('investor');
+    expect(demoRoleOfLot('wk_w2')).toBe('brand');
+    expect(demoRoleOfLot('wk_n1')).toBe('company');
+    expect(demoRoleOfLot('wk_e2')).toBe('personal');
+    for (const id of ['wk_w2', 'wk_n1', 'wk_e2', 'wukang_lot30', lotPlan('wukang').examples[0]]) roles.add(demoRoleOfLot(id)!);
+    expect(roles.size).toBe(5);
   });
 });

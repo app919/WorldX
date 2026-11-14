@@ -8,6 +8,7 @@ import { lotPlan } from '../domain/lots';
 import { playerRuntime, useTown } from '../store/useTown';
 import { placeOfLot, useWork } from '../store/useWork';
 import { jobTargetLot } from '../scene/JobTarget';
+import { ROLE_COLORS, ROLE_LABEL } from '../domain/palette';
 
 const W = 200, H = 168;
 
@@ -55,7 +56,7 @@ export function MiniMap() {
   return (
     <div className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 overflow-hidden rounded-2xl p-1.5 md:bottom-24 md:left-3 md:right-auto md:top-auto" data-testid="minimap">
       <div className="flex items-center justify-between px-1 pb-1 text-[10px] font-bold text-stone-600">
-        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span> <span className="text-[#3E86D8]">●例</span></span>
+        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span> <span style={{ color: ROLE_COLORS.example }}>●例</span></span>
         <span className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-full bg-cream-100">
             <button data-testid="minimap-zoom-in" aria-label="放大小地图" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z * 2))} className="px-1.5 font-black disabled:opacity-30">＋</button>
@@ -102,7 +103,7 @@ export function MiniMap() {
         })}
         {/* 铺位：金色 = 黄金赞助位（40%），绿色 = OPC 招租位（60%） */}
         {lots.map((l) => (
-          <circle key={l.door.lotId} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={(exampleSet.has(l.door.lotId!) ? 2 : 1.5) / Math.sqrt(zoom)} fill={exampleSet.has(l.door.lotId!) ? '#3E86D8' : goldenSet.has(l.door.lotId!) ? '#D4A017' : '#5E8C6A'} opacity={0.9} />
+          <circle key={l.door.lotId} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={(exampleSet.has(l.door.lotId!) ? 2 : 1.5) / Math.sqrt(zoom)} fill={exampleSet.has(l.door.lotId!) ? ROLE_COLORS.example : goldenSet.has(l.door.lotId!) ? '#D4A017' : '#5E8C6A'} opacity={0.9} />
         ))}
         {cd.tunnels.map((t, i) => (
           <circle key={`tn${i}`} cx={sx(t.box.cx)} cy={sz(t.box.cz)} r={2.2} fill="#3E4048" />
@@ -123,10 +124,10 @@ export function MiniMap() {
         {zoom === 1 && <text x={W - 10} y={12} fontSize="10" fontWeight="900" fill="#4A3426" textAnchor="middle">北</text>}
         {zoom === 1 && <path d={`M${W - 10},15 l3,6 l-3,-2 l-3,2 z`} fill="#4A3426" />}
       </svg>
-      <div className="flex items-center gap-2 px-1 pt-1 text-[9px] font-bold text-stone-500" data-testid="roof-legend">
-        屋顶颜色：<span className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm bg-[#3E86D8]" />例 示范店</span>
-        <span className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm bg-[#C0533A]" />企 公司</span>
-        <span className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm bg-[#5FB27A]" />个人店</span>
+      <div className="flex flex-wrap items-center gap-x-2 px-1 pt-1 text-[9px] font-bold text-stone-500" data-testid="roof-legend">
+        身份色：{(['example', 'company', 'investor', 'brand', 'personal'] as const).map((k) => (
+          <span key={k} className="flex items-center gap-0.5"><i className="inline-block h-2 w-2 rounded-sm" style={{ background: ROLE_COLORS[k] }} />{ROLE_LABEL[k]}</span>
+        ))}
       </div>
     </div>
   );

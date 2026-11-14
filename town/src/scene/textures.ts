@@ -4,6 +4,7 @@
  */
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace, type Texture } from 'three';
 import { rng } from '../world/geom';
+import { BADGE_ROLE, ROLE_COLORS } from '../domain/palette';
 
 const cache = new Map<string, Texture>();
 
@@ -104,14 +105,14 @@ export const soilTex = () => make('soil', 64, (g, s) => {
   noise(g, s, 200, ['#8C705A', '#A88B6F'], [0.6, 1.5], 41);
 });
 
-/** 店铺屋顶颜色：一眼区分【例】示范店、【企】有执照的公司、个人开的店 */
-export const ROOF_COLORS = { example: '#3E86D8', company: '#C0533A', personal: '#5FB27A' } as const;
-export type ShopCategory = keyof typeof ROOF_COLORS;
+/** 店铺屋顶颜色 = 全站身份色（见 domain/palette.ts） */
+export type { ShopCategory } from '../domain/palette';
+export const ROOF_COLORS = ROLE_COLORS;
 
 /** 招牌：圆角底板 + 文字（中文使用系统字体） */
 export function signTex(text: string, bg: string, fg: string, w = 512, h = 128): Texture {
-  // 文字以「企|」「赞|」「例|」开头时，在招牌左上角画角标
-  const badge = /^(企|赞|例)\|/.test(text) ? text[0] : '';
+  // 文字以「例|」「企|」「投|」「品|」「赞|」开头时，在招牌左上角画角标（颜色 = 身份色）
+  const badge = /^(企|赞|例|投|品)\|/.test(text) ? text[0] : '';
   const body = badge ? text.slice(2) : text;
   return make(`sign_${text}_${bg}_${fg}_${w}`, w, (g) => {
     g.canvas.height = h;
@@ -125,9 +126,9 @@ export function signTex(text: string, bg: string, fg: string, w = 512, h = 128):
     let size = Math.round(h * 0.46);
     while (g.measureText(body).width > w - (badge ? 120 : 40) && size > 14) { size -= 2; g.font = `bold ${size}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`; }
     g.fillText(body, w / 2, h / 2 + 2);
-    // 角标：「企」= 有营业执照的公司；「赞」= 黄金位赞助商；「例」= 示范 OPC（虚构示例）
+    // 角标：例 = 系统示范（粉）；企 = 公司（蓝）；投 = 投资人（黑）；品 / 赞 = 品牌（金）
     if (badge) {
-      g.fillStyle = badge === '企' ? ROOF_COLORS.company : badge === '例' ? ROOF_COLORS.example : '#B8860B';
+      g.fillStyle = ROLE_COLORS[BADGE_ROLE[badge]];
       g.beginPath(); g.moveTo(4, 4); g.lineTo(h * 0.95, 4); g.lineTo(4, h * 0.95); g.closePath(); g.fill();
       g.fillStyle = '#FFFFFF';
       g.font = `bold ${Math.round(h * 0.3)}px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif`;

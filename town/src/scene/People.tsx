@@ -15,7 +15,8 @@ import { dress, EXAMPLE_DRESS, IDENTITIES } from '../domain/identity';
 import { examplesOf, type ExampleOpc } from '../data/examples';
 import { lotPlan } from '../domain/lots';
 import { rng, type V2 } from '../world/geom';
-import { RESIDENTS, type Resident } from '../data/seed';
+import { RESIDENTS, entityById, type Resident } from '../data/seed';
+import { ROLE_COLORS, ROLE_DARK, ROLE_TINT } from '../domain/palette';
 import { residentAnchor, useBusinessMap, useTown } from '../store/useTown';
 import type { DistrictKey } from '../domain/commerce';
 import type { AvatarLook } from '../domain/types';
@@ -71,7 +72,7 @@ function Owner({ r, isCustomer }: { r: Resident; isCustomer: boolean }) {
       onPointerOver={() => (document.body.style.cursor = 'pointer')}
       onPointerOut={() => (document.body.style.cursor = '')}
     >
-      <Chibi look={dress(r.look, r.lifeTag)} movingRef={moving} happyRef={happy} scale={0.92} />
+      <Chibi look={residentLook(r)} movingRef={moving} happyRef={happy} scale={0.92} />
       <mesh position-y={0.9} visible={false}><cylinderGeometry args={[0.6, 0.6, 1.9, 8]} /></mesh>
       <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
         <div className="flex items-center gap-1 whitespace-nowrap rounded-full bg-cream-50/90 px-2 py-0.5 text-[10px] font-semibold text-cocoa-600 shadow-soft">
@@ -82,6 +83,13 @@ function Owner({ r, isCustomer }: { r: Resident; isCustomer: boolean }) {
       </Html>
     </group>
   );
+}
+
+/** 演示居民的着装：主体是投资机构 → 投资人（黑）；品牌 → 品牌方（金）；有执照的公司 → 蓝；其余按身份（紫） */
+function residentLook(r: Resident): AvatarLook {
+  const e = entityById(r.entityId);
+  const tag = e?.badge === '投' ? 'investor' : e?.badge === '品' ? 'brand' : r.lifeTag;
+  return dress(r.look, tag, { company: e?.badge === '企' || (!e?.badge && e?.kind === 'merchant') });
 }
 
 /** 路人：六种身份轮流出现，各穿各的身份着装，男女都有 */
@@ -129,8 +137,8 @@ function ExampleOwner({ ex, lotId, district }: { ex: ExampleOpc; lotId: string; 
       <Chibi look={look} movingRef={moving} happyRef={happy} scale={0.9} />
       <mesh position-y={0.9} visible={false}><cylinderGeometry args={[0.6, 0.6, 1.9, 8]} /></mesh>
       <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="flex items-center gap-1 whitespace-nowrap rounded-full bg-[#EAF2FC]/95 px-2 py-0.5 text-[10px] font-semibold text-[#24548F] shadow-soft">
-          <span className="rounded bg-[#3E86D8] px-1 text-[9px] font-black text-white">例</span>{ex.owner.nickname} · {ex.direction}
+        <div className="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-soft" style={{ background: ROLE_TINT.example, color: ROLE_DARK.example }}>
+          <span className="rounded px-1 text-[9px] font-black text-white" style={{ background: ROLE_COLORS.example }}>例</span>{ex.owner.nickname} · {ex.direction}
         </div>
       </Html>
     </group>

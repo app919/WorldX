@@ -11,9 +11,10 @@ import { useServer } from '../store/useServer';
 import { useCenter } from '../store/useCenter';
 import { residentOfEntity } from '../data/seed';
 import { track } from '../net/api';
+import { ROLE_COLORS } from '../domain/palette';
 import type { DistrictKey } from '../domain/commerce';
 
-const BADGE_TONE: Record<string, string> = { 例: 'bg-[#3E86D8] text-white', 企: 'bg-[#C0533A] text-white', 认证: 'bg-sage-500 text-white' };
+const BADGE_BG: Record<string, string> = { 例: ROLE_COLORS.example, 企: ROLE_COLORS.company, 投: ROLE_COLORS.investor, 投资人: ROLE_COLORS.investor, 品: ROLE_COLORS.brand, 认证: ROLE_COLORS.company };
 
 /** 走到某个位置：同一街区就规划步行路线；不同街区先把你送到目标附近 */
 export function goNear(district: DistrictKey, p: { x: number; z: number }) {
@@ -73,7 +74,7 @@ export function NeedBox() {
                 <button key={h.id} data-testid="need-hit" onClick={() => act(h)} className="flex w-full items-start gap-2 rounded-2xl bg-cream-100 px-3 py-2 text-left hover:bg-almond-300/60">
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1 text-xs font-black text-cocoa-800">
-                      {h.badge && <span className={`rounded px-1 text-[9px] font-black ${BADGE_TONE[h.badge] ?? 'bg-haze-200 text-cocoa-700'}`}>{h.badge}</span>}
+                      {h.badge && <span className="rounded px-1 text-[9px] font-black text-white" style={{ background: BADGE_BG[h.badge] ?? ROLE_COLORS.personal }}>{h.badge}</span>}
                       <span className="truncate">{h.title}</span>
                     </span>
                     <span className="mt-0.5 line-clamp-2 block text-[11px] text-stone-600">{h.sub}</span>

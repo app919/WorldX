@@ -2,6 +2,7 @@ import { archiveById } from '../data/archives';
 import { useState } from 'react';
 import { SPONSOR_TIERS, isGolden, lotPlan } from '../domain/lots';
 import { exampleById } from '../data/examples';
+import { ROLE_COLORS, ROLE_DARK, ROLE_TINT } from '../domain/palette';
 import { useLots } from '../store/useLots';
 import { placeOfLot, useWork } from '../store/useWork';
 import { COUNTERPARTIES, entityById, residentById, shopOfEntity } from '../data/seed';
@@ -108,10 +109,10 @@ function ExampleCard({ id }: { id: string }) {
     <div className="mt-3"><div className="text-xs font-black text-cocoa-800">{t}</div><div className="mt-1 text-xs text-stone-700">{children}</div></div>
   );
   return (
-    <Panel testId="example-card" title={<span><span data-testid="example-badge" className="mr-1 rounded bg-[#3E86D8] px-1 align-middle text-xs font-black text-white">例</span>{e.name}</span>}
+    <Panel testId="example-card" title={<span><span data-testid="example-badge" className="mr-1 rounded px-1 align-middle text-xs font-black text-white" style={{ background: ROLE_COLORS.example }}>例</span>{e.name}</span>}
       subtitle={`${e.direction} · ${e.tagline}`} onClose={() => openCard(undefined)} className="max-h-[60vh] w-full max-w-md md:max-h-[calc(100vh-17rem)]">
       <div className="flex flex-wrap gap-1.5"><Pill tone="haze">示范 OPC · 虚构示例</Pill><Pill tone="cream">主理人 {e.owner.nickname}</Pill><Pill tone="cream">{e.direction}</Pill></div>
-      <div className="mt-2 rounded-2xl bg-[#EAF2FC] p-2 text-[11px] text-[#24548F]">这是一家【例】示范店，用来展示一家完整的 OPC 小店应该写清楚哪些内容。店名、主理人、案例与数据都是虚构的，不进入产业链，也不能下单。</div>
+      <div className="mt-2 rounded-2xl p-2 text-[11px]" style={{ background: ROLE_TINT.example, color: ROLE_DARK.example }}>这是一家【例】示范店（粉色 = 系统设置，无法交易），用来展示一家完整的 OPC 小店应该写清楚哪些内容。店名、主理人、案例与数据都是虚构的，不进入产业链，也不能下单。</div>
       <Sec t="公司简介"><p>{e.about}</p><p className="mt-1 text-stone-500">{e.status}</p></Sec>
       <Sec t="主理人">{e.owner.nickname} · {e.owner.title}</Sec>
       <Sec t="亮点"><ul className="list-disc pl-4">{e.highlights.map((h) => <li key={h}>{h}</li>)}</ul></Sec>

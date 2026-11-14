@@ -63,6 +63,8 @@ export interface Counterparty {
   ownerId?: string;
   openToConnect: boolean;
   isDemo: boolean;
+  /** 身份角标：企 = 公司，投 = 投资机构，品 = 品牌方（决定屋顶与服装颜色，见 domain/palette.ts） */
+  badge?: '企' | '投' | '品';
 }
 
 export type BizRelType = 'customer' | 'supplier' | 'partner' | 'channel' | 'resource';

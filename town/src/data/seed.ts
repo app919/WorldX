@@ -33,7 +33,7 @@ export const COUNTERPARTIES: Counterparty[] = [
   C({ id: 'e_wutong', name: '梧桐豆子', kind: 'opc', summary: '独立咖啡品牌，小批量烘焙，正在筹备秋季新品', industries: ['food', 'brand_retail'],
     place: { district: 'wukang', street: '武康路', lotId: 'wk_w2' }, districts: ['xuhui'], capabilities: ['coffee'],
     publishedNeeds: [{ tag: 'video', detail: '秋季新品上市短视频 2 支（15–30 秒）' }, { tag: 'graphic', detail: '新品包装与杯套设计' }],
-    budgetRange: { min: 3000, max: 8000 }, ownerId: 'u_xiaoman', intents: ['project', 'long_term'] }),
+    budgetRange: { min: 3000, max: 8000 }, ownerId: 'u_xiaoman', intents: ['project', 'long_term'], badge: '品' }),
   C({ id: 'e_guangying', name: '光影小棚', kind: 'opc', summary: '产品摄影工作室，自带 20㎡ 小摄影棚', industries: ['media'],
     place: { district: 'wukang', street: '武康路', lotId: 'wk_e2' }, districts: ['xuhui', 'changning'], capabilities: ['photo', 'venue_provider'],
     publishedNeeds: [{ tag: 'video', detail: '摄影项目的视频后期合作（按项目结算）' }], priceRange: { min: 800, max: 3000 }, budgetRange: { min: 1000, max: 4000 },
@@ -63,7 +63,7 @@ export const COUNTERPARTIES: Counterparty[] = [
     publishedNeeds: [{ tag: 'client', detail: '活动主办方、培训机构' }], priceRange: { min: 120, max: 600 }, ownerId: 'u_lin', intents: ['long_term'] }),
   C({ id: 'e_apo', name: '阿婆糕团店（虚构）', kind: 'merchant', summary: '手工糕团、节令点心，三十年社区老店', industries: ['food', 'community'],
     place: { district: 'yangjing', street: '张杨路', lotId: 'yj_s1' }, districts: ['pudong'], capabilities: ['bakery'], publishedNeeds: [],
-    ownerId: 'u_apo', intents: ['long_term'] }),
+    ownerId: 'u_apo', intents: ['long_term'], badge: '品' }),
   C({ id: 'e_dawei', name: '大伟 · AI 伴侣玩偶计划', kind: 'individual', summary: '下班后做 AI 伴侣玩偶，正在找队友', industries: ['hardware', 'tech'],
     place: { district: 'yangjing', street: '羽山路' }, districts: ['pudong'], capabilities: ['hardware_eng'],
     publishedNeeds: [{ tag: 'industrial_design' }, { tag: 'ai_app' }, { tag: 'graphic' }, { tag: 'ai_video', detail: '众筹宣传片' }],
@@ -75,7 +75,7 @@ export const COUNTERPARTIES: Counterparty[] = [
   C({ id: 'e_tianai', name: '甜爱文创', kind: 'opc', summary: '情书信纸、明信片与城市文创，七夕是全年最忙的时候', industries: ['brand_retail', 'culture'],
     place: { district: 'sichuan_n', street: '四川北路', lotId: 'sc_e2' }, districts: ['hongkou'], capabilities: ['graphic'],
     publishedNeeds: [{ tag: 'ai_video', detail: '七夕主题 AI 宣传短片 1 支' }, { tag: 'copywriting', detail: '产品故事文案' }],
-    budgetRange: { min: 2000, max: 6000 }, ownerId: 'u_xiaotian', intents: ['project'] }),
+    budgetRange: { min: 2000, max: 6000 }, ownerId: 'u_xiaotian', intents: ['project'], badge: '品' }),
   C({ id: 'e_wedding', name: '甜爱写真馆（虚构）', kind: 'merchant', summary: '情侣写真与婚纱样片，常在甜爱路取景', industries: ['wedding', 'media'],
     place: { district: 'sichuan_n', street: '甜爱路', lotId: 'ta_n1' }, districts: ['hongkou'], capabilities: ['wedding_photo'],
     publishedNeeds: [{ tag: 'ai_video', detail: '婚纱样片 AI 宣传片，用于小红书投放' }], budgetRange: { min: 4000, max: 12000 },
@@ -92,6 +92,16 @@ export const COUNTERPARTIES: Counterparty[] = [
 ];
 
 /** 演示居民的外观：着装由身份决定（见 domain/identity.ts 的 dress），这里只定发色、配饰、肤色和性别（均为虚构角色设定） */
+// —— 投资机构（【投】黑色屋顶）：每个上海街区一家办公室（虚构） ——
+COUNTERPARTIES.push(
+  C({ id: 'e_inv_wutong', name: '梧桐早期基金（虚构）', kind: 'merchant', badge: '投', summary: '天使轮基金，偏好消费品牌与内容电商；每周四下午开放“一人公司路演”', industries: ['tech'],
+    place: { district: 'wukang', street: '淮海中路', lotId: 'wukang_lot30' }, districts: ['xuhui'], capabilities: [], publishedNeeds: [{ tag: 'client', detail: '寻找已有客户验证的一人公司项目' }], budgetRange: { min: 500000, max: 3000000 }, intents: ['long_term'] }),
+  C({ id: 'e_inv_pujiang', name: '浦江天使会（虚构）', kind: 'merchant', badge: '投', summary: '社区天使投资人联盟，关注 AI 应用、具身智能与社区服务', industries: ['tech'],
+    place: { district: 'yangjing', street: '张杨路', lotId: 'yangjing_lot50' }, districts: ['pudong'], capabilities: [], publishedNeeds: [{ tag: 'client', detail: 'AI / 硬件方向早期项目' }], budgetRange: { min: 300000, max: 2000000 }, intents: ['long_term'] }),
+  C({ id: 'e_inv_haipai', name: '海派文化创投（虚构）', kind: 'merchant', badge: '投', summary: '关注非遗、文创与城市文化消费，Pre-A / A 轮', industries: ['culture'],
+    place: { district: 'sichuan_n', street: '四川北路', lotId: 'sichuan_n_lot30' }, districts: ['hongkou'], capabilities: [], publishedNeeds: [{ tag: 'client', detail: '文创、非遗、文旅项目' }], budgetRange: { min: 1000000, max: 5000000 }, intents: ['long_term'] }),
+);
+
 const look = (body: string, hair: string, accessory: AvatarLook['accessory'], skin = '#F6DCC8', gender: 'f' | 'm' = 'f'): AvatarLook => ({ body, hair, accessory, skin, gender });
 
 export const RESIDENTS: Resident[] = [

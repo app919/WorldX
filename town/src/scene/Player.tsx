@@ -26,7 +26,8 @@ const RUN = 7.6;
 
 export function Player() {
   const avatar = useTown((s) => s.avatar)!;
-  const dressed = dress(avatar.look, avatar.lifeTag);
+  const licensed = useTown((s) => !!s.myOpc?.license);
+  const dressed = dress(avatar.look, avatar.lifeTag, { company: licensed });
   const district = useTown((s) => s.district);
   const walkPath = useTown((s) => s.walkPath);
   const group = useRef<Group>(null);

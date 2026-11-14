@@ -23,7 +23,8 @@ import { rng } from '../world/geom';
 import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
-import { exampleAtLot, isGolden } from '../domain/lots';
+import { demoRoleOfLot, exampleAtLot, isGolden } from '../domain/lots';
+import { ROLE_BADGE, ROLE_DARK, ROLE_TINT } from '../domain/palette';
 import { useLots } from '../store/useLots';
 import { shopAtLot, useServer } from '../store/useServer';
 
@@ -37,7 +38,7 @@ const tintMat = (c: ShopCategory) => {
   return tintMats.get(c)!;
 };
 const useRoof = (fallback: Material) => useContext(RoofTint) ?? fallback;
-const RANK: Record<ShopCategory, number> = { example: 3, company: 2, personal: 1 };
+const RANK: Record<ShopCategory, number> = { example: 5, investor: 4, brand: 3, company: 2, personal: 1 };
 const GF = 1.8; // 商铺底层层高
 
 export interface WinSpec { x: number; y: number; z: number; ry: number; w: number; h: number }
@@ -68,6 +69,8 @@ export function Windows({ list, frame, glass }: { list: WinSpec[]; frame?: Mater
 
 export function Buildings({ def }: { def: DistrictDef }) {
   const myOpc = useTown((s) => s.myOpc);
+  const myTag = useTown((s) => s.avatar?.lifeTag);
+  const myRole: ShopCategory | undefined = myTag === 'investor' ? 'investor' : myTag === 'brand' ? 'brand' : undefined;
   useLots((s) => s.sponsors);
   useServer((s) => s.shops);
   return (
@@ -78,7 +81,7 @@ export function Buildings({ def }: { def: DistrictDef }) {
           return <Cutaway key={b.id} cx={c.x} cz={c.z} reach={14} height={12}><WukangMansion poly={b.polygon!} /></Cutaway>;
         }
         const o = b.box!;
-        const signs = b.doors.map((d) => ({ ...d, sign: signFor(d.lotId, myOpc && myOpc.lotId === d.lotId ? myOpc.name : undefined, !!myOpc?.license) }));
+        const signs = b.doors.map((d) => ({ ...d, sign: signFor(d.lotId, myOpc && myOpc.lotId === d.lotId ? myOpc.name : undefined, !!myOpc?.license, myRole ?? (myOpc?.license ? 'company' : undefined)) }));
         const cat = signs.reduce<ShopCategory | undefined>((a, x) => (x.sign?.cat && (!a || RANK[x.sign.cat] > RANK[a]) ? x.sign.cat : a), undefined);
         return (
           <Cutaway key={b.id} cx={o.cx} cz={o.cz} reach={Math.max(o.w, o.d) / 2} height={b.floors * FH + 2.5}>
@@ -108,22 +111,24 @@ function Cutaway({ cx, cz, reach, children }: { cx: number; cz: number; reach: n
   return <group ref={g}>{children}</group>;
 }
 
-/** 招牌 + 店铺类别（决定屋顶颜色）：example =【例】示范店，company =【企】有执照，personal = 个人开的店 */
-export function signFor(lotId?: string, mine?: string, mineLicensed?: boolean): { text: string; bg: string; fg: string; empty: boolean; cat?: ShopCategory } | undefined {
+/** 招牌 + 店铺类别（决定屋顶颜色 = 全站身份色）：例 粉 / 企 蓝 / 投 黑 / 品 金 / 个人 紫 */
+export function signFor(lotId?: string, mine?: string, mineLicensed?: boolean, mineRole?: ShopCategory): { text: string; bg: string; fg: string; empty: boolean; cat?: ShopCategory } | undefined {
   if (!lotId) return undefined;
   const C = (licensed: boolean): ShopCategory => (licensed ? 'company' : 'personal');
-  if (mine) return { text: `${mineLicensed ? '企|' : ''}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false, cat: C(!!mineLicensed) };
+  const tag = (c?: ShopCategory) => (c && ROLE_BADGE[c] ? `${ROLE_BADGE[c]}|` : '');
+  if (mine) { const c = mineRole ?? C(!!mineLicensed); return { text: `${tag(c)}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false, cat: c }; }
   // 真实用户开的店（来自后端）
   const remote = shopAtLot(lotId);
-  if (remote) return { text: `${remote.licensed ? '企|' : ''}${remote.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat: C(remote.licensed) };
-  const shop = SHOPS.find((s) => s.lotId === lotId);
-  if (shop) return { text: `${shop.entityStatus !== 'personal_page' ? '企|' : ''}${shop.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat: C(shop.entityStatus !== 'personal_page') };
-  const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);
-  if (ent) return { text: `${ent.kind === 'merchant' ? '企|' : ''}${ent.name.replace('（虚构）', '').replace('（示意）', '')}`, bg: '#F4EBDA', fg: '#7A5539', empty: false, cat: ent.kind === 'prospect' ? undefined : C(ent.kind === 'merchant') };
+  if (remote) return { text: `${tag(C(remote.licensed))}${remote.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat: C(remote.licensed) };
+  const cat = demoRoleOfLot(lotId);
   const ex = exampleAtLot(lotId);
-  if (ex) return { text: `例|${ex.name}`, bg: '#EAF2FC', fg: '#24548F', empty: false, cat: 'example' };
+  if (ex) return { text: `例|${ex.name}`, bg: ROLE_TINT.example, fg: ROLE_DARK.example, empty: false, cat: 'example' };
+  const shop = SHOPS.find((s) => s.lotId === lotId);
+  if (shop) return { text: `${tag(cat)}${shop.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat };
+  const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId);
+  if (ent) return { text: `${tag(cat)}${ent.name.replace('（虚构）', '').replace('（示意）', '')}`, bg: cat ? ROLE_TINT[cat] : '#F4EBDA', fg: cat ? ROLE_DARK[cat] : '#7A5539', empty: false, cat };
   const sp = useLots.getState().sponsorOf(lotId);
-  if (sp && sp.status === 'live') return { text: `赞|${sp.name.replace('（虚构）', '')}`, bg: '#F6E3A6', fg: '#6B4E12', empty: false };
+  if (sp && sp.status === 'live') return { text: `赞|${sp.name.replace('（虚构）', '')}`, bg: ROLE_TINT.brand, fg: ROLE_DARK.brand, empty: false, cat: 'brand' };
   if (isGolden(lotId)) return { text: '黄金位 · 赞助招商', bg: '#F2D27A', fg: '#6B4E12', empty: false };
   return { text: 'OPC 招租', bg: '#E9DCC3', fg: '#8D877F', empty: true };
 }

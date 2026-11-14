@@ -12,6 +12,10 @@ import { EXAMPLE_OPCS } from '../data/examples';
 import { CONTACTS, CONTACT_LABEL, SERVICE_CAT, SERVICE_PROVIDERS } from '../data/center';
 import { capLabel, getCap } from './taxonomy';
 import type { DistrictKey } from './commerce';
+import { demoRoleOfLot } from './lots';
+import { ROLE_BADGE } from './palette';
+
+const badgeOf = (lotId: string) => { const r = demoRoleOfLot(lotId); return r && ROLE_BADGE[r] ? ROLE_BADGE[r] : undefined; };
 
 export const QUICK_NEEDS = ['找剪辑', '找拍摄', '找投资人', '找设计', '找直播', '找 AI 开发', '找场地', '找财税'];
 
@@ -75,13 +79,13 @@ export function searchTown(q: string, opts: { lotOfExample: (id: string) => stri
   for (const s of SHOPS) {
     const ent = COUNTERPARTIES.find((c) => c.ownerId === s.ownerId);
     const caps = (ent?.capabilities ?? []).map((c) => `${capLabel(c)} ${(getCap(c)?.keywords ?? []).join(' ')}`).join(' ');
-    push({ id: `shop_${s.id}`, kind: 'shop', title: s.name, sub: s.tagline, badge: s.entityStatus !== 'personal_page' ? '企' : undefined, lotId: s.lotId, district: opts.districtOfLot(s.lotId) },
+    push({ id: `shop_${s.id}`, kind: 'shop', title: s.name, sub: s.tagline, badge: badgeOf(s.lotId), lotId: s.lotId, district: opts.districtOfLot(s.lotId) },
       `${s.name} ${s.tagline} ${s.category} ${s.products.map((p) => `${p.name} ${p.description}`).join(' ')} ${caps}`, 1);
   }
   for (const c of COUNTERPARTIES) {
     if (SHOPS.some((s) => s.lotId && s.lotId === c.place.lotId)) continue;
     const caps = c.capabilities.map((x) => `${capLabel(x)} ${(getCap(x)?.keywords ?? []).join(' ')}`).join(' ');
-    push({ id: `ent_${c.id}`, kind: 'entity', title: c.name.replace('（虚构）', '').replace('（示意）', ''), sub: c.summary, badge: c.kind === 'merchant' ? '企' : undefined, lotId: c.place.lotId, district: c.place.district },
+    push({ id: `ent_${c.id}`, kind: 'entity', title: c.name.replace('（虚构）', '').replace('（示意）', ''), sub: c.summary, badge: c.place.lotId ? badgeOf(c.place.lotId) : c.badge, lotId: c.place.lotId, district: c.place.district },
       `${c.name} ${c.summary} ${caps}`, 1);
   }
   for (const e of EXAMPLE_OPCS) {

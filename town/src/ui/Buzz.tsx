@@ -15,15 +15,6 @@ import { Btn, Panel } from './kit';
 
 const ago = (ms: number) => (ms < 60000 ? '刚刚' : `${Math.round(ms / 60000)} 分钟前`);
 
-export function FeedButton() {
-  const tab = useTown((s) => s.tab);
-  if (tab !== 'city') return null;
-  return (
-    <button data-testid="feed-open" onClick={() => useFollow.getState().setFeed(true)}
-      className="pointer-events-auto glass absolute left-4 top-[calc(46%+5.5rem)] z-20 rounded-2xl px-2 py-1.5 text-[11px] font-black text-cocoa-700 shadow-soft">📰<br />动态</button>
-  );
-}
-
 /** 飞到某个活动现场并开始围观 */
 export function flyToLive(id: string) {
   const e = LIVE_EVENTS.find((x) => x.id === id)!;

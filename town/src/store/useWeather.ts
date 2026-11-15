@@ -32,6 +32,8 @@ export const useWeather = create<WeatherState>()((set) => ({
       if (c?.day === day) { set({ day, cities: c.cities, source: 'browser' }); return; }
     } catch { /* 本机存储不可用 */ }
     const out: Partial<Record<CityId, WeatherKind>> = {};
+    // 自动化测试（?e2e）不联网查天气
+    if (typeof location !== 'undefined' && location.search.includes('e2e')) { set({ day, source: 'default' }); return; }
     await Promise.all((Object.keys(CITY_GEO) as CityId[]).map(async (id) => {
       try {
         const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 5000);

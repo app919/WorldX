@@ -56,7 +56,9 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   page = await browser.newPage({ viewport: { width: 1100, height: 720 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // 资源加载失败用 response 精确判断（离线预览没有后端时 /api/health 返回 5xx 属于正常探测）
+  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  page.on('response', (r) => { if (r.status() >= 500 && !/\/api\/health$/.test(r.url())) errors.push(`${r.status()} ${r.url()}`); });
 
   await page.goto(BASE);
   await evalTown(() => { try { localStorage.clear(); } catch { /* */ } });
@@ -284,6 +286,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     return r.map((x) => `${x.d}: OPC ${x.opc} / 黄金 ${x.golden} / 共 ${x.total}`).join('；');
   });
   await step('黄金位：走到门口显示赞助招商 → 资质校验 → 提交 → 审核 → 付款 → 上线（招牌带「赞」角标）', async () => {
+    await closeAll(); await toCity();
     const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); const s = window.__town.useLots.getState(); return p.golden.find((id) => !s.sponsorOf(id) && window.__town.doors('wukang').some((d) => d.lotId === id)); });
     must(lot, '没有空的黄金位');
     await evalTown((l) => window.__town.nearLot(l, 3), lot);
@@ -305,6 +308,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     return lot;
   });
   await step('空铺：走到 OPC 招租位门口显示招租名片（含 60/40 说明）', async () => {
+    await closeAll(); await toCity();
     const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); return window.__town.doors('wukang').find((d) => d.lotId && d.lotId.startsWith('wukang_lot') && p.opc.includes(d.lotId) && !p.examples.includes(d.lotId))?.lotId; });
     must(lot, '没有空铺');
     await evalTown((l) => window.__town.nearLot(l, 3), lot);
@@ -313,6 +317,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     return lot;
   });
   await step('开店：在空铺开店（外观 / 铺位 / 商品 / 需求 / 主体 / AI 分身权限）', async () => {
+    await closeAll(); await toCity();
     await T('open-wizard').click();
     await T('opc-wizard').waitFor();
     await page.getByText('奶油咖啡馆').click();
@@ -844,7 +849,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await page.screenshot({ path: path.join(OUT, '26-need-box.png') });
     await T('need-hit').first().click();
     await page.waitForTimeout(1800);
-    await evalTown(() => { const t = window.__town.useTown.getState(); t.openChat(undefined); t.openCard(undefined); });
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openChat(undefined); t.openCard(undefined); t.setTab('city'); });
     await T('need-input').click();
     await T('need-chip-找投资人').click();
     const hit = T('need-hit').filter({ hasText: '投资人' }).first();
@@ -883,8 +888,8 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const real = nums.filter((_, i) => !kinds[i]);
     for (let i = 1; i < real.length; i++) must(real[i - 1] >= real[i], `排序不对：${nums}`);
     await T('need-hit').filter({ hasText: '光影小棚' }).first().click();
-    await T('fly-overlay').waitFor({ timeout: 3000 });
     await T('agent-chat').waitFor({ timeout: 15000 });
+    must(await evalTown(() => window.__town.useTown.getState().chatOpc) === 'opc_guangying', '没有落在光影小棚门口');
     await T('live-chat-btn').click();
     await T('live-chat').waitFor();
     await T('live-input').fill('你好，想拍一组咖啡新品图，多少钱？');

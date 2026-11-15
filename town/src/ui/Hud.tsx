@@ -9,6 +9,7 @@ import { emitGame } from '../store/gameEvents';
 import { track } from '../net/api';
 import { identityOf } from '../domain/identity';
 import { useQuests } from '../store/useQuests';
+import { useFollow } from '../store/useFollow';
 import { dayIndex, planFor } from '../domain/quests';
 import { cnDate } from '../domain/weather';
 import { cityOfDistrict } from '../domain/cities';
@@ -242,11 +243,11 @@ export function Controls() {
   if (tab !== 'city') return null;
   return (
     <>
-      {/* 镜头缩放：＋ 拉近 / － 拉远（也支持滚轮、双指捏合、键盘 + -） */}
-      <div className="pointer-events-auto absolute left-4 top-[46%] z-20 flex flex-col overflow-hidden rounded-2xl bg-cream-50/90 shadow-soft ring-1 ring-cream-200" data-testid="zoom-controls">
+      {/* 工具条：镜头缩放（＋ 拉近 / － 拉远，也支持滚轮、双指捏合、键盘 + -）+ 街区动态。电脑在左下角小地图下方，手机在左侧 */}
+      <div className="pointer-events-auto absolute left-4 top-[40%] z-20 flex flex-col overflow-hidden rounded-2xl bg-cream-50/90 shadow-soft ring-1 ring-cream-200 md:bottom-4 md:left-3 md:top-auto md:flex-row" data-testid="zoom-controls">
         <button aria-label="拉近" data-testid="zoom-in" onClick={() => { zoomBy(0.8); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">＋</button>
-        <div className="h-px bg-cream-200" />
-        <button aria-label="拉远" data-testid="zoom-out" onClick={() => { zoomBy(1.25); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">－</button>
+        <button aria-label="拉远" data-testid="zoom-out" onClick={() => { zoomBy(1.25); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center border-cream-200 text-lg font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">－</button>
+        <button aria-label="街区动态" data-testid="feed-open" onClick={() => useFollow.getState().setFeed(true)} className="grid h-9 min-w-9 place-items-center border-cream-200 px-2 text-xs font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">📰<span className="hidden md:inline"> 街区动态</span></button>
       </div>
       <div ref={pad} className="pointer-events-auto absolute bottom-24 left-4 z-20 grid h-24 w-24 touch-none place-items-center rounded-full bg-cream-50/60 shadow-soft ring-2 ring-cream-200 md:hidden"
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={(e) => e.buttons && move(e)} onPointerUp={end} onPointerCancel={end}>

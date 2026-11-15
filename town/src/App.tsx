@@ -20,7 +20,7 @@ import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
 import { Confetti, FlyOverlay, LiveChat } from './ui/LiveChat';
-import { FeedButton, FeedPanel, LivePanel } from './ui/Buzz';
+import { FeedPanel, LivePanel } from './ui/Buzz';
 import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
@@ -69,7 +69,6 @@ export default function App() {
             <LiveChat />
             <FlyOverlay />
             <Confetti />
-            <FeedButton />
             <FeedPanel />
             <LivePanel />
             <ActiveJobBar />

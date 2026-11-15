@@ -317,7 +317,6 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     return lot;
   });
   await step('开店：在空铺开店（外观 / 铺位 / 商品 / 需求 / 主体 / AI 分身权限）', async () => {
-    await closeAll(); await toCity();
     await T('open-wizard').click();
     await T('opc-wizard').waitFor();
     await page.getByText('奶油咖啡馆').click();

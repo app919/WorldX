@@ -102,7 +102,7 @@ export function DistrictSwitcher() {
   return (
     <div className="pointer-events-auto absolute left-1/2 top-[4.6rem] z-20 -translate-x-1/2 md:top-3" data-testid="district-switcher">
       <div className="flex gap-1 rounded-full bg-cream-50/85 p-1 shadow-soft backdrop-blur">
-        <button data-testid="city-switch" onClick={() => setOpen(!open)} className="whitespace-nowrap rounded-full bg-cocoa-700 px-3 py-1 text-[11px] font-black text-cream-50">🏙️ {city.name} ▾</button>
+        <button data-testid="city-switch" onClick={() => setOpen(!open)} className="whitespace-nowrap rounded-full bg-cocoa-800 px-3 py-1 text-[11px] font-black text-cream-50">🏙️ {city.name} ▾</button>
         {city.districts.map((d) => (
           <button key={d} data-testid={`district-${d}`} onClick={() => { if (d !== district) { go(d); emitGame('switch_district'); } }} className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold transition ${district === d ? 'bg-almond-400 text-cocoa-800' : 'text-stone-600 hover:bg-cream-100'}`}>
             {DISTRICTS[d].name}
@@ -139,8 +139,8 @@ export function BottomNav() {
   const needsMe = useTown((s) => s.inbox.filter((i) => !i.read && i.needsMe).length);
   const unread = useTown((s) => s.inbox.filter((i) => !i.read).length);
   return (
-    <nav className="pointer-events-auto absolute inset-x-0 bottom-0 z-30 flex justify-center p-3">
-      <div className="glass flex w-full max-w-xl justify-between rounded-[1.6rem] px-1.5 py-1.5">
+    <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center p-3">
+      <div className="pointer-events-auto glass flex w-full max-w-xl justify-between rounded-[1.6rem] px-1.5 py-1.5">
         {NAV.map((n) => (
           <button key={n.tab} data-testid={`nav-${n.tab}`} onClick={() => setTab(tab === n.tab && n.tab !== 'city' ? 'city' : n.tab)}
             className={`relative flex min-w-0 flex-1 flex-col items-center whitespace-nowrap rounded-2xl py-1.5 text-[10px] font-bold transition sm:text-[11px] ${tab === n.tab ? 'bg-almond-300 text-cocoa-800 shadow-jelly' : 'text-stone-600'}`}>

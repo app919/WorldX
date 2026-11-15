@@ -11,7 +11,7 @@ export default {
         haze: { 200: '#DCE6EE', 300: '#C2D3E0', 400: '#9DB6CA', 600: '#5E7D96' },
         brick: { 300: '#D9A08B', 400: '#C98068', 500: '#B5654E' },
         stone: { 400: '#A9A39A', 600: '#6F6A63' },
-        cocoa: { 400: '#A47B5B', 600: '#7A5539', 800: '#4A3426' },
+        cocoa: { 400: '#A47B5B', 600: '#7A5539', 700: '#5E4332', 800: '#4A3426' },
       },
       fontFamily: {
         sans: ['"PingFang SC"', '"HarmonyOS Sans SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'],

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTown, vitality, type Tab } from '../store/useTown';
 import { hourLabel, isNight } from '../scene/clock';
 import { ECONOMY_NOTICE } from '../domain/economy';
@@ -8,6 +8,9 @@ import { CITIES } from '../domain/cities';
 import { emitGame } from '../store/gameEvents';
 import { track } from '../net/api';
 import { identityOf } from '../domain/identity';
+import { useQuests } from '../store/useQuests';
+import { dayIndex, planFor } from '../domain/quests';
+import { cnDate } from '../domain/weather';
 import { cityOfDistrict } from '../domain/cities';
 import { useWeather } from '../store/useWeather';
 import { WEATHER_ICON, WEATHER_LABEL } from '../domain/weather';
@@ -151,32 +154,66 @@ export function BottomNav() {
   );
 }
 
+const KIND_TONE: Record<string, string> = { 买: 'bg-[#3D7BD8] text-white', 逛: 'bg-[#8C6BD6] text-white', 跟: 'bg-[#D9A62E] text-white' };
+
+/** 新手 7 天：按身份的每日任务（买 · 逛 · 跟），完成后领取奖励，三件都领完得当天徽章 */
 export function Coach() {
-  const t = useTown((s) => s.tutorial);
   const tab = useTown((s) => s.tab);
   const card = useTown((s) => s.card);
-  const steps = [
-    { done: t.walked, text: '沿人行道走一走（WASD / 点击地面）' },
-    { done: t.enteredShop, text: '走到店门口，进一家店看看' },
-    { done: t.foundCustomer, text: '在「我的生意」告诉 AI 你能提供什么' },
-    { done: t.saidHello, text: '给一位潜在客户打招呼' },
-    { done: t.booked, text: '预约一次线上见面' },
-  ];
-  const [hidden, setHidden] = useState(false);
-  if (steps.every((s) => s.done) || tab !== 'city' || card || hidden) return null;
-  const cur = steps.findIndex((s) => !s.done);
+  const tag = useTown((s) => s.avatar?.lifeTag);
+  const progress = useQuests((s) => s.progress);
+  const claimed = useQuests((s) => s.claimed);
+  const view = useQuests((s) => s.view);
+  const startDay = useQuests((s) => s.startDay);
+  const [hidden, setHidden] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => { if (!startDay) useQuests.setState({ startDay: questTodayStr() }); }, [startDay]);
+  if (tab !== 'city' || card) return null;
+  const plan = planFor(tag);
+  const unlocked = dayIndex(startDay ?? questTodayStr(), questTodayStr());
+  const cur = plan[(view ?? unlocked) - 1];
+  const doneDay = (d: number) => plan[d - 1].quests.every((q) => claimed[q.id]);
+  const left = cur.quests.filter((q) => !claimed[q.id]).length;
+  if (hidden) {
+    return <button data-testid="quest-open" onClick={() => setHidden(false)} className="pointer-events-auto glass absolute left-3 top-24 z-10 rounded-full px-3 py-1 text-xs font-black text-cocoa-700">🎯 第 {unlocked} 天任务 · 还剩 {plan[unlocked - 1].quests.filter((q) => !claimed[q.id]).length}</button>;
+  }
   return (
-    <div className="pointer-events-auto glass absolute left-3 top-24 z-10 hidden w-64 rounded-blob p-3 md:block" data-testid="coach">
-      <div className="mb-1 flex items-center justify-between text-xs font-black text-sage-700">新手小任务 · {steps.filter((s) => s.done).length}/5<button onClick={() => setHidden(true)} className="text-stone-400">收起</button></div>
-      {steps.map((s, i) => (
-        <div key={i} className={`flex items-start gap-1.5 py-0.5 text-[12px] ${s.done ? 'text-stone-400 line-through' : i === cur ? 'font-bold text-cocoa-800' : 'text-stone-600'}`}>
-          <span>{s.done ? '✅' : i === cur ? '👉' : '○'}</span>{s.text}
-        </div>
-      ))}
-      <div className="mt-1 text-[10px] text-stone-400">规则：只能走人行道，从斑马线过马路，从门口进店。</div>
+    <div className="pointer-events-auto glass absolute left-3 top-24 z-10 w-72 rounded-blob p-3" data-testid="coach">
+      <div className="flex items-center justify-between text-xs font-black text-cocoa-800">
+        <span>🎯 新手 7 天 · {identityOf(tag).label}</span>
+        <button onClick={() => setHidden(true)} className="text-stone-400">收起</button>
+      </div>
+      <div className="mt-1.5 flex gap-1" data-testid="quest-days">
+        {plan.map((d) => (
+          <button key={d.day} disabled={d.day > unlocked} onClick={() => useQuests.getState().setView(d.day)} title={d.day > unlocked ? `第 ${d.day} 天（${d.day - unlocked} 天后解锁）` : d.theme}
+            className={`grid h-6 flex-1 place-items-center rounded-full text-[10px] font-black ${d.day === cur.day ? 'bg-almond-400 text-cocoa-800' : doneDay(d.day) ? 'bg-sage-300 text-cocoa-700' : d.day <= unlocked ? 'bg-cream-100 text-stone-600' : 'bg-cream-100/50 text-stone-300'}`}>
+            {doneDay(d.day) ? '✓' : d.day > unlocked ? '🔒' : d.day}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 text-sm font-black text-cocoa-800">第 {cur.day} 天 · {cur.theme} <span className="text-[10px] font-bold text-stone-400">完成得「{cur.badge}」</span></div>
+      <div className="mt-1 space-y-1.5" data-testid="quest-list">
+        {cur.quests.map((q) => {
+          const n = Math.min(q.count, progress[q.id] ?? 0), ok = n >= q.count, got = claimed[q.id];
+          return (
+            <div key={q.id} className={`rounded-2xl px-2 py-1.5 text-[11px] ${got ? 'bg-sage-200/50 text-stone-400' : 'bg-cream-100'}`} data-testid="quest-item">
+              <div className="flex items-start gap-1.5">
+                <span className={`mt-0.5 shrink-0 rounded px-1 text-[9px] font-black ${KIND_TONE[q.kind]}`}>{q.kind}</span>
+                <span className={`flex-1 ${got ? 'line-through' : 'font-bold text-cocoa-800'}`}>{q.title}</span>
+                {got ? <span>✅</span> : ok
+                  ? <button data-testid="quest-claim" onClick={() => useQuests.getState().claim(q.id)} className="shrink-0 rounded-full bg-almond-400 px-2 py-0.5 text-[10px] font-black text-cocoa-800">领取 ⭐{q.stars}</button>
+                  : <span className="shrink-0 tabular-nums text-stone-500">{n}/{q.count}</span>}
+              </div>
+              {!got && <div className="pl-6 text-[10px] text-stone-500">💡 {q.hint}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 text-[10px] text-stone-400">{left ? `今天还有 ${left} 件小事。` : '今天的任务都完成啦！'}明天会解锁新玩法（第 {Math.min(7, unlocked + 1)} 天）。</div>
     </div>
   );
 }
+
+const questTodayStr = () => cnDate();
 
 export function Controls() {
   const myOpc = useTown((s) => s.myOpc);
@@ -199,7 +236,7 @@ export function Controls() {
     const nav = navOf(district); const b = nav.cd.def.bounds;
     for (let k = 0; k < 30; k++) {
       const p = { x: b.minX + Math.random() * (b.maxX - b.minX), z: b.minZ + Math.random() * (b.maxZ - b.minZ) };
-      if (nav.walkable(p) && walkTo(p)) return;
+      if (nav.walkable(p) && walkTo(p)) { emitGame('stroll'); return; }
     }
   };
   if (tab !== 'city') return null;
@@ -207,9 +244,9 @@ export function Controls() {
     <>
       {/* 镜头缩放：＋ 拉近 / － 拉远（也支持滚轮、双指捏合、键盘 + -） */}
       <div className="pointer-events-auto absolute left-4 top-[46%] z-20 flex flex-col overflow-hidden rounded-2xl bg-cream-50/90 shadow-soft ring-1 ring-cream-200" data-testid="zoom-controls">
-        <button aria-label="拉近" data-testid="zoom-in" onClick={() => zoomBy(0.8)} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">＋</button>
+        <button aria-label="拉近" data-testid="zoom-in" onClick={() => { zoomBy(0.8); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">＋</button>
         <div className="h-px bg-cream-200" />
-        <button aria-label="拉远" data-testid="zoom-out" onClick={() => zoomBy(1.25)} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">－</button>
+        <button aria-label="拉远" data-testid="zoom-out" onClick={() => { zoomBy(1.25); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">－</button>
       </div>
       <div ref={pad} className="pointer-events-auto absolute bottom-24 left-4 z-20 grid h-24 w-24 touch-none place-items-center rounded-full bg-cream-50/60 shadow-soft ring-2 ring-cream-200 md:hidden"
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={(e) => e.buttons && move(e)} onPointerUp={end} onPointerCancel={end}>

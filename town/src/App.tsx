@@ -4,6 +4,8 @@ import { DmPanel } from './ui/DirectMessages';
 import { RemoteShopPanel } from './ui/RemoteShop';
 import { useServer, type Me, type PublicShop } from './store/useServer';
 import { useWeather } from './store/useWeather';
+import { installQuestHooks } from './store/questHooks';
+installQuestHooks();
 import { api, detectBackend, restoreState, scheduleSync, startTracking, track } from './net/api';
 import { useOpp } from './store/useOpp';
 import { useCenter } from './store/useCenter';
@@ -18,6 +20,7 @@ import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
 import { Confetti, FlyOverlay, LiveChat } from './ui/LiveChat';
+import { FeedButton, FeedPanel, LivePanel } from './ui/Buzz';
 import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
@@ -66,6 +69,9 @@ export default function App() {
             <LiveChat />
             <FlyOverlay />
             <Confetti />
+            <FeedButton />
+            <FeedPanel />
+            <LivePanel />
             <ActiveJobBar />
             <JobBoard />
             <ShiftGame />

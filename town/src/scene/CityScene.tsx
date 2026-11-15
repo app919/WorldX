@@ -3,6 +3,7 @@ import { cityOfDistrict } from '../domain/cities';
 import { weatherNow } from '../store/useWeather';
 import type { WeatherKind } from '../domain/weather';
 import { WeatherFx } from './WeatherFx';
+import { LiveEvents } from './LiveEvents';
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { AgXToneMapping, Color, PMREMGenerator, type AmbientLight, type DirectionalLight, type Fog, type HemisphereLight } from 'three';
@@ -117,6 +118,7 @@ function District() {
       <Traffic cd={cd} />
       <Tunnels cd={cd} />
       <People district={district} />
+      <LiveEvents district={district} />
       <Markers district={district} />
       <JobTarget district={district} />
       <OppPins district={district} />

@@ -1,8 +1,9 @@
+import { emitGame } from '../store/gameEvents';
 /**
  * 产业链黄页：三条演示产业链（电商直播出海 / 非遗手艺 / 教育培训）的完整上下游，
  * 链上成员（平台用户与商家）放在各自的环节里，“我”高亮显示；点环节看黄页、速配上下游、抢服务商展位。
  */
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { INDUSTRY_CHAINS, LAYER_LABEL, MEMBER_LABEL, type ChainMember, type ChainStage, type Industry } from '../data/chains';
 import { RELATION_LABEL, RESOURCE_LABEL, SLOTS_PER_STAGE, SLOT_DAYS, activeSlots, gaps, placeMe, speedMatch, type ResourceKind } from '../domain/chain';
 import { entityById } from '../data/seed';
@@ -189,6 +190,7 @@ function StageDetail({ ind, stage }: { ind: Industry; stage: ChainStage }) {
   const amHere = placements.some((p) => p.industry === ind.id && p.stage === stage.id);
   const manual = joins.some((j) => j.industry === ind.id && j.stage === stage.id);
   const matches = amHere ? speedMatch(ind.id, stage.id, offers, needs) : [];
+  useEffect(() => { if (amHere) emitGame('speed_match'); }, [amHere, ind.id, stage.id]);
   const members = ind.members.filter((m) => m.stage === stage.id);
   return (
     <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="stage-detail">

@@ -5,7 +5,10 @@ import { IDENTITIES } from '../domain/identity';
 import { Chibi } from '../scene/Chibi';
 import { Canvas } from '@react-three/fiber';
 import type { DistrictKey } from '../domain/commerce';
-import { DISTRICTS, DISTRICT_ORDER } from '../world';
+import { DISTRICTS } from '../world';
+import { CITIES, cityById, cityOfDistrict } from '../domain/cities';
+import type { CityId } from '../domain/weather';
+import { roadLen, roadPoint } from '../world/helpers';
 import { useTown } from '../store/useTown';
 import { Btn } from './kit';
 
@@ -23,6 +26,18 @@ export function Onboarding() {
   const [pick, setPick] = useState(0);
   const [gender, setGender] = useState<'f' | 'm'>('f');
   const [hair, setHair] = useState(HAIR_COLORS[0]);
+  const [city, setCity] = useState<CityId>('shanghai');
+  const [street, setStreet] = useState<{ d: DistrictKey; road: string }>();
+  /** 进入街区：OPC 主理人落在自己公司那条街上 */
+  const go = (d: DistrictKey, road?: string) => {
+    start(name.trim(), preset.tag, { body: preset.look.body, skin: preset.look.skin, hair, gender, accessory: preset.look.accessory }, d);
+    const r = road ? DISTRICTS[d].roads.find((x) => x.id === road) : undefined;
+    if (r) {
+      useTown.setState({ home: { city: cityOfDistrict(d).id, district: d, street: r.name } });
+      const mid = roadPoint(r, roadLen(r) * 0.5);
+      useTown.getState().goDistrict(d, { x: mid.x + r.carriage / 2 + r.sidewalk / 2, z: mid.z });
+    }
+  };
   const [name, setName] = useState('');
   const preset = LIFE_TAGS[pick];
   return (
@@ -70,22 +85,47 @@ export function Onboarding() {
           </div>
         ) : (
           <div className="mt-5" data-testid="onboard-step-spawn">
-            <div className="mb-2 text-sm font-bold">② 选择你出发的街道</div>
-            <div className="grid gap-2">
-              {DISTRICT_ORDER.map((d: DistrictKey) => (
-                <button key={d} onClick={() => start(name.trim(), preset.tag, { body: preset.look.body, skin: preset.look.skin, hair, gender, accessory: preset.look.accessory }, d)} className="jelly flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-left hover:bg-almond-300">
-                  <span>
-                    <span className="block text-base text-cocoa-800">{DISTRICTS[d].name}</span>
-                    <span className="block text-xs font-normal text-stone-600">{DISTRICTS[d].subtitle} · {DISTRICTS[d].ambience}</span>
-                  </span>
-                  <span className="text-xl">→</span>
-                </button>
-              ))}
-            </div>
+            {preset.tag === 'opc' ? (
+              <>
+                <div className="mb-2 text-sm font-bold">② 你的公司在哪个城市、哪条街？（之后开店会优先推荐这里）</div>
+                <CityChips city={city} setCity={(c) => { setCity(c); setStreet(undefined); }} />
+                <div className="mt-2 grid max-h-64 gap-2 overflow-y-auto" data-testid="street-list">
+                  {cityById(city).districts.flatMap((d) => DISTRICTS[d].roads.map((r) => ({ d, r }))).map(({ d, r }) => (
+                    <button key={`${d}_${r.id}`} data-testid={`street-${r.id}`} onClick={() => setStreet({ d, road: r.id })}
+                      className={`jelly flex items-center justify-between rounded-2xl px-4 py-2 text-left ${street?.road === r.id ? 'bg-almond-300 ring-2 ring-almond-500' : 'bg-cream-100'}`}>
+                      <span><span className="block text-sm text-cocoa-800">{r.name}{r.pedestrian ? ' · 步行街' : ''}</span><span className="block text-[11px] font-normal text-stone-600">{DISTRICTS[d].name} · {DISTRICTS[d].subtitle}</span></span>
+                    </button>
+                  ))}
+                </div>
+                <Btn size="lg" className="mt-3 w-full" data-testid="start-opc" disabled={!street} onClick={() => go(street!.d, street!.road)}>出发，去我的街区 →</Btn>
+              </>
+            ) : (
+              <>
+                <div className="mb-2 text-sm font-bold">② 想先逛哪个城市？（游戏里随时可以切换城市）</div>
+                <Btn size="lg" className="w-full" data-testid="start-default" onClick={() => go('wukang')}>🚀 直接进入上海（默认）</Btn>
+                <div className="mt-3 grid grid-cols-2 gap-2" data-testid="city-list">
+                  {CITIES.map((c) => (
+                    <button key={c.id} data-testid={`city-${c.id}`} onClick={() => go(c.districts[0])} className="jelly rounded-2xl bg-cream-100 px-3 py-2 text-left hover:bg-almond-300">
+                      <span className="block text-base text-cocoa-800">{c.name}</span>
+                      <span className="block text-[11px] font-normal text-stone-600">{c.districts.map((d) => DISTRICTS[d].name).join(' · ')}</span>
+                      <span className="block text-[10px] font-normal text-stone-500">{c.blurb}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <button className="mt-3 w-full text-center text-xs text-stone-600 underline" onClick={() => setStep(0)}>返回</button>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CityChips({ city, setCity }: { city: CityId; setCity: (c: CityId) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5" data-testid="city-chips">
+      {CITIES.map((c) => <button key={c.id} data-testid={`city-chip-${c.id}`} onClick={() => setCity(c.id)} className={`chip ${city === c.id ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>{c.name}</button>)}
     </div>
   );
 }

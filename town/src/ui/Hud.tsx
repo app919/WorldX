@@ -3,7 +3,10 @@ import { useTown, vitality, type Tab } from '../store/useTown';
 import { hourLabel, isNight } from '../scene/clock';
 import { ECONOMY_NOTICE } from '../domain/economy';
 import { input, zoomBy } from '../scene/input';
-import { DISTRICTS, DISTRICT_ORDER, navOf } from '../world';
+import { DISTRICTS, navOf } from '../world';
+import { CITIES } from '../domain/cities';
+import { emitGame } from '../store/gameEvents';
+import { track } from '../net/api';
 import { identityOf } from '../domain/identity';
 import { cityOfDistrict } from '../domain/cities';
 import { useWeather } from '../store/useWeather';
@@ -84,24 +87,40 @@ export function TopBar() {
   );
 }
 
+/** 顶部：城市切换（上海 / 北京 / 深圳 / 长沙 / 成都）+ 当前城市的街区 */
 export function DistrictSwitcher() {
   const district = useTown((s) => s.district);
   const go = useTown((s) => s.goDistrict);
   const tab = useTown((s) => s.tab);
+  const [open, setOpen] = useState(false);
   if (tab !== 'city') return null;
+  const city = cityOfDistrict(district);
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-[4.6rem] z-20 flex -translate-x-1/2 gap-1 rounded-full bg-cream-50/85 p-1 shadow-soft backdrop-blur md:top-3">
-      {DISTRICT_ORDER.map((d) => (
-        <button key={d} data-testid={`district-${d}`} onClick={() => d !== district && go(d)} className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold transition ${district === d ? 'bg-almond-400 text-cocoa-800' : 'text-stone-600 hover:bg-cream-100'}`}>
-          {DISTRICTS[d].name}
-        </button>
-      ))}
+    <div className="pointer-events-auto absolute left-1/2 top-[4.6rem] z-20 -translate-x-1/2 md:top-3" data-testid="district-switcher">
+      <div className="flex gap-1 rounded-full bg-cream-50/85 p-1 shadow-soft backdrop-blur">
+        <button data-testid="city-switch" onClick={() => setOpen(!open)} className="whitespace-nowrap rounded-full bg-cocoa-700 px-3 py-1 text-[11px] font-black text-cream-50">🏙️ {city.name} ▾</button>
+        {city.districts.map((d) => (
+          <button key={d} data-testid={`district-${d}`} onClick={() => { if (d !== district) { go(d); emitGame('switch_district'); } }} className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold transition ${district === d ? 'bg-almond-400 text-cocoa-800' : 'text-stone-600 hover:bg-cream-100'}`}>
+            {DISTRICTS[d].name}
+          </button>
+        ))}
+      </div>
+      {open && (
+        <div className="mt-1 grid grid-cols-1 gap-1 rounded-2xl bg-cream-50/95 p-2 shadow-soft" data-testid="city-menu">
+          {CITIES.map((c) => (
+            <button key={c.id} data-testid={`go-city-${c.id}`} onClick={() => { setOpen(false); if (c.id !== city.id) { go(c.districts[0]); emitGame('switch_city'); track('action', 'browse', 'switch_city', { city: c.id }); } }}
+              className={`rounded-xl px-3 py-1.5 text-left text-xs ${c.id === city.id ? 'bg-almond-300' : 'hover:bg-cream-100'}`}>
+              <b>{c.name}</b> <span className="text-stone-500">{c.districts.map((d) => DISTRICTS[d].name).join(' · ')}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 const NAV: { tab: Tab; label: string; icon: string }[] = [
-  { tab: 'city', label: '我的上海', icon: '🏙️' },
+  { tab: 'city', label: '逛街区', icon: '🏙️' },
   { tab: 'biz', label: '我的生意', icon: '💼' },
   { tab: 'chain', label: '产业链', icon: '🔗' },
   { tab: 'opps', label: '机会', icon: '📋' },

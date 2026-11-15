@@ -78,6 +78,8 @@ interface TownState {
   walkPath?: { x: number; z: number }[];
   streetName: string;
   fx: Fx[];
+  /** OPC 主理人公司所在的城市与街道（开店时优先推荐） */
+  home?: { city: string; district: DistrictKey; street: string };
   /** 已与当地时间同步（内部用） */
   hourSync?: boolean;
   toasts: { id: string; text: string; tone?: 'ok' | 'warn' | 'info' }[];
@@ -398,7 +400,7 @@ export const useTown = create<TownState>()(
         phase: s.phase, avatar: s.avatar, profile: s.profile, myOpc: s.myOpc, myAgent: s.myAgent, intros: s.intros, meetings: s.meetings,
         audit: s.audit, wallet: s.wallet, inbox: s.inbox, joinedEvents: s.joinedEvents, myEvents: s.myEvents, savedLeads: s.savedLeads,
         chats: s.chats, collectedNeeds: s.collectedNeeds, marketingOptIn: s.marketingOptIn, tutorial: s.tutorial, friends: s.friends,
-        visited: s.visited, district: s.district,
+        visited: s.visited, district: s.district, home: s.home,
       }),
     },
   ),

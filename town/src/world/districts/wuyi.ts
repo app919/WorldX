@@ -30,7 +30,7 @@ export const WUYI: DistrictDef = {
   filler: {
     seed: 81,
     kinds: [
-      { kind: 'horsewall', w: [9, 12], d: [8, 10], floors: [2, 2], palettes: ['white'], setback: 0.3, lot: true, roads: ['taiping', 'pozi'], weight: 3 },
+      { kind: 'horsewall', w: [9, 12], d: [8, 10], floors: [2, 2], palettes: ['white'], setback: 0.6, lot: true, roads: ['taiping', 'pozi'], weight: 3 },
       { kind: 'shop', w: [9, 11], d: [8, 9], floors: [2, 4], palettes: ['cream', 'white', 'brick', 'pink'], lot: true, roads: ['huangxing_s', 'jiefang_w', 'huangxing_z', 'caie'], weight: 3 },
       { kind: 'tower', w: [14, 18], d: [12, 14], floors: [6, 10], palettes: ['white', 'grey', 'blue'], lot: true, roads: ['wuyi', 'caie', 'xiangjiang'], weight: 1.8 },
     ],

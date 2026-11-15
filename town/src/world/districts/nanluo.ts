@@ -31,8 +31,8 @@ export const NANLUO: DistrictDef = {
   filler: {
     seed: 61,
     kinds: [
-      { kind: 'siheyuan', w: [9, 12], d: [8, 10], floors: [1, 2], palettes: ['grey'], setback: 0.3, lot: true, roads: ['nanluo', 'maoer', 'yuer', 'juer', 'dongmianhua'], weight: 4 },
-      { kind: 'siheyuan', w: [14, 18], d: [12, 14], floors: [1, 1], palettes: ['grey'], setback: 0.3, roads: ['maoer', 'yuer', 'juer', 'dongmianhua'], weight: 1.5 },
+      { kind: 'siheyuan', w: [9, 12], d: [8, 10], floors: [1, 2], palettes: ['grey'], setback: 0.6, lot: true, roads: ['nanluo', 'maoer', 'yuer', 'juer', 'dongmianhua'], weight: 4 },
+      { kind: 'siheyuan', w: [14, 18], d: [12, 14], floors: [1, 1], palettes: ['grey'], setback: 0.6, roads: ['maoer', 'yuer', 'juer', 'dongmianhua'], weight: 1.5 },
       { kind: 'shop', w: [9, 11], d: [8, 9], floors: [2, 3], palettes: ['grey', 'brick', 'cream'], lot: true, roads: ['gulou_e', 'dianmen_e', 'jiaodaokou_s'], weight: 3 },
     ],
   },

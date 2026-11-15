@@ -61,7 +61,7 @@ export function NeedBox() {
   };
 
   return (
-    <div className="pointer-events-auto w-[min(20rem,calc(100vw-2rem))]" data-testid="need-box">
+    <div className="pointer-events-auto w-[min(20rem,calc(100vw-9rem))] md:w-[20rem]" data-testid="need-box">
       {open && (
         <div className="wobble-in mb-2 max-h-[46vh] overflow-y-auto rounded-3xl bg-cream-50/95 p-3 shadow-soft ring-1 ring-cream-200" data-testid="need-panel">
           <div className="flex items-center justify-between">

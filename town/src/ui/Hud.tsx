@@ -253,10 +253,10 @@ export function Controls() {
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={(e) => e.buttons && move(e)} onPointerUp={end} onPointerCancel={end}>
         <div ref={knob} className="h-10 w-10 rounded-full bg-almond-400 shadow-jelly" />
       </div>
-      <div className="pointer-events-auto absolute bottom-24 right-4 z-20 flex flex-col items-end gap-2">
+      <div className="pointer-events-none absolute bottom-24 right-4 z-20 flex flex-col items-end gap-2">
         <NeedBox />
-        <Btn tone={myOpc ? 'sakura' : 'cream'} onClick={() => (myOpc ? enterLot(myOpc.lotId) : setWizard(true))} data-testid="my-shop-btn">🏪 {myOpc ? '我的小店' : '开一家小店'}</Btn>
-        <Btn size="lg" onClick={stroll} data-testid="autowalk">🚶 随便逛逛</Btn>
+        <Btn className="pointer-events-auto" tone={myOpc ? 'sakura' : 'cream'} onClick={() => (myOpc ? enterLot(myOpc.lotId) : setWizard(true))} data-testid="my-shop-btn">🏪 {myOpc ? '我的小店' : '开一家小店'}</Btn>
+        <Btn className="pointer-events-auto" size="lg" onClick={stroll} data-testid="autowalk">🚶 随便逛逛</Btn>
       </div>
     </>
   );

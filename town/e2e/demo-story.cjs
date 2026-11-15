@@ -33,7 +33,8 @@ const check = (name, ok, detail = '') => { results.push({ name, ok }); console.l
   await page.getByText('OPC 主理人').click();
   await page.getByPlaceholder('给小人起个昵称').fill('阿岚');
   await page.getByText('下一步').click();
-  await page.getByText('淮海中路 × 武康路').click();
+  await page.getByTestId('street-wukang').click();
+  await page.getByTestId('start-opc').click();
   await page.getByTestId('status-line').waitFor();
   await page.waitForTimeout(4000);
   check('首次进入成功', true, `${Date.now() - t0}ms`);

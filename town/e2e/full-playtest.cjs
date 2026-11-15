@@ -74,9 +74,14 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await page.getByText('OPC 主理人', { exact: true }).click();
     await page.getByText('下一步').click();
   });
-  await step('引导：三条街道都可作为出发点，选择后进入游戏', async () => {
-    for (const t of ['淮海中路 × 武康路', '浦东新区', '虹口区']) must(await page.getByText(t, { exact: false }).first().isVisible(), `缺少 ${t}`);
-    await page.getByText('淮海中路 × 武康路').click();
+  await step('引导：OPC 主理人选公司所在城市与街道（5 座城市），进入游戏', async () => {
+    // OPC 主理人：选公司所在城市与街道（5 座城市）
+    must(await T('city-chips').locator('button').count() === 5, '城市不是 5 座');
+    await T('city-chip-beijing').click();
+    must(await T('street-list').getByText('南锣鼓巷', { exact: false }).count() > 0, '北京没有南锣鼓巷');
+    await T('city-chip-shanghai').click();
+    await T('street-wukang').click();
+    await T('start-opc').click();
     await T('status-line').waitFor({ timeout: 60000 });
     await page.waitForTimeout(2500);
     await page.screenshot({ path: path.join(OUT, '01-start.png') });
@@ -93,15 +98,20 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(await page.getByText('不能兑换人民币', { exact: false }).isVisible(), '缺少不可兑换说明');
     await T('wallet').click();
   });
-  await step('顶栏：昼夜切换与时间暂停', async () => {
+  await step('顶栏：时间跟随当地（东八区），可预览昼夜；显示当地天气', async () => {
+    const local = await page.evaluate(() => { const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()); return Number(p.find((x) => x.type === 'hour').value) % 24 + Number(p.find((x) => x.type === 'minute').value) / 60; });
+    await evalTown(() => window.__town.useTown.setState({ timeFlow: true, hourSync: false }));
+    await page.waitForTimeout(1500);
     const h0 = await evalTown(() => window.__town.useTown.getState().hour);
+    must(Math.abs(h0 - local) < 0.2 || Math.abs(h0 - local) > 23.8, `没有跟随当地时间：${h0} vs ${local}`);
     await T('daynight').click();
     const h1 = await evalTown(() => window.__town.useTown.getState().hour);
-    must(Math.abs(h1 - h0) > 3, '昼夜没有切换');
+    must(Math.abs(h1 - h0) > 3 && !(await evalTown(() => window.__town.useTown.getState().timeFlow)), '昼夜预览没有切换');
     await T('timeflow').click();
-    must(!(await evalTown(() => window.__town.useTown.getState().timeFlow)), '时间没有暂停');
-    await T('timeflow').click();
-    await T('daynight').click();
+    await page.waitForTimeout(1500);
+    must(await evalTown(() => window.__town.useTown.getState().timeFlow), '没有回到当地时间');
+    must(/晴|阴|雨|雪/.test(await T('weather').innerText()), '没有显示天气');
+    return `当地 ${local.toFixed(2)} 时 · 天气 ${await T('weather').innerText()}`;
   });
 
   // —— 走路与规则 ——
@@ -711,7 +721,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.1.0'), `版本号是 ${v}`);
+    must(v.includes('1.2.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -833,9 +843,8 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(n > 0, '找剪辑没有结果');
     await page.screenshot({ path: path.join(OUT, '26-need-box.png') });
     await T('need-hit').first().click();
-    await page.waitForTimeout(500);
-    const moved = await evalTown(() => { const t = window.__town.useTown.getState(); return !!t.walkPath || true; });
-    must(moved, '没有带路');
+    await page.waitForTimeout(1800);
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openChat(undefined); t.openCard(undefined); });
     await T('need-input').click();
     await T('need-chip-找投资人').click();
     const hit = T('need-hit').filter({ hasText: '投资人' }).first();
@@ -859,6 +868,96 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('minimap-zoom-out').click();
     await evalTown(() => { window.__town.cam.dist = 1; });
     return `镜头 ${d0.toFixed(2)} → ${d1.toFixed(2)} → ${d2.toFixed(2)}`;
+  });
+
+  // —— v1.2：买（评价分 / 打个飞的 / 聊一聊）· 跟（活动现场）· 逛（动态 / 城市）· 7 天任务 · 身份色 ——
+  await step('买：搜「找拍摄」按评价分排序 → 打个飞的到店 → 聊一聊（在线直接聊）→ 达成初步合作 → 礼花与爱心', async () => {
+    await closeAll(); await toCity();
+    await T('need-input').click();
+    await T('need-input').fill('找拍摄');
+    await page.keyboard.press('Enter');
+    const scores = await T('hit-rep').allInnerTexts();
+    must(scores.length > 1, '没有评价分');
+    const nums = scores.map((x) => Number(x.match(/评价分 (\d+)/)[1]));
+    const kinds = await T('need-hit').evaluateAll((els) => els.map((e) => e.textContent.includes('例')));
+    const real = nums.filter((_, i) => !kinds[i]);
+    for (let i = 1; i < real.length; i++) must(real[i - 1] >= real[i], `排序不对：${nums}`);
+    await T('need-hit').filter({ hasText: '光影小棚' }).first().click();
+    await T('fly-overlay').waitFor({ timeout: 3000 });
+    await T('agent-chat').waitFor({ timeout: 15000 });
+    await T('live-chat-btn').click();
+    await T('live-chat').waitFor();
+    await T('live-input').fill('你好，想拍一组咖啡新品图，多少钱？');
+    await T('live-send').click();
+    must(await waitFor(async () => (await T('live-msgs').innerText()).includes('演示回复'), 8000), '在线店主没有回复');
+    await T('live-agree').click();
+    await T('confetti').waitFor({ timeout: 3000 });
+    await page.screenshot({ path: path.join(OUT, '27-deal-confetti.png') });
+    await T('live-chat').getByLabel('关闭').click();
+    await evalTown(() => window.__town.useTown.getState().openChat(undefined));
+    must(await waitFor(async () => (await T('chat-heart').count()) > 0, 8000), '对聊的店铺上方没有爱心');
+    return `评价分 ${nums.join(' ≥ ')}`;
+  });
+  await step('买：店主不在线时写下需求发给对方（消息里能看到）', async () => {
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openCard(undefined); t.enterLot('wk_w2'); });
+    await T('agent-chat').waitFor({ timeout: 15000 });
+    await T('live-chat-btn').click();
+    await T('need-form').waitFor();
+    await T('need-what').fill('秋季新品短视频 2 支，15–30 秒');
+    await T('need-budget').fill('3000–5000');
+    await T('need-when').fill('两周内');
+    await T('need-send').click();
+    must((await T('live-msgs').innerText()).includes('对方上线后'), '没有发送成功的提示');
+    await T('live-chat').getByLabel('关闭').click();
+    await evalTown(() => window.__town.useTown.getState().openChat(undefined));
+    must(await evalTown(() => window.__town.useTown.getState().inbox.some((i) => i.title.includes('已把需求发给'))), '消息里没有这条需求');
+  });
+  await step('跟：活动现场 —— 围观人数、报名、弹幕；逛：街区动态一点飞过去', async () => {
+    await closeAll(); await toCity();
+    await T('feed-open').click();
+    await T('feed-panel').waitFor();
+    must(await T('feed-item').count() > 5, '动态太少');
+    await T('feed-item').filter({ hasText: '进行中' }).first().click();
+    await T('live-panel').waitFor({ timeout: 8000 });
+    const st = await T('live-stats').innerText();
+    must(/人在围观/.test(st) && /已报名/.test(st), st);
+    await T('danmu-input').fill('来了来了');
+    await page.keyboard.press('Enter');
+    must((await T('danmu').innerText()).includes('来了来了'), '弹幕没有出现');
+    await T('live-join').click();
+    must((await T('live-join').innerText()).includes('已报名'), '没有报名成功');
+    await page.screenshot({ path: path.join(OUT, '28-live-event.png') });
+    await T('live-panel').getByLabel('关闭').click();
+    return st.replace(/\n/g, ' ');
+  });
+  await step('逛：五座城市都能切换进入（北京 / 深圳 / 长沙 / 成都），每城都有【例】和正在进行的活动', async () => {
+    const out = [];
+    for (const c of ['beijing', 'shenzhen', 'changsha', 'chengdu', 'shanghai']) {
+      await toCity();
+      await T('city-switch').click();
+      await T(`go-city-${c}`).click();
+      await page.waitForTimeout(2500);
+      const d = await evalTown(() => window.__town.useTown.getState().district);
+      const ex = await evalTown((dd) => window.__town.lotPlan(dd).examples.length, d);
+      must(ex > 0, `${c} 没有示范店`);
+      must(await page.locator('[data-testid^=live-board-]').count() > 0, `${c} 没有活动`);
+      if (c !== 'shanghai') await page.screenshot({ path: path.join(OUT, `29-city-${c}.png`) });
+      out.push(`${c}:${d}(例${ex})`);
+    }
+    return out.join('，');
+  });
+  await step('新手 7 天：按身份出任务，做完能领取奖励；屋顶身份色五类齐全', async () => {
+    await toCity();
+    if (await T('quest-open').count()) await T('quest-open').click();
+    await T('coach').waitFor();
+    must(await T('quest-days').locator('button').count() === 7, '不是 7 天');
+    const claim = T('quest-claim');
+    const n = await claim.count();
+    if (n) await claim.first().click();
+    const r = await evalTown(() => window.__town.roofs());
+    for (const k of ['example', 'company', 'investor', 'brand', 'personal']) must(r[k] > 0, `缺少 ${k} 屋顶：${JSON.stringify(r)}`);
+    await page.screenshot({ path: path.join(OUT, '30-quests.png') });
+    return `可领取 ${n} 个；屋顶 ${JSON.stringify(r)}`;
   });
 
   // —— 三条街道 ——
@@ -887,7 +986,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await m.goto(BASE);
     await m.getByText('游客', { exact: true }).click();
     await m.getByText('下一步').click();
-    await m.getByText('浦东新区', { exact: false }).first().click();
+    await m.getByTestId('start-default').click();
     await m.waitForTimeout(4000);
     const pad = m.locator('.touch-none').first();
     const b = await pad.boundingBox();

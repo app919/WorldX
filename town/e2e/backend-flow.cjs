@@ -46,7 +46,7 @@ async function onboard(page, name) {
   const nick = page.getByPlaceholder(/昵称/);
   if (await nick.count()) await nick.fill(name);
   await page.getByText('下一步').click();
-  await page.getByText('徐汇区', { exact: false }).first().click();
+  await page.getByTestId('start-default').click();
   await page.getByTestId('status-line').waitFor({ timeout: 60000 });
 }
 

@@ -28,6 +28,7 @@ export function goNear(district: DistrictKey, p: { x: number; z: number }) {
 
 export function NeedBox() {
   const [q, setQ] = useState('');
+  const [asked, setAsked] = useState('');
   const [open, setOpen] = useState(false);
   const remote = useServer((s) => s.shops);
   const hits = useMemo(() => searchTown(q, {
@@ -36,7 +37,7 @@ export function NeedBox() {
     remote: remote.map((r) => ({ id: r.id, lotId: r.lotId, name: r.name, tagline: r.tagline, category: r.category, licensed: r.licensed, ownerUserId: r.ownerUserId })),
   }), [q, remote]);
 
-  const ask = (text: string) => { setQ(text); setOpen(true); emitGame('search'); track('action', 'need_box', 'search', { q: text.slice(0, 40) }); };
+  const ask = (text: string) => { setQ(text); setAsked(text); setOpen(true); emitGame('search'); track('action', 'need_box', 'search', { q: text.slice(0, 40) }); };
 
   /** 一键「打个飞的」：直接落在店门口，打开店铺 AI 分身（示范店打开示范介绍） */
   const act = (h: SearchHit) => {
@@ -99,10 +100,17 @@ export function NeedBox() {
           )}
         </div>
       )}
-      <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) ask(q.trim()); }} className="flex items-center gap-2 rounded-full bg-cream-50/95 px-3 py-2 shadow-soft ring-2 ring-almond-400">
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        const t = q.trim();
+        if (!t) return;
+        // 「买」要快：结果已经出来时再按一次回车，直接飞到评价分最高、可交易的那家
+        const top = hits.find((h) => h.canTrade && h.kind !== 'provider' && h.kind !== 'contact') ?? hits[0];
+        if (open && asked === t && top) act(top); else ask(t);
+      }} className="flex items-center gap-2 rounded-full bg-cream-50/95 px-3 py-2 shadow-soft ring-2 ring-almond-400">
         <span>🔍</span>
         <input data-testid="need-input" value={q} onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          placeholder="今天来找什么？剪辑、拍摄、投资人…" className="min-w-0 flex-1 bg-transparent text-sm text-cocoa-800 outline-none placeholder:text-stone-400" maxLength={30} />
+          placeholder="今天来找什么？回车搜，再回车直接飞过去" className="min-w-0 flex-1 bg-transparent text-sm text-cocoa-800 outline-none placeholder:text-stone-400" maxLength={30} />
         {q && <button type="button" aria-label="清空" className="text-xs text-stone-400" onClick={() => setQ('')}>✕</button>}
       </form>
     </div>

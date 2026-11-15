@@ -8,11 +8,45 @@ import { Html, RoundedBox } from '@react-three/drei';
 import { CatmullRomCurve3, Group, QuadraticBezierCurve3, Vector3, MeshStandardMaterial, Color } from 'three';
 import { useTown, residentAnchor, myAnchor, playerRuntime, type Fx } from '../store/useTown';
 import { residentById } from '../data/seed';
+import { chatStarted, shopDoorOf, useLive } from '../store/useLive';
 
 /** 软萌反馈：小爱心、奶油信封、握手、金币星星、咖啡香气、啵！ */
 export function Effects() {
   const fx = useTown((s) => s.fx);
-  return <group>{fx.map((f) => <One key={f.id} f={f} />)}</group>;
+  return <group>{fx.map((f) => <One key={f.id} f={f} />)}<ChatHearts /></group>;
+}
+
+/** 有对聊的店铺：建筑上方一直有一颗轻轻跳动的小爱心（已达成初步合作的再加一朵小礼花） */
+function ChatHearts() {
+  const district = useTown((s) => s.district);
+  const threads = useLive((s) => s.threads);
+  const intros = useTown((s) => s.intros);
+  const spots = useMemo(() => {
+    const out = new Map<string, { p: { x: number; z: number }; agreed: boolean }>();
+    for (const t of Object.values(threads)) {
+      if (!chatStarted(t)) continue;
+      const d = shopDoorOf(t.ownerId);
+      if (d && d.district === district) out.set(t.ownerId, { p: d.p, agreed: !!t.agreed });
+    }
+    for (const it of intros) {
+      if (!['accepted', 'contact_exchanged', 'meeting_booked', 'collab_proposed', 'collab_confirmed'].includes(it.status)) continue;
+      const other = it.toUserId === 'me' ? it.fromUserId : it.toUserId;
+      const d = shopDoorOf(other);
+      if (d && d.district === district) out.set(other, { p: d.p, agreed: it.status === 'collab_confirmed' || !!out.get(other)?.agreed });
+    }
+    return [...out.entries()];
+  }, [threads, intros, district]);
+  return <group>{spots.map(([id, s]) => <HeartMark key={id} p={s.p} agreed={s.agreed} />)}</group>;
+}
+
+function HeartMark({ p, agreed }: { p: { x: number; z: number }; agreed: boolean }) {
+  return (
+    <group position={[p.x, 6.2, p.z]}>
+      <Html center zIndexRange={[12, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="heart-beat select-none text-2xl drop-shadow" data-testid="chat-heart">💗{agreed ? '🎉' : ''}</div>
+      </Html>
+    </group>
+  );
 }
 
 function One({ f }: { f: Fx }) {

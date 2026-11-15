@@ -111,7 +111,8 @@ function autoCrosswalks(def: DistrictDef): CrosswalkDef[] {
   for (const j of junctions(def.roads)) {
     const dq = (j.r.carriage / 2 + j.r.sidewalk / 2) / Math.max(0.35, j.sin);
     const dr = (j.q.carriage / 2 + j.q.sidewalk / 2) / Math.max(0.35, j.sin);
-    for (const sg of [-1, 1]) { add1(j.q, j.sq + sg * dq, 3); add1(j.r, j.sr + sg * dr, 3); }
+    // 步行街本身不画斑马线；步行街穿过机动车道时，在机动车道上画
+    for (const sg of [-1, 1]) { if (!j.q.pedestrian) add1(j.q, j.sq + sg * dq, 3); if (!j.r.pedestrian) add1(j.r, j.sr + sg * dr, 3); }
   }
   return out;
 }
@@ -200,7 +201,7 @@ const obbCornersOf = (o: OBB) => {
 export interface ParkLayout { id: string; label: string; box: OBB; paths: OBB[]; entrances: { p: V2; out: V2 }[]; props: PropDef[] }
 function parkLayout(def: DistrictDef): ParkLayout[] {
   const out: ParkLayout[] = [];
-  const carriages = def.roads.map((r) => segmentOBB(r.a, r.b, r.carriage));
+  const carriages = def.roads.filter((r) => !r.pedestrian).map((r) => segmentOBB(r.a, r.b, r.carriage));
   const walks = def.roads.flatMap((r) => {
     const u = roadDir(r);
     return [1, -1].map((sg) => { const off = mul(leftOf(u), sg * (r.carriage / 2 + r.sidewalk / 2)); return segmentOBB(add(r.a, off), add(r.b, off), r.sidewalk); });
@@ -259,9 +260,11 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
   const bounds = boundsOf(raw);
   const withCw: DistrictDef = { ...raw, crosswalks: raw.autoCrosswalks === false ? raw.crosswalks : autoCrosswalks(raw) };
   const parks = parkLayout(raw);
-  const def = { ...withCw, bounds, buildings: [...raw.buildings, ...fillFrontage(withCw, bounds, tunnelsOf(raw.roads), parks.flatMap((p) => p.paths))] };
-  const tunnels = tunnelsOf(def.roads);
-  const carriages = def.roads.map((r) => ({ road: r, box: segmentOBB(r.a, r.b, r.carriage) }));
+  const carRoads = (rs: RoadDef[]) => rs.filter((r) => !r.pedestrian);
+  const def = { ...withCw, bounds, buildings: [...raw.buildings, ...fillFrontage(withCw, bounds, tunnelsOf(carRoads(raw.roads)), parks.flatMap((p) => p.paths))] };
+  const tunnels = tunnelsOf(carRoads(def.roads));
+  // 步行街没有机动车道
+  const carriages = carRoads(def.roads).map((r) => ({ road: r, box: segmentOBB(r.a, r.b, r.carriage) }));
   const sidewalks = def.roads.flatMap((r) => {
     const u = roadDir(r);
     return (['L', 'R'] as const).map((side) => {
@@ -370,7 +373,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
       }
     }
     // 井盖：车道中线附近，每 38 个单位一个
-    for (let s = 19; s < L - 5; s += 38) {
+    for (let s = 19; s < L - 5 && !r.pedestrian; s += 38) {
       const p = add(roadPoint(r, s), mul(leftOf(u), r.carriage / 4));
       if (!def.roads.some((o) => o !== r && inOBB(segmentOBB(o.a, o.b, o.carriage), p, 0.5)) && !inCrosswalk(p, 1)) props.push({ kind: 'manhole', p });
     }
@@ -434,7 +437,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
 
   // 车道（右侧通行）
   const lanes: CompiledDistrict['lanes'] = [];
-  for (const r of def.roads) {
+  for (const r of carRoads(def.roads)) {
     const u = roadDir(r);
     const right = mul(leftOf(u), -1);
     const perDir = r.oneWay ? r.lanes : Math.max(1, Math.floor(r.lanes / 2));

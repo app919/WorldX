@@ -87,8 +87,11 @@ export function MiniMap() {
         {cd.def.roads.map((r) => (
           <line key={r.id} x1={sx(r.a.x)} y1={sz(r.a.z)} x2={sx(r.b.x)} y2={sz(r.b.z)} stroke="#FBF6EC" strokeWidth={Math.max(3, (r.carriage + r.sidewalk * 2) * scale)} strokeLinecap="butt" />
         ))}
-        {cd.def.roads.map((r) => (
+        {cd.def.roads.filter((r) => !r.pedestrian).map((r) => (
           <line key={`c${r.id}`} x1={sx(r.a.x)} y1={sz(r.a.z)} x2={sx(r.b.x)} y2={sz(r.b.z)} stroke="#9C9893" strokeWidth={Math.max(1.6, r.carriage * scale)} />
+        ))}
+        {cd.def.roads.filter((r) => r.pedestrian).map((r) => (
+          <line key={`p${r.id}`} x1={sx(r.a.x)} y1={sz(r.a.z)} x2={sx(r.b.x)} y2={sz(r.b.z)} stroke="#E8B9A0" strokeWidth={Math.max(2, r.sidewalk * scale)} strokeDasharray="3 2" />
         ))}
         {cd.def.roads.map((r) => {
           const mx = sx((r.a.x + r.b.x) / 2), mz = sz((r.a.z + r.b.z) / 2);

@@ -148,6 +148,15 @@ const MIGRATIONS: string[] = [
     target TEXT,
     ts INTEGER NOT NULL
   );`,
+  // 5：天气（每天凌晨 3 点查第二天的预报）
+  `CREATE TABLE weather (
+    city TEXT NOT NULL,
+    day TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (city, day)
+  );`,
 ];
 
 // 通过 createRequire 加载内置的 node:sqlite（测试运行器对较新的内置模块识别不全）

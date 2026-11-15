@@ -258,3 +258,28 @@ describe('私信、留微信号按钮、埋点与管理后台', () => {
     expect((await app.inject({ method: 'PUT', url: '/api/me/state/evil', ...req(a.cookie), payload: {} })).statusCode).toBe(400);
   });
 });
+
+describe('天气预报（凌晨 3 点查第二天）', () => {
+  it('取当天时间最长的天气写入，接口返回今天各城市天气；没有数据时默认晴', async () => {
+    const { buildApp } = await import('../src/app');
+    const { openDb } = await import('../src/db');
+    const { refreshWeather, msUntilNext3am } = await import('../src/lib/weather');
+    const { cnDate } = await import('../../src/domain/weather');
+    const db = openDb(':memory:');
+    const app = buildApp({ db, logger: false });
+    const day = cnDate();
+    const time = Array.from({ length: 24 }, (_, h) => `${day}T${String(h).padStart(2, '0')}:00`);
+    const codes = Array.from({ length: 24 }, (_, h) => (h < 14 ? 61 : 3)); // 14 小时下雨、10 小时阴
+    const fake = async () => ({ ok: true, json: async () => ({ hourly: { time, weather_code: codes } }) });
+    const r = await refreshWeather(db, day, fake);
+    expect(r.shanghai).toBe('rain');
+    const res = await app.inject({ method: 'GET', url: '/api/weather' });
+    expect(res.json().cities.beijing.kind).toBe('rain');
+    db.exec('DELETE FROM weather');
+    const res2 = await app.inject({ method: 'GET', url: '/api/weather' });
+    expect(res2.json().cities.chengdu).toEqual({ kind: 'sunny', source: 'default' });
+    // 东八区 2026-11-15 01:00 → 距 03:00 还有 2 小时
+    expect(msUntilNext3am(new Date('2026-11-14T17:00:00Z'))).toBe(2 * 3600_000);
+    await app.close();
+  });
+});

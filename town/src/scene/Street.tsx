@@ -54,8 +54,8 @@ export function Street({ cd }: { cd: CompiledDistrict }) {
         return (
           <group key={i} onClick={onClick}>
             <Slab o={s.box} y={i * 0.0015} h={SIDEWALK_H} mat={mat} unit={2.4} />
-            <Curb o={s.box} side={s.side} roadDirRot={s.box.rot} lift={i * 0.0015} />
-            <Tactile cd={cd} side={s} y={SIDEWALK_H + i * 0.0015 + 0.004} />
+            {!s.road.pedestrian && <Curb o={s.box} side={s.side} roadDirRot={s.box.rot} lift={i * 0.0015} />}
+            {!s.road.pedestrian && <Tactile cd={cd} side={s} y={SIDEWALK_H + i * 0.0015 + 0.004} />}
           </group>
         );
       })}

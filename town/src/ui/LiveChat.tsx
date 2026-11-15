@@ -3,9 +3,11 @@
  * 聊一聊：店主在线 → 直接聊；店主不在线 → 写下需求（做什么 / 预算 / 时间 / 线上线下）发给对方。
  */
 import { useEffect, useRef, useState } from 'react';
-import { FLY_MS, useLive, type NeedNote } from '../store/useLive';
+import { FLY_MS, chatStarted, useLive, type NeedNote } from '../store/useLive';
+import { useCelebrate } from '../store/useCelebrate';
 import { residentById } from '../data/seed';
 import { Btn, Panel } from './kit';
+import { WORK_HOURS, hourLabel, isWorkTime, localHour } from '../scene/clock';
 
 export function FlyOverlay() {
   const f = useLive((s) => s.flying);
@@ -35,11 +37,17 @@ export function LiveChat() {
   const r = residentById(open);
   const online = !!r?.online;
   const sentNeed = th.msgs.some((m) => m.need);
+  const hour = localHour();
   return (
     <div className="pointer-events-none fixed inset-0 z-[55] flex items-end justify-center p-3 md:items-center md:justify-end">
       <Panel testId="live-chat" title={<span>💬 {th.name}{th.shopName ? <span className="text-sm font-semibold text-stone-500"> · {th.shopName}</span> : null}</span>}
         subtitle={online ? '🟢 主理人在线 · 可以直接聊' : '⚪ 主理人不在线 · 写下需求，对方上线后会收到'} onClose={close} className="h-[72vh] w-full max-w-md">
         <div className="flex h-full flex-col">
+          {!isWorkTime(hour) && (
+            <div className="mb-2 rounded-xl bg-haze-200/60 px-2 py-1 text-[11px] text-stone-600" data-testid="after-hours">
+              🌙 现在是当地 {hourLabel(hour)}，不在工作时间（{WORK_HOURS.start}:00–{WORK_HOURS.end}:00）。消息照常可以发{online ? '，对方在线可以直接聊' : '，对方上线后会看到'}。
+            </div>
+          )}
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto" data-testid="live-msgs">
             {th.msgs.length === 0 && <div className="text-xs text-stone-500">{online ? '打个招呼：说说你是谁、想做什么、预算和时间。' : '对方暂时不在线。把需求写清楚，对方一上线就能看到。'}</div>}
             {th.msgs.map((m, i) => (
@@ -49,6 +57,9 @@ export function LiveChat() {
             ))}
             <div ref={end} />
           </div>
+          {chatStarted(th) && !th.agreed && online && (
+            <Btn size="sm" tone="sage" className="mt-2" data-testid="live-agree" onClick={() => useLive.getState().agree(open)}>🤝 达成初步合作意向</Btn>
+          )}
           {online || sentNeed ? (
             <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); send(open, text); setText(''); }}>
               <input className="input" data-testid="live-input" placeholder={online ? '说点什么…' : '补充一句…'} value={text} maxLength={500} onChange={(e) => setText(e.target.value)} />
@@ -71,6 +82,24 @@ export function LiveChat() {
           )}
         </div>
       </Panel>
+    </div>
+  );
+}
+
+/** 小礼花：达成初步合作时从屏幕上方撒下彩色纸屑 */
+const CONFETTI = ['#F07FAF', '#3D7BD8', '#D9A62E', '#8C6BD6', '#5FB27A', '#FF8A3D'];
+export function Confetti() {
+  const bursts = useCelebrate((s) => s.bursts);
+  if (!bursts.length) return null;
+  const b = bursts[bursts.length - 1];
+  return (
+    <div key={b.id} className="pointer-events-none fixed inset-0 z-[80] overflow-hidden" data-testid="confetti">
+      <style>{`@keyframes conf-fall{0%{transform:translate3d(0,-10vh,0) rotate(0)}100%{transform:translate3d(var(--dx),105vh,0) rotate(var(--rot))}}@keyframes pop-in{0%{transform:scale(.4);opacity:0}20%{transform:scale(1.1);opacity:1}80%{opacity:1}100%{opacity:0}}`}</style>
+      {Array.from({ length: 70 }).map((_, i) => {
+        const left = (i * 37) % 100, delay = (i % 10) * 0.06, dur = 1.8 + ((i * 7) % 10) / 10;
+        return <i key={i} className="absolute top-0 block h-2.5 w-1.5 rounded-sm" style={{ left: `${left}%`, background: CONFETTI[i % CONFETTI.length], animation: `conf-fall ${dur}s ${delay}s cubic-bezier(.2,.6,.4,1) both`, ['--dx' as string]: `${((i * 13) % 30) - 15}vw`, ['--rot' as string]: `${(i * 97) % 720}deg` }} />;
+      })}
+      <div className="absolute left-1/2 top-[22%] -translate-x-1/2 rounded-full bg-cream-50/95 px-5 py-2 text-base font-black text-cocoa-800 shadow-soft" style={{ animation: 'pop-in 3s ease-out both' }}>🎉 {b.title}</div>
     </div>
   );
 }

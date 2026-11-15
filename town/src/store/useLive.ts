@@ -11,10 +11,11 @@ import { residentById, SHOPS } from '../data/seed';
 import { useTown } from './useTown';
 import { emitGame } from './gameEvents';
 import { track } from '../net/api';
+import { useCelebrate } from './useCelebrate';
 
 export interface LiveMsg { from: 'me' | 'them' | 'system'; text: string; at: number; need?: NeedNote }
 export interface NeedNote { what: string; budget: string; when: string; how: '线上' | '线下' | '都可以' }
-export interface Thread { ownerId: string; name: string; shopName?: string; msgs: LiveMsg[]; unread: number }
+export interface Thread { ownerId: string; name: string; shopName?: string; msgs: LiveMsg[]; unread: number; agreed?: boolean }
 
 export interface FlyTarget { title: string; lotId?: string; at?: { district: string; x: number; z: number }; then?: () => void }
 
@@ -26,7 +27,18 @@ interface LiveState {
   openLive(ownerId?: string): void;
   send(ownerId: string, text: string): void;
   leaveNeed(ownerId: string, n: NeedNote): void;
+  /** 在「聊一聊」里双方达成初步合作意向（演示：对方在线时确认） */
+  agree(ownerId: string): void;
 }
+
+/** 店主的店门位置（爱心动效用） */
+export function shopDoorOf(ownerId: string) {
+  const shop = SHOPS.find((s) => s.ownerId === ownerId);
+  const lot = shop ? lotById(shop.lotId) : undefined;
+  return lot ? { district: lot.district, p: lot.door.p } : undefined;
+}
+/** 有对聊的会话：至少一来一回，或已经把需求发给对方 */
+export const chatStarted = (t: Thread) => t.msgs.some((m) => m.need) || (t.msgs.some((m) => m.from === 'me') && t.msgs.some((m) => m.from === 'them'));
 
 export const FLY_MS = 1100;
 
@@ -75,7 +87,13 @@ export const useLive = create<LiveState>()(
         if (!th) return;
         const push = (m: LiveMsg) => set((s) => ({ threads: { ...s.threads, [ownerId]: { ...s.threads[ownerId], msgs: [...s.threads[ownerId].msgs, m] } } }));
         push({ from: 'me', text: t, at: Date.now() });
-        if (residentById(ownerId)?.online) setTimeout(() => push({ from: 'them', text: demoReply(t, th.shopName), at: Date.now() }), 1200);
+        if (residentById(ownerId)?.online) setTimeout(() => {
+          const first = !get().threads[ownerId].msgs.some((m) => m.from === 'them');
+          push({ from: 'them', text: demoReply(t, th.shopName), at: Date.now() });
+          // 对聊开始：店铺上方冒出小爱心
+          const door = shopDoorOf(ownerId);
+          if (first && door && door.district === useTown.getState().district) useTown.getState().fxPush({ kind: 'heart', from: door.p });
+        }, 1200);
       },
       leaveNeed(ownerId, n) {
         const th = get().threads[ownerId];
@@ -85,6 +103,16 @@ export const useLive = create<LiveState>()(
         useTown.getState().notify({ kind: 'chat', title: `已把需求发给「${th.shopName ?? th.name}」`, body, needsMe: false, ref: ownerId });
         emitGame('leave_need');
         track('action', 'buy', 'leave_need');
+        const door = shopDoorOf(ownerId);
+        if (door && door.district === useTown.getState().district) useTown.getState().fxPush({ kind: 'heart', from: door.p });
+      },
+      agree(ownerId) {
+        const th = get().threads[ownerId];
+        if (!th) return;
+        set((s) => ({ threads: { ...s.threads, [ownerId]: { ...th, agreed: true, msgs: [...th.msgs, { from: 'system', text: `🎉 你和 ${th.name} 达成了初步合作意向。下一步：在「机会」里发起需求单或成交确认单（合同与付款由双方本人确认）。`, at: Date.now() }] } } }));
+        useCelebrate.getState().celebrate(`和「${th.shopName ?? th.name}」达成初步合作`);
+        useTown.getState().notify({ kind: 'collab', title: `与「${th.shopName ?? th.name}」达成初步合作意向`, body: '可以在「机会」里继续发起需求单 / 成交确认单。', needsMe: false, ref: ownerId });
+        track('action', 'buy', 'agree');
       },
     }),
     { name: 'sanlinbang-live', version: 1, partialize: (s) => ({ threads: s.threads }) },

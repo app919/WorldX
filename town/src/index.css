@@ -21,3 +21,6 @@ body { font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", syste
 
 .scroll-soft::-webkit-scrollbar { width: 6px; }
 .scroll-soft::-webkit-scrollbar-thumb { background: #E9DCC3; border-radius: 99px; }
+/* 对聊爱心：建筑上方轻轻跳动 */
+@keyframes heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(0.95); } 45% { transform: scale(1.15); } }
+.heart-beat { animation: heartbeat 1.6s ease-in-out infinite; }

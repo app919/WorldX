@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
 
 const env = process.env;
 export const isProd = env.NODE_ENV === 'production';
+/** 是否联网查天气预报（测试环境关闭；WEATHER_FETCH=0 也可以关闭） */
+export const weatherFetch = env.WEATHER_FETCH !== '0' && env.NODE_ENV !== 'test' && !env.VITEST;
 
 function secret(name: string, bytes = 32): string {
   const v = env[name];

@@ -27,6 +27,8 @@ export interface RoadDef {
   paving: 'tile_cream' | 'tile_grey' | 'brick_red';
   /** 两端是否在路口截断人行道（与其他道路相交处由路口转角广场衔接） */
   note?: string;
+  /** 步行街 / 胡同：没有机动车道（carriage 填 0），整条街都是铺装，可以随意走；车辆不进入 */
+  pedestrian?: boolean;
 }
 
 export interface CrosswalkDef { road: string; t: number; width: number }
@@ -35,7 +37,17 @@ export type TreeSpecies = 'plane' | 'osmanthus' | 'camphor' | 'ginkgo';
 
 export type BuildingKind =
   | 'wukang_mansion' | 'garden_villa' | 'shikumen_row' | 'artdeco' | 'arcade'
-  | 'workers_housing' | 'market_hall' | 'shop' | 'civic';
+  | 'workers_housing' | 'market_hall' | 'shop' | 'civic'
+  /** 北京四合院 / 胡同铺面：灰砖墙、灰瓦双坡顶、红门 */
+  | 'siheyuan'
+  /** 深圳玻璃幕墙塔楼（底层商铺） */
+  | 'tower'
+  /** 湖湘 / 徽派马头墙：白墙黑瓦、阶梯式封火山墙 */
+  | 'horsewall'
+  /** 川西民居 / 太古里：白墙木构架、出檐深远的灰瓦屋顶 */
+  | 'chuanxi'
+  /** 传统楼阁 / 寺庙（鼓楼、大慈寺、贾谊故居）：台基 + 红柱 + 重檐 */
+  | 'temple';
 
 export interface DoorDef {
   /** 门在建筑正面（局部 +z 面）的横向偏移 */

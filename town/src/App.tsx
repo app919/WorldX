@@ -3,6 +3,7 @@ import { Login } from './ui/Login';
 import { DmPanel } from './ui/DirectMessages';
 import { RemoteShopPanel } from './ui/RemoteShop';
 import { useServer, type Me, type PublicShop } from './store/useServer';
+import { useWeather } from './store/useWeather';
 import { api, detectBackend, restoreState, scheduleSync, startTracking, track } from './net/api';
 import { useOpp } from './store/useOpp';
 import { useCenter } from './store/useCenter';
@@ -16,7 +17,7 @@ import { CityCards } from './ui/CityCards';
 import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
-import { FlyOverlay, LiveChat } from './ui/LiveChat';
+import { Confetti, FlyOverlay, LiveChat } from './ui/LiveChat';
 import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
@@ -64,6 +65,7 @@ export default function App() {
             <AgentChat />
             <LiveChat />
             <FlyOverlay />
+            <Confetti />
             <ActiveJobBar />
             <JobBoard />
             <ShiftGame />
@@ -88,6 +90,7 @@ function Loading({ text = '正在搭建微缩上海街道…' }: { text?: string
 async function boot() {
   const mode = await detectBackend();
   useServer.getState().setMode(mode);
+  void useWeather.getState().load(mode === 'online');
   if (mode !== 'online') return;
   startTracking(() => {
     const s = useServer.getState();

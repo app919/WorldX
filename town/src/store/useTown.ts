@@ -17,6 +17,7 @@ import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
 import { shopAtLot, useServer } from './useServer';
 import { exampleAtLot } from '../domain/lots';
 import { emitGame } from './gameEvents';
+import { useCelebrate } from './useCelebrate';
 
 export const ME = 'me';
 export type Tab = 'city' | 'biz' | 'chain' | 'opps' | 'center' | 'community' | 'messages' | 'me';
@@ -77,6 +78,8 @@ interface TownState {
   walkPath?: { x: number; z: number }[];
   streetName: string;
   fx: Fx[];
+  /** 已与当地时间同步（内部用） */
+  hourSync?: boolean;
   toasts: { id: string; text: string; tone?: 'ok' | 'warn' | 'info' }[];
   eventFocus?: string;
 
@@ -207,8 +210,9 @@ export const useTown = create<TownState>()(
           playerRuntime.x = p.x; playerRuntime.z = p.z; playerRuntime.teleported = true;
         },
         setHour: (hour) => set({ hour: ((hour % 24) + 24) % 24 }),
-        toggleTimeFlow: () => set((s) => ({ timeFlow: !s.timeFlow })),
-        toggleNight: () => set((s) => ({ hour: s.hour >= 6.5 && s.hour < 18 ? 20 : 10 })),
+        // 时间默认跟随当地真实时间；点一下切到“预览”（暂停），再点回到当地时间
+        toggleTimeFlow: () => set((s) => ({ timeFlow: !s.timeFlow, hourSync: false })),
+        toggleNight: () => set((s) => ({ hour: s.hour >= 6.5 && s.hour < 18 ? 20 : 10, timeFlow: false })),
         openCard: (card) => set({ card }),
         openChat: (chatOpc) => {
           set({ chatOpc });
@@ -314,6 +318,7 @@ export const useTown = create<TownState>()(
               patchIntro(c.intro); log(c.log);
               set((s) => ({ wallet: reward(s.wallet, 'helped_match') }));
               inbox({ kind: 'collab', title: `${r.nickname} 确认了合作记录（演示）`, body: '双方本人确认的合作，会计入你的商业成长。', needsMe: false });
+              useCelebrate.getState().celebrate(`和 ${r.nickname} 达成初步合作`);
               const a = residentAnchor(r);
               if (a.district === get().district) get().fxPush({ kind: 'coins', from: a.p });
             }, 2000);

@@ -5,6 +5,9 @@ import { ECONOMY_NOTICE } from '../domain/economy';
 import { input, zoomBy } from '../scene/input';
 import { DISTRICTS, DISTRICT_ORDER, navOf } from '../world';
 import { identityOf } from '../domain/identity';
+import { cityOfDistrict } from '../domain/cities';
+import { useWeather } from '../store/useWeather';
+import { WEATHER_ICON, WEATHER_LABEL } from '../domain/weather';
 import { Btn } from './kit';
 import { NeedBox } from './NeedBox';
 import { PurseChip } from './Work';
@@ -18,6 +21,8 @@ export function TopBar() {
   const wallet = useTown((s) => s.wallet);
   const toggleNight = useTown((s) => s.toggleNight);
   const timeFlow = useTown((s) => s.timeFlow);
+  const city = cityOfDistrict(useTown((s) => s.district));
+  const weather = useWeather((s) => s.cities[city.id] ?? 'sunny');
   const toggleTimeFlow = useTown((s) => s.toggleTimeFlow);
   const myOpc = useTown((s) => s.myOpc);
   const intros = useTown((s) => s.intros);
@@ -55,7 +60,10 @@ export function TopBar() {
       <div className="pointer-events-auto relative flex flex-col items-end gap-2">
         <div className="glass flex items-center gap-2 rounded-blob px-3 py-2">
           <button onClick={toggleNight} title="昼夜切换" data-testid="daynight" className="jelly grid h-8 w-8 place-items-center bg-cream-100 text-lg">{isNight(hour) ? '🌙' : '☀️'}</button>
-          <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '暂停时间' : '时间流动'} className="text-sm font-bold tabular-nums text-cocoa-600">{hourLabel(hour)} {timeFlow ? '' : '⏸'}</button>
+          <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '正在跟随当地时间（点一下可暂停预览）' : '预览中，点一下回到当地时间'} className="text-sm font-bold tabular-nums text-cocoa-600">
+            {city.name} {hourLabel(hour)} {timeFlow ? '' : '⏸ 预览'}
+          </button>
+          <span data-testid="weather" title={`今天${city.name}的天气（按当地天气预报）`} className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-bold text-cocoa-700">{WEATHER_ICON[weather]} {WEATHER_LABEL[weather]}</span>
         </div>
         <button data-testid="open-center" onClick={() => useTown.getState().setTab('center')} className="jelly bg-haze-300 px-3 py-1 text-xs font-black text-cocoa-800">🏛️ 服务中心</button>
         <PurseChip />

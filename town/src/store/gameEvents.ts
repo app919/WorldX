@@ -5,7 +5,7 @@
 export type GameEvent =
   | 'search' | 'fly' | 'enter_shop' | 'agent_ask' | 'live_chat' | 'leave_need' | 'visit_example' | 'say_hello'
   | 'open_shop' | 'view_chain' | 'speed_match' | 'post_need' | 'bid' | 'join_event' | 'watch_event' | 'switch_city'
-  | 'switch_district' | 'stroll' | 'visit_landmark' | 'view_investor' | 'center_service' | 'forum' | 'work' | 'follow_feed' | 'profile' | 'zoom';
+  | 'switch_district' | 'deal' | 'stroll' | 'visit_landmark' | 'view_investor' | 'center_service' | 'forum' | 'work' | 'follow_feed' | 'profile' | 'zoom';
 
 type Listener = (e: GameEvent, meta?: Record<string, string>) => void;
 const listeners = new Set<Listener>();

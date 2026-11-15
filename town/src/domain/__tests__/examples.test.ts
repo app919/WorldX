@@ -120,3 +120,23 @@ describe('身份与着装', () => {
     expect(roles.size).toBe(5);
   });
 });
+
+describe('天气与当地时间', () => {
+  it('四种天气：WMO 代码归类；取当天出现时间最长的天气', async () => {
+    const { wmoToKind, dominantKind, kindForDay } = await import('../weather');
+    expect(wmoToKind(0)).toBe('sunny'); expect(wmoToKind(3)).toBe('cloudy'); expect(wmoToKind(45)).toBe('cloudy');
+    expect(wmoToKind(61)).toBe('rain'); expect(wmoToKind(95)).toBe('rain'); expect(wmoToKind(73)).toBe('snow');
+    expect(dominantKind([0, 0, 0, 3, 3, 61, 61, 61, 61])).toBe('rain');
+    expect(dominantKind([0, 0, 3, 3])).toBe('cloudy'); // 平局取更有“天气感”的
+    const day = '2026-11-16';
+    const json = { hourly: { time: ['2026-11-15T23:00', `${day}T00:00`, `${day}T01:00`, `${day}T02:00`], weather_code: [61, 71, 71, 0] } };
+    expect(kindForDay(json, day)).toBe('snow');
+    expect(kindForDay(json, '2030-01-01')).toBeUndefined();
+  });
+  it('当地时间（东八区）与工作时间：晚上不在工作时间，但照常可以发消息', async () => {
+    const { localHour, isWorkTime } = await import('../../scene/clock');
+    expect(Math.floor(localHour('Asia/Shanghai', new Date('2026-11-15T13:30:00Z')))).toBe(21);
+    expect(isWorkTime(21.5)).toBe(false);
+    expect(isWorkTime(10)).toBe(true);
+  });
+});

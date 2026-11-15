@@ -5,6 +5,7 @@
  *   发布 → 审核 → 匹配 → 对接 → 成交 → 履约 → 评价；
  * - 演示：对方（链上的演示成员）会按真实节奏回应——投标、确认成交单、交付、验收、评价。
  */
+import { useCelebrate } from './useCelebrate';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { claimSlot, demoSlots, type Join, type ResourceKind, type Slot } from '../domain/chain';
@@ -78,6 +79,7 @@ export const useOpp = create<OppState>()(
         patchDeal(oppId, { status: 'contracted' });
         if (get().deals[oppId]?.side === 'buyer') setOppStatus(oppId, 'contracted');
         T().toast('成交！双方已确认成交确认单（合同与付款由双方按约定执行，平台不代收款）', 'ok');
+        useCelebrate.getState().celebrate('成交确认单双方已确认');
         later(900, () => {
           patchDeal(oppId, { status: 'delivering' });
           if (get().deals[oppId]?.side === 'buyer') { setOppStatus(oppId, 'delivering'); demoSellerDeliver(oppId); }

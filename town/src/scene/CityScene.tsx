@@ -1,6 +1,11 @@
+import { localHour } from './clock';
+import { cityOfDistrict } from '../domain/cities';
+import { weatherNow } from '../store/useWeather';
+import type { WeatherKind } from '../domain/weather';
+import { WeatherFx } from './WeatherFx';
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { AgXToneMapping, PMREMGenerator, type AmbientLight, type Color, type DirectionalLight, type Fog, type HemisphereLight } from 'three';
+import { AgXToneMapping, Color, PMREMGenerator, type AmbientLight, type DirectionalLight, type Fog, type HemisphereLight } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Street } from './Street';
 import { Trees } from './Trees';
@@ -45,6 +50,15 @@ function Env() {
   return null;
 }
 
+/** 天气对光照的影响：阴天、雨天、雪天天空更灰、阳光更弱 */
+const WEATHER_LIGHT: Record<WeatherKind, { sun: number; sky: string; mix: number }> = {
+  sunny: { sun: 1, sky: '#DDEBF2', mix: 0 },
+  cloudy: { sun: 0.5, sky: '#B9C0C6', mix: 0.6 },
+  rain: { sun: 0.38, sky: '#98A3AD', mix: 0.72 },
+  snow: { sun: 0.62, sky: '#E6ECF1', mix: 0.7 },
+};
+const GREY = new Color();
+
 function DayNight() {
   const sun = useRef<DirectionalLight>(null);
   const hemi = useRef<HemisphereLight>(null);
@@ -53,13 +67,15 @@ function DayNight() {
   const anchor = useRef({ x: 1e9, z: 0, hour: -99 });
   useFrame((state, dt) => {
     const s = useTown.getState();
-    if (s.timeFlow) { acc.current += dt; if (acc.current > 1) { s.setHour(s.hour + acc.current / 60); acc.current = 0; } }
+    // 昼夜跟当地真实时间走（东八区）；在「我的」或顶栏里可以临时预览其他时段
+    if (s.timeFlow) { acc.current += dt; if (acc.current > 5 || s.hourSync !== true) { acc.current = 0; const h = localHour(cityOfDistrict(s.district).tz); if (Math.abs(h - s.hour) > 0.01) s.setHour(h); if (s.hourSync !== true) useTown.setState({ hourSync: true }); } }
     const L = lightingFor(s.hour);
-    (state.scene.background as Color | null)?.set(L.sky);
-    (state.scene.fog as Fog | null)?.color.set(L.fog);
+    const W = WEATHER_LIGHT[weatherNow(cityOfDistrict(s.district).id)];
+    (state.scene.background as Color | null)?.set(L.sky).lerp(GREY.set(W.sky), W.mix * (1 - L.night * 0.5));
+    (state.scene.fog as Fog | null)?.color.copy((state.scene.background as Color));
     if (sun.current) {
       sun.current.color.set(L.sunColor);
-      sun.current.intensity = L.sunIntensity;
+      sun.current.intensity = L.sunIntensity * W.sun;
       // 阴影防闪烁：阴影相机中心按 12 个单位的网格吸附、太阳方向每 20 游戏分钟才更新一次，
       // 避免阴影贴图每帧滑动造成边缘“抖动 / 闪烁”。
       const a = anchor.current, p = playerRuntime;
@@ -105,6 +121,7 @@ function District() {
       <JobTarget district={district} />
       <OppPins district={district} />
       <Player />
+      <WeatherFx />
       <ConnectionLines />
       <Effects />
     </group>

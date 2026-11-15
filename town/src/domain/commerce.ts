@@ -29,7 +29,7 @@ export const ENTITY_KIND_LABEL: Record<EntityKind, string> = {
   individual: '个人 · 不显示精确位置',
 };
 
-export type DistrictKey = 'wukang' | 'yangjing' | 'sichuan_n';
+export type DistrictKey = 'wukang' | 'yangjing' | 'sichuan_n' | 'nanluo' | 'huaqiang' | 'wuyi' | 'chunxi';
 
 export interface Place {
   district: DistrictKey;

@@ -9,6 +9,10 @@ export interface City { id: CityId; name: string; tz: string; districts: Distric
 
 export const CITIES: City[] = [
   { id: 'shanghai', name: '上海', tz: 'Asia/Shanghai', districts: ['wukang', 'yangjing', 'sichuan_n'], blurb: '梧桐、石库门、浦东社区' },
+  { id: 'beijing', name: '北京', tz: 'Asia/Shanghai', districts: ['nanluo'], blurb: '胡同、四合院、戏剧与文创' },
+  { id: 'shenzhen', name: '深圳', tz: 'Asia/Shanghai', districts: ['huaqiang'], blurb: '华强北：硬件、电子、跨境出海' },
+  { id: 'changsha', name: '长沙', tz: 'Asia/Shanghai', districts: ['wuyi'], blurb: '五一商圈：茶饮、直播、夜经济' },
+  { id: 'chengdu', name: '成都', tz: 'Asia/Shanghai', districts: ['chunxi'], blurb: '春熙路与太古里：潮流、设计、游戏' },
 ];
 
 export const cityOfDistrict = (d: DistrictKey): City => CITIES.find((c) => c.districts.includes(d)) ?? CITIES[0];

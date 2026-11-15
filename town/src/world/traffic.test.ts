@@ -114,7 +114,9 @@ describe.each(DISTRICT_ORDER)('街区「%s」的车辆遵守物理规律', (id) 
         if (c.hidden || b.hidden || b.lane !== c.lane || c.turn) return;
         const l = tr.lanes[c.lane];
         for (const j of l.junctions) {
-          if (b.front <= j.tIn - 0.3 && c.t + CAR_LEN / 2 > j.tIn - 0.3 && b.red.has(j.id) && lightFor(tr, j.id, l.roadId) === 'red' && tr.signals.get(j.id)!.roads.length > 1 && !(l.endsIn && j.tOut >= l.L - 1)) runs.push(`车${c.id}@${j.id}`);
+          // 排除：驶出路口的车（车道终点在路口里 / 刚转进起点就在路口里的支路，t 还是负数）
+          const leaving = (l.endsIn && j.tOut >= l.L - 1) || (l.startsIn && j.tIn <= 0.5 && b.front - CAR_LEN / 2 < 0);
+          if (b.front <= j.tIn - 0.3 && c.t + CAR_LEN / 2 > j.tIn - 0.3 && b.red.has(j.id) && lightFor(tr, j.id, l.roadId) === 'red' && tr.signals.get(j.id)!.roads.length > 1 && !leaving) runs.push(`车${c.id}@${j.id}`);
         }
       });
     }

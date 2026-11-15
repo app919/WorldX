@@ -6,10 +6,10 @@ import { INDUSTRY_CHAINS } from '../../data/chains';
 import { searchTown, needTerms } from '../search';
 import { dress, identityOf, IDENTITIES, EXAMPLE_DRESS } from '../identity';
 import { ROLE_COLORS } from '../palette';
-import { lotById } from '../../world';
+import { DISTRICT_ORDER, lotById } from '../../world';
 import type { DistrictKey } from '../commerce';
 
-const DS: DistrictKey[] = ['wukang', 'yangjing', 'sichuan_n'];
+const DS: DistrictKey[] = DISTRICT_ORDER;
 
 describe('【例】示范 OPC', () => {
   it('每个街区约 10% 的铺位是【例】示范店，且有完整资料', () => {

@@ -387,5 +387,36 @@ export const EXAMPLE_OPCS: ExampleOpc[] = [
   }),
 ];
 
+/**
+ * 北京、深圳、长沙、成都的【例】示范店：同样覆盖热门方向，资料完整；
+ * 以上海示范店的完整资料为模板，换成当地的店名、主理人与城市介绍（全部虚构）。
+ */
+type Gen = [template: string, name: string, nickname: string, gender: 'f' | 'm'];
+const CITY_NOTE: Partial<Record<DistrictKey, string>> = {
+  nanluo: '店在北京南锣鼓巷的胡同里，周边是四合院、戏剧学院和文创小店。',
+  huaqiang: '店在深圳华强北，楼下就是电子市场，元器件和打样都很方便。',
+  wuyi: '店在长沙五一商圈，周边是茶饮、小吃和直播基地，夜里最热闹。',
+  chunxi: '店在成都春熙路与太古里之间，潮流品牌、设计师和独立游戏团队很多。',
+};
+const GEN: Partial<Record<DistrictKey, Gen[]>> = {
+  nanluo: [['agent', '胡同智能体工坊', '阿桐', 'm'], ['editor', '鼓楼剪辑室', '小柒', 'f'], ['design', '南锣视觉设计', 'Yoyo', 'f'], ['podcast', '小院播客棚', '阿鸣', 'm'], ['course', '胡同小课堂', '林老师', 'f'],
+    ['craft', '京作手艺铺', '老秦', 'm'], ['xhs', '胡同种草社', '橙橙', 'f'], ['photo', '四合院快门', '阿亮', 'm'], ['indie', '小院软件铺', '老许', 'm'], ['l10n', '京城译站', 'Mia', 'f']],
+  huaqiang: [['robot', '华强机器人集成', '大伟', 'm'], ['3d', '深南模型局', '阿凯', 'm'], ['cross', '小船出海 · 深圳', 'Leo', 'm'], ['indie', '硬件小程序铺', '阿杰', 'm'], ['agent', '湾区智能体工坊', 'Ken', 'm'],
+    ['live', '华强直播间', '佳佳', 'f'], ['avatar', '数字分身工作室 · 深圳', 'Kiki', 'f'], ['photo', '电子产品摄影棚', '阿光', 'm'], ['editor', '开箱剪辑室', '小鹿', 'f'], ['l10n', '出海本地化小站', 'Yuki', 'f'],
+    ['tax', '一人财税 · 福田', '王会计', 'f'], ['design', '智造视觉设计', 'Momo', 'f'], ['course', '硬件创业课堂', '何老师', 'm'], ['xhs', '数码种草所', '橙子', 'f']],
+  wuyi: [['live', '星城直播间', '甜甜', 'f'], ['editor', '夜宵剪辑社', '阿乐', 'm'], ['xhs', '网红店种草所', '小米', 'f'], ['private', '茶饮私域研究室', '美玲', 'f'], ['photo', '坡子街快门', '阿亮', 'm'],
+    ['design', '湘味品牌设计', 'Momo', 'f'], ['craft', '湘绣手作社', '阿婉', 'f'], ['fit', '湘江轻训营', '阿峰', 'm'], ['avatar', '数字人主播工作室', 'Kiki', 'f'], ['course', '直播带货课堂', '林老师', 'f'], ['pet', '毛孩子上门 · 长沙', '小安', 'f'],
+    ['agent', '星城智能体工坊', '阿哲', 'm'], ['cross', '湘品出海', 'Leo', 'm']],
+  chunxi: [['design', '太古里视觉设计', 'Momo', 'f'], ['indie', '独立游戏小铺', '阿哲', 'm'], ['3d', '熊猫潮玩制造局', '阿凯', 'm'], ['podcast', '巴适播客棚', '阿声', 'm'], ['photo', '春熙路快门', '阿光', 'm'],
+    ['editor', '火锅探店剪辑室', '小鹿', 'f'], ['xhs', '成都种草所', '橙子', 'f'], ['agent', '天府智能体工坊', 'Ken', 'm'], ['course', '设计师小课堂', '林老师', 'f'], ['craft', '蜀锦手作社', '阿婉', 'f'],
+    ['cross', '熊猫文创出海', 'Leo', 'm'], ['avatar', '川话数字人工作室', 'Kiki', 'f'], ['tax', '一人财税 · 锦江', '王会计', 'f']],
+};
+for (const [d, list] of Object.entries(GEN) as [DistrictKey, Gen[]][]) {
+  list.forEach(([tpl, name, nickname, gender], i) => {
+    const t = EXAMPLE_OPCS.find((x) => x.id === `ex_${tpl}`)!;
+    EXAMPLE_OPCS.push({ ...t, id: `ex_${d}_${i}`, district: d, name, owner: { ...t.owner, nickname, gender }, about: `${CITY_NOTE[d]}${t.about}` });
+  });
+}
+
 export const examplesOf = (d: DistrictKey) => EXAMPLE_OPCS.filter((e) => e.district === d);
 export const exampleById = (id: string) => EXAMPLE_OPCS.find((e) => e.id === id);

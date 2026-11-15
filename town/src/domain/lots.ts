@@ -6,7 +6,7 @@
  * - 每个人只能开一家店：店主「姓名」和「手机号」都是唯一的（同一手机号、同一姓名不能重复开店）；
  * - 有营业执照的店铺在招牌和名片上显示「企」角标；执照信息需填写企业名称与 18 位统一社会信用代码（含校验位）。
  */
-import { allLots, DISTRICTS } from '../world';
+import { allLots, DISTRICTS, DISTRICT_ORDER } from '../world';
 import type { DistrictKey } from './commerce';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { dist } from '../world/geom';
@@ -23,7 +23,7 @@ const cache = new Map<string, LotPlan>();
 /** 已被演示店铺 / 主体占用的铺位 */
 const baseTaken = () => new Set([...SHOPS.map((x) => x.lotId), ...COUNTERPARTIES.map((c) => c.place.lotId).filter(Boolean) as string[]]);
 /** 已被演示店铺 / 主体 /【例】示范店占用的铺位（不能再开店） */
-export const takenByDemo = () => new Set([...baseTaken(), ...(['wukang', 'yangjing', 'sichuan_n'] as DistrictKey[]).flatMap((d) => lotPlan(d).examples)]);
+export const takenByDemo = () => new Set([...baseTaken(), ...DISTRICT_ORDER.flatMap((d) => lotPlan(d).examples)]);
 
 export function lotPlan(d: DistrictKey): LotPlan {
   const hit = cache.get(d);
@@ -47,7 +47,7 @@ export function lotPlan(d: DistrictKey): LotPlan {
   return plan;
 }
 
-const DKEYS: DistrictKey[] = ['wukang', 'yangjing', 'sichuan_n'];
+const DKEYS: DistrictKey[] = DISTRICT_ORDER;
 /** 这个铺位上的【例】示范店（没有则 undefined） */
 export function exampleAtLot(lotId: string): ExampleOpc | undefined {
   for (const d of DKEYS) { const i = lotPlan(d).examples.indexOf(lotId); if (i >= 0) return examplesOf(d)[i]; }
@@ -70,7 +70,7 @@ export function demoRoleOfLot(lotId: string): ShopCategory | undefined {
   return ent.kind === 'merchant' ? 'company' : 'personal';
 }
 
-export const isGolden = (lotId: string) => (['wukang', 'yangjing', 'sichuan_n'] as DistrictKey[]).some((d) => lotPlan(d).golden.includes(lotId));
+export const isGolden = (lotId: string) => DISTRICT_ORDER.some((d) => lotPlan(d).golden.includes(lotId));
 
 /** —— 赞助商 —— */
 export interface SponsorTier { id: 'season' | 'year'; name: string; price: number; months: number; perks: string[] }
@@ -86,6 +86,10 @@ export function demoSponsors(now: number): Sponsor[] {
     wukang: ['梧桐银行社区网点（虚构）', '衡山路咖啡烘焙集团（虚构）'],
     yangjing: ['浦江生活超市（虚构）', '洋泾社区健康驿站（虚构）'],
     sichuan_n: ['北外滩文旅集团（虚构）', '虹口书局（虚构）'],
+    nanluo: ['胡同文创基金（虚构）', '京味老字号联合会（虚构）'],
+    huaqiang: ['湾区智造产业园（虚构）', '电子元器件供应链联盟（虚构）'],
+    wuyi: ['湘江茶饮品牌联盟（虚构）', '星城夜经济促进会（虚构）'],
+    chunxi: ['蜀都潮流品牌馆（虚构）', '熊猫文创集团（虚构）'],
   };
   return (Object.keys(names) as DistrictKey[]).flatMap((d) => names[d].map((name, i) => ({ lotId: lotPlan(d).golden[i], name, tier: i ? 'season' as const : 'year' as const, until: now + (i ? 60 : 200) * 86400000, demo: true, status: 'live' as const })));
 }

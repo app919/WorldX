@@ -2,12 +2,17 @@ import type { DistrictKey } from '../domain/commerce';
 import { WUKANG } from './districts/wukang';
 import { YANGJING } from './districts/yangjing';
 import { SICHUAN } from './districts/sichuan';
+import { NANLUO } from './districts/nanluo';
+import { HUAQIANG } from './districts/huaqiang';
+import { WUYI } from './districts/wuyi';
+import { CHUNXI } from './districts/chunxi';
 import { compileDistrict, type CompiledDistrict } from './build';
 import { NavGrid } from './nav';
 import type { DistrictDef } from './types';
 
-export const DISTRICTS: Record<DistrictKey, DistrictDef> = { wukang: WUKANG, yangjing: YANGJING, sichuan_n: SICHUAN };
-export const DISTRICT_ORDER: DistrictKey[] = ['wukang', 'yangjing', 'sichuan_n'];
+export const DISTRICTS: Record<DistrictKey, DistrictDef> = { wukang: WUKANG, yangjing: YANGJING, sichuan_n: SICHUAN, nanluo: NANLUO, huaqiang: HUAQIANG, wuyi: WUYI, chunxi: CHUNXI };
+/** 所有街区（上海三个 + 北京、深圳、长沙、成都各一个） */
+export const DISTRICT_ORDER: DistrictKey[] = ['wukang', 'yangjing', 'sichuan_n', 'nanluo', 'huaqiang', 'wuyi', 'chunxi'];
 
 const compiled = new Map<DistrictKey, CompiledDistrict>();
 const navs = new Map<DistrictKey, NavGrid>();

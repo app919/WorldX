@@ -144,6 +144,11 @@ function Model({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
     case 'workers_housing': return <WorkersHousing b={b} />;
     case 'market_hall': return <MarketHall b={b} signs={signs} />;
     case 'civic': return <Civic b={b} />;
+    case 'siheyuan': return <Siheyuan b={b} signs={signs} />;
+    case 'tower': return <Tower b={b} signs={signs} />;
+    case 'horsewall': return <Horsewall b={b} signs={signs} />;
+    case 'chuanxi': return <Chuanxi b={b} signs={signs} />;
+    case 'temple': return <Temple b={b} />;
     default: return <Shop b={b} signs={signs} />;
   }
 }
@@ -275,6 +280,158 @@ function Shop({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
           <RoofDetails w={w} d={d} y={H + 0.3} seed={b.seed ?? 1} />
         </>
       )}
+    </group>
+  );
+}
+
+/** 城市风格材质（共享） */
+let cityMats: Record<string, MeshStandardMaterial> | null = null;
+const CM = () => (cityMats ??= {
+  red: new MeshStandardMaterial({ color: '#A8322A', roughness: 0.7 }),
+  redDoor: new MeshStandardMaterial({ color: '#B8392E', roughness: 0.55 }),
+  tileGrey: new MeshStandardMaterial({ color: '#5E6266', roughness: 0.8 }),
+  tileGreen: new MeshStandardMaterial({ color: '#3F6E5A', roughness: 0.6 }),
+  white: new MeshStandardMaterial({ color: '#F4F1EA', roughness: 0.9 }),
+  black: new MeshStandardMaterial({ color: '#3A3A3C', roughness: 0.8 }),
+  timber: new MeshStandardMaterial({ color: '#5B3A26', roughness: 0.75 }),
+  curtain: new MeshStandardMaterial({ color: '#7FA6C4', roughness: 0.15, metalness: 0.55 }),
+  curtainDark: new MeshStandardMaterial({ color: '#4E6F8A', roughness: 0.2, metalness: 0.5 }),
+  gold: new MeshStandardMaterial({ color: '#D9A62E', roughness: 0.4, metalness: 0.5 }),
+});
+
+/** 店铺门脸：有铺位就画橱窗 + 招牌，没有就画一扇门 */
+function Fronts({ signs, w, d, awning, door }: { signs: Signed[]; w: number; d: number; awning: string; door?: Material }) {
+  const M = mats();
+  return (
+    <>
+      {signs.map((sg, i) => (
+        <group key={i}>
+          {sg.lotId ? <Storefront x={sg.offset * 0.4} z={d / 2} w={w * 0.84} sign={sg.sign} awning={awning} /> : null}
+          <Door x={sg.offset * 0.4 + (sg.lotId ? w * 0.3 : 0)} z={d / 2} h={1.5} mat={door ?? M.woodDark} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** 北京四合院 / 胡同铺面：灰砖墙、灰瓦双坡顶、红色大门、门墩 */
+function Siheyuan({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
+  const M = mats(), C = CM();
+  const { w, d } = b.box!;
+  const H = b.floors * FH + 0.5;
+  return (
+    <group>
+      <Box w={w} h={0.3} d={d} mat={M.stoneDark} />
+      <Box w={w} h={H - 0.3} d={d} y={0.3} mat={M.greyBrick} unit={3} />
+      <Box w={w + 0.1} h={0.18} d={d + 0.1} y={H - 0.25} mat={C.black} />
+      <Fronts signs={signs} w={w} d={d} awning="#8C6BD6" door={C.redDoor} />
+      {/* 红漆门框 + 门墩 */}
+      {signs.filter((x) => !x.lotId).map((sg, i) => (
+        <group key={i} position={[sg.offset * 0.4, 0, d / 2]}>
+          <mesh material={C.red} position={[0, 1.0, 0.08]}><boxGeometry args={[1.5, 2.0, 0.12]} /></mesh>
+          {[-0.6, 0.6].map((x) => <mesh key={x} material={M.stone} position={[x, 0.22, 0.3]}><boxGeometry args={[0.3, 0.44, 0.4]} /></mesh>)}
+        </group>
+      ))}
+      <Gable w={w + 0.6} d={d + 1.0} y={H} h={1.5} mat={C.tileGrey} />
+      <Box w={w + 0.7} h={0.16} d={0.3} y={H + 1.42} mat={C.black} />
+    </group>
+  );
+}
+
+/** 深圳玻璃幕墙塔楼：石材裙楼 + 底层商铺 + 玻璃塔身 + 顶部冠带（屋顶按身份色） */
+function Tower({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
+  const M = mats(), C = CM();
+  const { w, d } = b.box!;
+  const podium = GF + FH;
+  const H = podium + Math.max(2, b.floors - 2) * FH;
+  const tint = useContext(RoofTint);
+  const nameTex = useMemo(() => (b.name ? signTex(b.name, '#24549E', '#FFFFFF', 512, 96) : null), [b.name]);
+  return (
+    <group>
+      <Box w={w} h={podium} d={d} mat={M.stone} />
+      <Fronts signs={signs} w={w} d={d} awning="#3D7BD8" door={M.glass} />
+      <Box w={w * 0.86} h={H - podium} d={d * 0.86} y={podium} mat={b.palette === 'blue' ? C.curtainDark : C.curtain} />
+      {/* 横向窗带 */}
+      {Array.from({ length: Math.max(2, b.floors - 2) }).map((_, i) => (
+        <Box key={i} w={w * 0.88} h={0.12} d={d * 0.88} y={podium + (i + 1) * FH - 0.06} mat={M.trim} cast={false} />
+      ))}
+      <Box w={w * 0.9} h={0.5} d={d * 0.9} y={H} mat={tint ?? M.trim} />
+      {nameTex && <mesh position={[0, H - 0.8, (d * 0.86) / 2 + 0.03]}><planeGeometry args={[Math.min(w * 0.8, 7), 1.2]} /><meshStandardMaterial map={nameTex} emissive="#FFFFFF" emissiveIntensity={0.15} /></mesh>}
+    </group>
+  );
+}
+
+/** 湖湘 / 徽派马头墙：白墙、黑瓦、两端阶梯式封火山墙 */
+function Horsewall({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
+  const C = CM();
+  const { w, d } = b.box!;
+  const H = b.floors * FH + 0.6;
+  return (
+    <group>
+      <Box w={w} h={0.4} d={d} mat={C.black} />
+      <Box w={w} h={H - 0.4} d={d} y={0.4} mat={C.white} />
+      <Fronts signs={signs} w={w} d={d} awning="#5B3A26" door={C.timber} />
+      <Gable w={w - 0.2} d={d + 0.6} y={H} h={1.3} mat={C.tileGrey} />
+      {/* 两端阶梯式马头墙 */}
+      {[-1, 1].map((sg) => (
+        <group key={sg} position={[sg * (w / 2 - 0.15), H, 0]}>
+          {[0, 1, 2].map((k) => (
+            <group key={k}>
+              <Box w={0.3} h={0.9 - k * 0.25} d={d * (1 - k * 0.3)} y={0} mat={C.white} />
+              <Box w={0.5} h={0.14} d={d * (1 - k * 0.3) + 0.2} y={0.9 - k * 0.25} mat={C.black} />
+            </group>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** 川西民居 / 太古里：白墙 + 深色木构架 + 出檐深远的灰瓦四坡顶 */
+function Chuanxi({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
+  const M = mats(), C = CM();
+  const { w, d } = b.box!;
+  const H = b.floors * FH + 0.4;
+  return (
+    <group>
+      <Box w={w} h={0.3} d={d} mat={M.stoneDark} />
+      <Box w={w} h={H - 0.3} d={d} y={0.3} mat={C.white} />
+      {/* 木构架：立柱 + 横梁 */}
+      {[-0.5, -0.17, 0.17, 0.5].map((f) => <Box key={f} w={0.22} h={H} d={0.22} x={f * w} z={d / 2 + 0.05} mat={C.timber} />)}
+      {Array.from({ length: b.floors }).map((_, i) => <Box key={i} w={w + 0.1} h={0.18} d={0.24} y={(i + 1) * FH} z={d / 2 + 0.05} mat={C.timber} />)}
+      <Fronts signs={signs} w={w} d={d} awning="#5B3A26" door={C.timber} />
+      <HipRoof w={w + 1.8} d={d + 1.8} y={H} h={1.6} mat={C.tileGrey} />
+    </group>
+  );
+}
+
+/** 传统楼阁 / 寺庙：石台基、红墙红柱、重檐歇山（层数 = 檐数） */
+function Temple({ b }: { b: BuildingDef }) {
+  const M = mats(), C = CM();
+  const { w, d } = b.box!;
+  const base = 1.6;
+  const tiers = Math.max(1, Math.min(3, b.floors));
+  const roof = b.palette === 'brick' ? C.tileGreen : C.tileGrey;
+  const tex = useMemo(() => signTex(b.name ?? '', '#2F3B5C', '#F2D27A', 512, 128), [b.name]);
+  let y = base;
+  const parts: React.ReactNode[] = [];
+  for (let t = 0; t < tiers; t++) {
+    const k = 1 - t * 0.22, ww = w * 0.8 * k, dd = d * 0.7 * k, hh = t === 0 ? 3.2 : 2.2;
+    parts.push(
+      <group key={t}>
+        <Box w={ww} h={hh} d={dd} y={y} mat={C.red} />
+        {[-0.45, -0.15, 0.15, 0.45].map((f) => <Box key={f} w={0.3} h={hh} d={0.3} x={f * ww} y={y} z={dd / 2 + 0.2} mat={C.redDoor} />)}
+        <HipRoof w={ww + 2.2} d={dd + 2.2} y={y + hh} h={1.2} mat={roof} />
+      </group>,
+    );
+    y += hh + 0.9;
+  }
+  return (
+    <group>
+      <Box w={w} h={base} d={d} mat={M.stone} />
+      <Box w={3} h={0.5} d={1.6} y={0} z={d / 2 + 0.8} mat={M.stone} />
+      {parts}
+      <mesh position={[0, base + 2.6, d * 0.35 + 0.22]}><planeGeometry args={[Math.min(5, w * 0.5), 0.9]} /><meshStandardMaterial map={tex} /></mesh>
     </group>
   );
 }

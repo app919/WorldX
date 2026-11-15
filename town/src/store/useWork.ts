@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
-import { allLots } from '../world';
+import { allLots, DISTRICT_ORDER } from '../world';
 import {
   buy, canWork, deliveryPay, emptyPurse, gameOf, getPaid, itemById, jobsFor, rest, shiftPay, startWork,
   type ActiveJob, type GameKind, type Job, type Place, type Purse,
@@ -29,7 +29,7 @@ export function workPlaces(district: string): (Place & { game: GameKind; p: { x:
 }
 
 export function placeOfLot(lotId: string) {
-  for (const d of ['wukang', 'yangjing', 'sichuan_n']) { const p = workPlaces(d).find((x) => x.lotId === lotId); if (p) return { ...p, district: d }; }
+  for (const d of DISTRICT_ORDER) { const p = workPlaces(d).find((x) => x.lotId === lotId); if (p) return { ...p, district: d }; }
   return undefined;
 }
 

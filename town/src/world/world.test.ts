@@ -16,7 +16,7 @@ describe.each(DISTRICT_ORDER)('街区「%s」的道路规则', (id) => {
   });
 
   it('机动车道（斑马线以外）不可步行', () => {
-    for (const r of def.roads) {
+    for (const r of def.roads.filter((x) => !x.pedestrian)) {
       for (let s = 2; s < roadLen(r) - 2; s += 3) {
         const p = roadPoint(r, s);
         if (cd.crosswalks.some((c) => inOBB(c.box, p, 0.6))) continue;
@@ -94,7 +94,7 @@ describe.each(DISTRICT_ORDER)('街区「%s」的道路规则', (id) => {
   });
 
   it('过马路必须经过斑马线：跨街路径上的每一个点都在人行道 / 斑马线上', () => {
-    const r = def.roads[0];
+    const r = def.roads.find((x) => !x.pedestrian)!;
     const n = leftOf(roadDir(r));
     const side = (sgn: number) => nav.nearestWalkable(add(roadPoint(r, roadLen(r) * 0.62), mul(n, sgn * (r.carriage / 2 + r.sidewalk / 2))), 4)!;
     const path = nav.findPath(side(1), side(-1))!;
@@ -114,7 +114,7 @@ describe.each(DISTRICT_ORDER)('街区「%s」的道路规则', (id) => {
   });
 
   it('移动被挡住时不会穿过机动车道', () => {
-    const r = def.roads[0];
+    const r = def.roads.find((x) => !x.pedestrian)!;
     const n = leftOf(roadDir(r));
     const from = nav.nearestWalkable(add(roadPoint(r, roadLen(r) * 0.4), mul(n, r.carriage / 2 + 1.2)), 2)!;
     let p = from;

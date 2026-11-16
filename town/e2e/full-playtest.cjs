@@ -1000,8 +1000,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('need-chip-找拍摄').click();
     await T('need-hit').filter({ hasText: '光影小棚' }).first().click();
     await T('fly-overlay').waitFor({ timeout: 3000 });
-    await T('fly-arrived').waitFor({ timeout: 8000 });
-    must((await T('fly-arrived').innerText()).includes('我们到了'), '没有「我们到了」');
+    await T('fly-arrived').getByText('我们到了', { exact: false }).waitFor({ timeout: 8000 });
     await T('agent-chat').waitFor({ timeout: 8000 });
     await evalTown(() => window.__town.useTown.getState().openChat(undefined));
   });

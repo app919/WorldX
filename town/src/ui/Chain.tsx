@@ -11,6 +11,8 @@ import { lotById } from '../world';
 import { useOpp } from '../store/useOpp';
 import { useTown } from '../store/useTown';
 import { Btn, Disclaimer, Pill } from './kit';
+import { EcoView } from './Eco';
+import { useEco } from '../store/useEco';
 
 const KIND_TONE: Record<ChainMember['kind'], string> = {
   opc: 'bg-almond-300 text-cocoa-800', merchant: 'bg-sage-300 text-sage-700', individual: 'bg-haze-300 text-cocoa-800',
@@ -37,16 +39,25 @@ export function ChainPanel() {
   const { placements } = useMyChain();
   const mine = placements.filter((p) => p.industry === ind.id);
   const stage = ind.stages.find((s) => s.id === stageId);
+  const view = useEco((s) => s.view);
+  const setView = useEco((s) => s.setView);
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-[5.2rem] top-3 z-20 flex justify-center md:bottom-24 md:top-24 md:px-6">
       <div data-testid="chain-panel" className="wobble-in pointer-events-auto glass flex w-full max-w-6xl flex-col overflow-hidden rounded-blob ring-1 ring-cream-200">
         <div className="flex items-start justify-between gap-2 px-5 pt-4">
           <div>
-            <div className="text-lg font-black text-cocoa-800">🔗 产业链黄页 · 上下游速配</div>
-            <div className="text-xs text-stone-600">看清一条产业链上有谁、缺谁、我在哪；点任一环节查看黄页、速配上下游、抢服务商展位</div>
+            <div className="text-lg font-black text-cocoa-800">🔗 产业链 · {view === 'eco' ? '智能生态位' : '黄页与上下游速配'}</div>
+            <div className="text-xs text-stone-600">{view === 'eco' ? '按你的资料自动生成上下游、供应链与多元化方向，审核后给出匹配度与市场价值' : '看清一条产业链上有谁、缺谁、我在哪；点任一环节查看黄页、速配上下游、抢服务商展位'}</div>
+            <div className="mt-2 flex gap-1.5">
+              <button data-testid="chain-view-eco" onClick={() => setView('eco')} className={`rounded-full px-3 py-1 text-xs font-black ${view === 'eco' ? 'bg-almond-400 text-cocoa-800 shadow-jelly' : 'bg-cream-100 text-stone-600'}`}>✨ 智能生态位</button>
+              <button data-testid="chain-view-chain" onClick={() => setView('chain')} className={`rounded-full px-3 py-1 text-xs font-black ${view === 'chain' ? 'bg-almond-400 text-cocoa-800 shadow-jelly' : 'bg-cream-100 text-stone-600'}`}>🔗 产业链黄页</button>
+            </div>
           </div>
           <button aria-label="关闭" onClick={() => setTab('city')} className="jelly grid h-8 w-8 shrink-0 place-items-center bg-cream-100 text-cocoa-600">✕</button>
         </div>
+        {view === 'eco' ? (
+          <div className="scroll-soft min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-3"><EcoView /></div>
+        ) : (<>
         <div className="flex gap-2 overflow-x-auto px-5 pt-3">
           {INDUSTRY_CHAINS.map((x) => (
             <button key={x.id} data-testid={`industry-${x.id}`} onClick={() => setIndustry(x.id)}
@@ -61,6 +72,7 @@ export function ChainPanel() {
           {stage && <StageDetail ind={ind} stage={stage} />}
           <GapNote ind={ind} />
         </div>
+        </>)}
       </div>
     </div>
   );

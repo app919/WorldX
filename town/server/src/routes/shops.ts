@@ -31,7 +31,7 @@ const ShopInput = z.object({
 
 export interface ShopRow {
   id: string; owner_id: string; lot_id: string; name: string; tagline: string; category: string; facade: string; licensed: number; license_company: string | null;
-  products_json: string; needs_json: string; faqs_json: string; company_intro_json: string | null; product_intro_json: string | null; created_at: number; updated_at: number;
+  products_json: string; needs_json: string; faqs_json: string; company_intro_json: string | null; product_intro_json: string | null; eco_json?: string | null; created_at: number; updated_at: number;
 }
 
 /** 公开的店铺信息（白名单） */
@@ -44,6 +44,14 @@ export function publicShop(s: ShopRow, ownerNickname: string | null) {
     createdAt: s.created_at,
   };
 }
+
+/** 智能生态位的补充问答：最拿手的能力、想拓展的方向、市场范围、自由补充 */
+const EcoNotes = z.object({
+  skills: z.array(z.string().max(40)).max(12).default([]),
+  direction: z.enum(['any', 'downstream', 'upstream', 'peer', 'cross']).default('any'),
+  reach: z.enum(['local', 'national', 'global']).default('national'),
+  note: z.string().max(1000).default(''),
+});
 
 const clean = <T>(v: T): T => JSON.parse(redactContacts(JSON.stringify(v)));
 
@@ -61,7 +69,7 @@ export async function shopRoutes(app: FastifyInstance) {
   app.get('/api/shops/mine', async (req, reply) => {
     const me = requireUser(req, reply); if (!me) return;
     const s = db.prepare('SELECT * FROM shops WHERE owner_id = ?').get(me.id) as ShopRow | undefined;
-    return { shop: s ? withOwner(s) : null };
+    return { shop: s ? withOwner(s) : null, eco: s?.eco_json ? JSON.parse(s.eco_json) : null };
   });
 
   /** 校验并写入解析好的文档简介 */
@@ -108,7 +116,7 @@ export async function shopRoutes(app: FastifyInstance) {
     const me = requireUser(req, reply); if (!me) return;
     const s = db.prepare('SELECT * FROM shops WHERE owner_id = ?').get(me.id) as ShopRow | undefined;
     if (!s) return reply.code(404).send({ error: '你还没有开店' });
-    const b = ShopInput.pick({ name: true, tagline: true, category: true, facade: true, products: true, needs: true, faqs: true, companyDocId: true, productDocId: true }).partial().parse(req.body);
+    const b = ShopInput.pick({ name: true, tagline: true, category: true, facade: true, products: true, needs: true, faqs: true, companyDocId: true, productDocId: true }).partial().extend({ eco: EcoNotes.optional() }).parse(req.body);
     const sets: string[] = [], vals: (string | number | null)[] = [];
     const put = (col: string, v: string | number | null) => { sets.push(`${col} = ?`); vals.push(v); };
     if (b.name) put('name', redactContacts(b.name));
@@ -119,6 +127,7 @@ export async function shopRoutes(app: FastifyInstance) {
     if (b.needs) put('needs_json', JSON.stringify(clean(b.needs)));
     if (b.faqs) put('faqs_json', JSON.stringify(clean(b.faqs)));
     if (b.companyDocId) put('company_intro_json', introFromDoc(me.id, b.companyDocId, 'company'));
+    if (b.eco) put('eco_json', JSON.stringify(clean({ ...b.eco, updatedAt: Date.now() })));
     if (b.productDocId) put('product_intro_json', introFromDoc(me.id, b.productDocId, 'product'));
     put('updated_at', Date.now());
     db.prepare(`UPDATE shops SET ${sets.join(', ')} WHERE id = ?`).run(...vals, s.id);

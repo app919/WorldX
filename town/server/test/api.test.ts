@@ -283,3 +283,35 @@ describe('天气预报（凌晨 3 点查第二天）', () => {
     await app.close();
   });
 });
+
+describe('智能生态位（后台生成）', () => {
+  it('按资料生成 6 个、匹配度降序、已审核、带市场价值；丢弃后补位；参数校验', async () => {
+    const { buildApp } = await import('../src/app');
+    const { openDb } = await import('../src/db');
+    const app = buildApp({ db: openDb(':memory:'), logger: false });
+    const body = { text: '直播带货主播，做直播间场控和社群运营，也拍短视频', city: 'changsha' };
+    const r = (await app.inject({ method: 'POST', url: '/api/eco/niches', payload: body })).json();
+    expect(r.items).toHaveLength(6);
+    for (let i = 1; i < 6; i++) expect(r.items[i - 1].match).toBeGreaterThanOrEqual(r.items[i].match);
+    expect(r.items.every((x: { review: { status: string }; value: { tam: number } }) => x.review.status !== 'reject' && x.value.tam > 0)).toBe(true);
+    expect(r.items.map((x: { id: string }) => x.id)).not.toContain('traffic_brush');
+    expect(r.blocked.length).toBeGreaterThan(0);
+    const r2 = (await app.inject({ method: 'POST', url: '/api/eco/niches', payload: { ...body, dismissed: [r.items[0].id] } })).json();
+    expect(r2.items).toHaveLength(6);
+    expect(r2.items.map((x: { id: string }) => x.id)).not.toContain(r.items[0].id);
+    expect((await app.inject({ method: 'POST', url: '/api/eco/niches', payload: { text: 'x', city: 'tokyo' } })).statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('补充问答记到自己的店铺（只给店主自己，不出现在公开店铺信息里）', async () => {
+    const a = await login('13866660077', '10.0.0.77');
+    const open = await app.inject({ method: 'POST', url: '/api/shops', ...req(a.cookie), payload: shopBody({ lotId: freeOpcLot(6), ownerName: '王小五', name: '光影试验店' }) });
+    expect(open.statusCode, open.body).toBe(200);
+    const put = await app.inject({ method: 'PUT', url: '/api/shops/mine', ...req(a.cookie), payload: { eco: { skills: ['photo'], direction: 'downstream', reach: 'local', note: '想接婚礼 微信 abc12345' } } });
+    expect(put.statusCode).toBe(200);
+    const mine = (await app.inject({ method: 'GET', url: '/api/shops/mine', ...req(a.cookie) })).json();
+    expect(mine.eco.skills).toEqual(['photo']);
+    expect(mine.eco.note).not.toContain('abc12345');
+    expect(JSON.stringify(mine.shop)).not.toContain('想接婚礼');
+  });
+});

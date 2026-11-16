@@ -157,6 +157,8 @@ const MIGRATIONS: string[] = [
     fetched_at INTEGER NOT NULL,
     PRIMARY KEY (city, day)
   );`,
+  // 6：智能生态位的补充问答（只给店主自己，用于匹配，不公开）
+  `ALTER TABLE shops ADD COLUMN eco_json TEXT;`,
 ];
 
 // 通过 createRequire 加载内置的 node:sqlite（测试运行器对较新的内置模块识别不全）

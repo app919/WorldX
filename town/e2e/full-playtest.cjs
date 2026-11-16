@@ -362,12 +362,79 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(!(await evalTown(() => window.__town.lotPlan('wukang').golden)).includes(opc.lotId), '开在了黄金位');
     await page.screenshot({ path: path.join(OUT, '06-opened.png') });
   });
+  // —— v1.4：智能生态位 ——
+  await step('智能生态位：按资料自动生成 6 个方向，匹配度降序，均已审核，并有市场价值（年营收）', async () => {
+    await closeAll();
+    await evalTown(() => window.__town.useTown.getState().setTab('chain'));
+    await T('chain-panel').waitFor();
+    await T('chain-view-eco').click();
+    // 3 个小问题 + 自由补充
+    await T('eco-questions').waitFor();
+    await T('eco-skill-photo').click();
+    await T('eco-dir-downstream').click();
+    await T('eco-reach-national').click();
+    await T('eco-brief').fill('武康路摄影工作室，拍产品图和短视频，也做品牌宣传片和直播切片');
+    await T('eco-generate').click();
+    await T('eco-answers').waitFor();
+    must((await T('eco-answers').innerText()).includes('摄影'), '问答摘要里没有拿手能力');
+    const opcEco = await evalTown(() => { const o = window.__town.useTown.getState().myOpc; return o ? { has: true, eco: o.eco } : { has: false }; });
+    if (opcEco.has) must(opcEco.eco && opcEco.eco.note.includes('武康路') && opcEco.eco.skills.includes('photo'), `问答没有记到店铺：${JSON.stringify(opcEco)}`);
+    await T('eco-list').waitFor();
+    const cards = page.locator('[data-testid=eco-list] > div');
+    const n = await cards.count();
+    must(n === 6, `生成了 ${n} 个`);
+    const ms = (await page.locator('[data-testid=eco-list] [data-testid=niche-match]').allInnerTexts()).map((x) => parseInt(x, 10));
+    for (let i = 1; i < ms.length; i++) must(ms[i - 1] >= ms[i], `匹配度没有降序：${ms.join(',')}`);
+    must(await page.locator('[data-testid=eco-list] [data-testid=niche-review]').count() === 6, '有方向没有审核标记');
+    const tams = await page.locator('[data-testid=eco-list] [data-testid=niche-tam]').allInnerTexts();
+    must(tams.every((t) => /亿元|万元|万亿元/.test(t)), `市场规模格式：${tams.join(',')}`);
+    await cards.first().getByTestId('niche-how-btn').click();
+    const how = await cards.first().getByTestId('niche-how').innerText();
+    for (const k of ['自下而上', '自上而下', '三角验证', '可服务市场', '你可获得', '审核记录']) must(how.includes(k), `计算过程缺少 ${k}`);
+    await page.screenshot({ path: path.join(OUT, '60-eco.png') });
+    return `${opcEco.has ? '问答已记到店铺；' : ''}匹配度 ${ms.join(' / ')}；市场规模 ${tams.join(' / ')}`;
+  });
+  await step('智能生态位：不感兴趣就补一个新的；收藏进收藏夹并打标签，也补位；本城市 / 全球切换', async () => {
+    const cards = page.locator('[data-testid=eco-list] > div');
+    const ids = async () => (await cards.evaluateAll((els) => els.map((e) => e.getAttribute('data-testid'))));
+    const before = await ids();
+    await cards.first().getByTestId('niche-dismiss').click();
+    await page.waitForTimeout(200);
+    const after = await ids();
+    must(after.length === 6 && !after.includes(before[0]), `丢弃后：${after.join(',')}`);
+    must(after.some((x) => !before.includes(x)), '没有补上新的方向');
+    const favId = after[0];
+    await cards.first().getByTestId('niche-fav').click();
+    await T('eco-favorites').waitFor();
+    must((await ids()).length === 6 && !(await ids()).includes(favId), '收藏后没有补位');
+    const fav = page.locator(`[data-testid=eco-favorites] [data-testid=${favId}]`);
+    await fav.getByTestId('fav-tag-input').fill('明年做');
+    await fav.getByTestId('fav-tag-add').click();
+    must((await fav.innerText()).includes('#明年做'), '标签没有加上');
+    // 本城市 / 全球
+    let switched = '';
+    const g = page.locator('[data-testid=eco-list] [data-testid=scope-global]').first();
+    if (await g.count()) {
+      const card = page.locator('[data-testid=eco-list] > div').filter({ has: page.getByTestId('scope-global') }).first();
+      const t0 = await card.getByTestId('niche-tam').innerText();
+      await g.click();
+      const t1 = await card.getByTestId('niche-tam').innerText();
+      must(t0 !== t1, '切换全球后市场规模没变');
+      switched = `全球 ${t0} → ${t1}`;
+    }
+    const local = await page.locator('[data-testid=eco-list] [data-testid=niche-local]').count() + await page.locator('[data-testid=eco-favorites] [data-testid=niche-local]').count();
+    await page.screenshot({ path: path.join(OUT, '61-eco-fav.png') });
+    await T('chain-view-chain').click();
+    await toCity();
+    return `丢弃 ${before[0]} → 补 ${after.find((x) => !before.includes(x))}；收藏 ${favId}（#明年做）；${switched}；本城市标记 ${local} 个`;
+  });
   // —— v0.5：产业链黄页 + 上下游速配 + 服务商抢位 + 机会广场 ——
   for (const ind of ['ecommerce', 'heritage', 'education']) {
     await step(`产业链：「${ind}」完整上下游（上游 / 中游 / 下游 / 服务支撑 + 流向）`, async () => {
       await closeAll();
       await evalTown(() => window.__town.useTown.getState().setTab('chain'));
       await T('chain-panel').waitFor();
+      await T('chain-view-chain').click();
       await T(`industry-${ind}`).click();
       await page.waitForTimeout(400);
       const n = await page.locator('[data-testid^=stage-]').count();
@@ -728,7 +795,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.3.1'), `版本号是 ${v}`);
+    must(v.includes('1.4.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -832,6 +899,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await closeAll();
     await evalTown(() => window.__town.useTown.getState().setTab('chain'));
     await T('chain-panel').waitFor();
+    await T('chain-view-chain').click();
     for (const ind of ['ecommerce', 'heritage', 'education']) { await T(`industry-${ind}`).click(); must(!(await T('chain-panel').innerText()).includes(name), `产业链里出现了示范店 ${name}`); }
     await toCity();
     return `${info.map((x) => `${x.d} ${x.ex}/${x.total}`).join('，')}；样例：${name}`;

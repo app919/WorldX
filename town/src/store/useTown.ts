@@ -107,6 +107,8 @@ interface TownState {
 
   saveProfile(p: BusinessProfile): void;
   setOpenToConnect(v: boolean): void;
+  /** 把智能生态位的问答记到我的小店资料里 */
+  setMyOpcEco(eco: NonNullable<OpcProfile['eco']>): void;
   openShop(opc: OpcProfile, agent: AgentConfig): void;
   updateAgent(patch: Partial<AgentConfig>): void;
   enterLot(lotId: string): void;
@@ -245,6 +247,7 @@ export const useTown = create<TownState>()(
           inbox({ kind: 'system', title: `找到 ${m.counts.customer} 个潜在客户`, body: '打开「我的生意」看看他们在哪里、可能需要什么。标注“系统推测”的需求尚未核实。', needsMe: false });
         },
         setOpenToConnect: (v) => set((s) => (s.profile ? { profile: { ...s.profile, openToConnect: v } } : {})),
+        setMyOpcEco: (eco) => set((s) => (s.myOpc ? { myOpc: { ...s.myOpc, eco } } : {})),
         openShop(opc, agent) {
           set((s) => ({ myOpc: opc, myAgent: agent, wizardOpen: false, wallet: reward(s.wallet, 'shop_opened') }));
           log({ actor: ME, action: 'opc.opened', target: opc.id, detail: opc.entityStatus });

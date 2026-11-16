@@ -126,6 +126,8 @@ export interface OpcProfile {
   openNeeds: string[];
   createdAt: number;
   isDemo?: boolean;
+  /** 智能生态位的补充问答（只给店主自己用于匹配，不公开展示） */
+  eco?: import('./ecosystem').EcoAnswers;
 }
 
 export type FacadeStyle = 'cafe' | 'studio' | 'shikumen' | 'kiosk';

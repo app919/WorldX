@@ -1,3 +1,4 @@
+import type { OpcProfile } from './domain/types';
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { Login } from './ui/Login';
 import { DmPanel } from './ui/DirectMessages';
@@ -121,8 +122,8 @@ async function afterLogin(me: Me) {
   await Promise.all([useTown, useOpp, useCenter, useWork, useLots].map((s) => s.persist.rehydrate()));
   // 服务端的开店记录为准：自己的店铺
   if (me.shopId && !useTown.getState().myOpc) {
-    const { shop } = await api<{ shop: PublicShop | null }>('/api/shops/mine').catch(() => ({ shop: null }));
-    if (shop) useTown.setState({ myOpc: remoteToOpc(shop, me.id) });
+    const { shop, eco } = await api<{ shop: PublicShop | null; eco?: OpcProfile['eco'] | null }>('/api/shops/mine').catch(() => ({ shop: null, eco: null }));
+    if (shop) useTown.setState({ myOpc: { ...remoteToOpc(shop, me.id), ...(eco ? { eco } : {}) } });
   }
   await useServer.getState().loadShops().catch(() => {});
   if (wired) return;

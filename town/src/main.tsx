@@ -10,6 +10,7 @@ import { trafficRuntime } from './world/traffic';
 import { lotPlan } from './domain/lots';
 import { allLots, compiledOf, navOf, DISTRICT_ORDER } from './world';
 import { cam } from './scene/input';
+import { useQuests } from './store/useQuests';
 import { signFor } from './scene/Buildings';
 
 // 自动化测试钩子：只在 URL 带 ?e2e 时暴露，用于把角色放到门口附近（仍然走导航与门口触发规则）
@@ -29,6 +30,7 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
     signals: () => { const tr = trafficRuntime.tr; return tr ? { junctions: [...tr.signals.values()].filter((s) => s.roads.length > 1).length, pedCrossings: tr.cwSignal.filter(Boolean).length, centers: [...tr.signals.values()].filter((s) => s.roads.length > 1).map((s) => s.center) } : null; },
     lotPlan: (d: string) => lotPlan(d as 'wukang'),
     cam,
+    useQuests,
     roofs: () => { const out: Record<string, number> = {}; for (const d of DISTRICT_ORDER) for (const l of allLots().filter((x) => x.district === d)) { const c = signFor(l.door.lotId)?.cat; if (c) out[c] = (out[c] ?? 0) + 1; } return out; },
     playerRuntime,
     props: (d: string) => compiledOf(d as 'wukang').props.map((p) => ({ kind: p.kind, x: p.p.x, z: p.p.z })),

@@ -8,9 +8,10 @@ import { CITIES } from '../domain/cities';
 import { emitGame } from '../store/gameEvents';
 import { track } from '../net/api';
 import { identityOf } from '../domain/identity';
-import { useQuests } from '../store/useQuests';
+import { levelOf } from '../domain/progression';
+import { currentQuests, useQuests } from '../store/useQuests';
 import { useFollow } from '../store/useFollow';
-import { dayIndex, planFor } from '../domain/quests';
+import { CHECKIN_MILESTONES, seasonOf, streakOf } from '../domain/quests';
 import { cnDate } from '../domain/weather';
 import { cityOfDistrict } from '../domain/cities';
 import { useWeather } from '../store/useWeather';
@@ -28,6 +29,7 @@ export function TopBar() {
   const wallet = useTown((s) => s.wallet);
   const toggleNight = useTown((s) => s.toggleNight);
   const timeFlow = useTown((s) => s.timeFlow);
+  const lvl = levelOf(useTown((s) => s.wallet));
   const city = cityOfDistrict(useTown((s) => s.district));
   const weather = useWeather((s) => s.cities[city.id] ?? 'sunny');
   const toggleTimeFlow = useTown((s) => s.toggleTimeFlow);
@@ -72,17 +74,26 @@ export function TopBar() {
           </button>
           <span data-testid="weather" title={`今天${city.name}的天气（按当地天气预报）`} className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-bold text-cocoa-700">{WEATHER_ICON[weather]} {WEATHER_LABEL[weather]}</span>
         </div>
-        <button data-testid="open-center" onClick={() => useTown.getState().setTab('center')} className="jelly bg-haze-300 px-3 py-1 text-xs font-black text-cocoa-800">🏛️ 服务中心</button>
-        <PurseChip />
-        <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="glass flex items-center gap-3 rounded-full px-3 py-1 text-xs font-bold" data-testid="wallet">
-          <span>⭐ {wallet.stars}</span><span className="text-sage-700">🌱 {wallet.growth}</span><span className="text-stone-400">ⓘ</span>
+        <div className="flex items-center gap-1.5">
+          <button data-testid="open-center" onClick={() => useTown.getState().setTab('center')} className="jelly bg-haze-300 px-3 py-1 text-xs font-black text-cocoa-800">🏛️ 服务中心</button>
+          <PurseChip />
+        </div>
+        {/* 一个数字看懂自己的进度：等级 + 星星（成长值折算进等级里） */}
+        <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="glass flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold" data-testid="wallet" title="我的等级与星星">
+          <span className="rounded-full bg-cocoa-800 px-1.5 text-[10px] font-black text-cream-50">Lv.{lvl.lv}</span>
+          <span className="text-cocoa-700">{lvl.name}</span>
+          <span className="h-1.5 w-10 overflow-hidden rounded-full bg-cream-200"><i className="block h-full bg-almond-500" style={{ width: `${Math.round(lvl.pct * 100)}%` }} /></span>
+          <span>⭐ {wallet.stars}</span>
         </button>
         {pop === 'wallet' && (
-          <div className="glass absolute right-0 top-full mt-2 w-72 rounded-2xl p-3 text-xs">
-            <div className="font-black">⭐ 街区星星</div>
-            <div className="text-stone-600">获得：每日到访、CityWalk 打卡、认识新朋友、打招呼。用途：装饰小店、给小人换装（即将开放）。</div>
-            <div className="mt-2 font-black">🌱 创业成长值</div>
-            <div className="text-stone-600">获得：开店、预约见面、参加社区活动、双方确认的合作、帮别人促成合作。用途：解锁店铺升级与街区绿化（即将开放）。</div>
+          <div className="glass absolute right-0 top-full mt-2 w-72 rounded-2xl p-3 text-xs" data-testid="wallet-pop">
+            <div className="font-black">Lv.{lvl.lv} {lvl.name} · 经验 {lvl.xp}{lvl.next ? ` / ${lvl.next.need}` : ''}</div>
+            <div className="text-stone-600">{lvl.next ? `再攒 ${lvl.next.need - lvl.xp} 经验升到 Lv.${lvl.next.lv}「${lvl.next.name}」，解锁：${lvl.next.unlock}。` : '已经是最高等级啦！'}</div>
+            <div className="mt-2 font-black">⭐ 星星 {wallet.stars}</div>
+            <div className="text-stone-600">逛街、做任务、打招呼、每日签到获得。</div>
+            <div className="mt-2 font-black">经验怎么算</div>
+            <div className="text-stone-600">经验 = 星星 + 成长值 × 3。成长值（现在 {wallet.growth}）来自开店、对接、合作这些生意上的进步，所以权重更高。</div>
+            <div className="mt-2 text-stone-500">💴 钞票、⚡ 体力只属于「打工」小游戏，打工时才显示。</div>
             <div className="mt-2 text-[10px] text-brick-500">{ECONOMY_NOTICE}</div>
           </div>
         )}
@@ -157,7 +168,7 @@ export function BottomNav() {
 
 const KIND_TONE: Record<string, string> = { 买: 'bg-[#3D7BD8] text-white', 逛: 'bg-[#8C6BD6] text-white', 跟: 'bg-[#D9A62E] text-white' };
 
-/** 新手 7 天：按身份的每日任务（买 · 逛 · 跟），完成后领取奖励，三件都领完得当天徽章 */
+/** 新手 7 天 → 第 8 天起每日委托；底部是 30 天一季的签到条 */
 export function Coach() {
   const tab = useTown((s) => s.tab);
   const card = useTown((s) => s.card);
@@ -165,33 +176,39 @@ export function Coach() {
   const progress = useQuests((s) => s.progress);
   const claimed = useQuests((s) => s.claimed);
   const view = useQuests((s) => s.view);
-  const startDay = useQuests((s) => s.startDay);
+  const checkins = useQuests((s) => s.checkins);
+  useQuests((s) => s.startDay);
   const [hidden, setHidden] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
-  useEffect(() => { if (!startDay) useQuests.setState({ startDay: questTodayStr() }); }, [startDay]);
+  useEffect(() => { useQuests.getState().checkIn(); }, []);
   if (tab !== 'city' || card) return null;
-  const plan = planFor(tag);
-  const unlocked = dayIndex(startDay ?? questTodayStr(), questTodayStr());
-  const cur = plan[(view ?? unlocked) - 1];
+  const cq = currentQuests();
+  const { mode, plan } = cq;
+  const unlocked = cq.day;
+  const cur = mode === 'newbie' ? plan[(view ?? unlocked) - 1] : cq.today;
   const doneDay = (d: number) => plan[d - 1].quests.every((q) => claimed[q.id]);
-  const left = cur.quests.filter((q) => !claimed[q.id]).length;
+  const left = cq.today.quests.filter((q) => !claimed[q.id]).length;
+  const ss = seasonOf(checkins.length);
+  const streak = streakOf(checkins, questTodayStr());
   if (hidden) {
-    return <button data-testid="quest-open" onClick={() => setHidden(false)} className="pointer-events-auto glass absolute left-3 top-24 z-10 rounded-full px-3 py-1 text-xs font-black text-cocoa-700">🎯 第 {unlocked} 天任务 · 还剩 {plan[unlocked - 1].quests.filter((q) => !claimed[q.id]).length}</button>;
+    return <button data-testid="quest-open" onClick={() => setHidden(false)} className="pointer-events-auto glass absolute left-3 top-24 z-10 rounded-full px-3 py-1 text-xs font-black text-cocoa-700">🎯 {mode === 'newbie' ? `第 ${unlocked} 天任务` : '每日委托'} · 还剩 {left} · 🔥{streak}</button>;
   }
   return (
     <div className="pointer-events-auto glass absolute left-3 top-24 z-10 w-72 rounded-blob p-3" data-testid="coach">
       <div className="flex items-center justify-between text-xs font-black text-cocoa-800">
-        <span>🎯 新手 7 天 · {identityOf(tag).label}</span>
+        <span>🎯 {mode === 'newbie' ? '新手 7 天' : '每日委托'} · {identityOf(tag).label}</span>
         <button onClick={() => setHidden(true)} className="text-stone-400">收起</button>
       </div>
-      <div className="mt-1.5 flex gap-1" data-testid="quest-days">
-        {plan.map((d) => (
-          <button key={d.day} disabled={d.day > unlocked} onClick={() => useQuests.getState().setView(d.day)} title={d.day > unlocked ? `第 ${d.day} 天（${d.day - unlocked} 天后解锁）` : d.theme}
-            className={`grid h-6 flex-1 place-items-center rounded-full text-[10px] font-black ${d.day === cur.day ? 'bg-almond-400 text-cocoa-800' : doneDay(d.day) ? 'bg-sage-300 text-cocoa-700' : d.day <= unlocked ? 'bg-cream-100 text-stone-600' : 'bg-cream-100/50 text-stone-300'}`}>
-            {doneDay(d.day) ? '✓' : d.day > unlocked ? '🔒' : d.day}
-          </button>
-        ))}
-      </div>
-      <div className="mt-2 text-sm font-black text-cocoa-800">第 {cur.day} 天 · {cur.theme} <span className="text-[10px] font-bold text-stone-400">完成得「{cur.badge}」</span></div>
+      {mode === 'newbie' && (
+        <div className="mt-1.5 flex gap-1" data-testid="quest-days">
+          {plan.map((d) => (
+            <button key={d.day} disabled={d.day > unlocked} onClick={() => useQuests.getState().setView(d.day)} title={d.day > unlocked ? `第 ${d.day} 天（${d.day - unlocked} 天后解锁）` : d.theme}
+              className={`grid h-6 flex-1 place-items-center rounded-full text-[10px] font-black ${d.day === cur.day ? 'bg-almond-400 text-cocoa-800' : doneDay(d.day) ? 'bg-sage-300 text-cocoa-700' : d.day <= unlocked ? 'bg-cream-100 text-stone-600' : 'bg-cream-100/50 text-stone-300'}`}>
+              {doneDay(d.day) ? '✓' : d.day > unlocked ? '🔒' : d.day}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-2 text-sm font-black text-cocoa-800">{mode === 'newbie' ? `第 ${cur.day} 天 · ${cur.theme}` : cur.theme}{cur.badge && <span className="text-[10px] font-bold text-stone-400"> 完成得「{cur.badge}」</span>}</div>
       <div className="mt-1 space-y-1.5" data-testid="quest-list">
         {cur.quests.map((q) => {
           const n = Math.min(q.count, progress[q.id] ?? 0), ok = n >= q.count, got = claimed[q.id];
@@ -209,7 +226,43 @@ export function Coach() {
           );
         })}
       </div>
-      <div className="mt-1 text-[10px] text-stone-400">{left ? `今天还有 ${left} 件小事。` : '今天的任务都完成啦！'}明天会解锁新玩法（第 {Math.min(7, unlocked + 1)} 天）。</div>
+      {/* 签到：30 天一季，3 / 7 / 14 / 21 / 30 天有里程碑 */}
+      <div className="mt-2 rounded-2xl bg-cream-100 px-2 py-1.5" data-testid="checkin">
+        <div className="flex items-center justify-between text-[11px] font-black text-cocoa-800">
+          <span>🔥 连续 {streak} 天 · 第 {ss.season} 季 {ss.inSeason}/30</span>
+          <span className="text-[10px] font-bold text-stone-500">{ss.next ? `再签 ${ss.next.n - ss.inSeason} 天得 ⭐${ss.next.stars}` : '本季全勤！'}</span>
+        </div>
+        <div className="relative mt-1 h-1.5 rounded-full bg-cream-200">
+          <i className="absolute inset-y-0 left-0 rounded-full bg-[#FF8A3D]" style={{ width: `${(ss.inSeason / 30) * 100}%` }} />
+          {CHECKIN_MILESTONES.map((m) => <i key={m.n} className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ring-2 ring-cream-50 ${ss.inSeason >= m.n ? 'bg-[#FF8A3D]' : 'bg-stone-300'}`} style={{ left: `calc(${(m.n / 30) * 100}% - 5px)` }} title={`${m.label}：⭐${m.stars}`} />)}
+        </div>
+      </div>
+      <div className="mt-1 text-[10px] text-stone-400">{left ? `今天还有 ${left} 件小事。` : '今天的任务都完成啦！'}{mode === 'newbie' ? `明天解锁第 ${Math.min(7, unlocked + 1)} 天；第 8 天新手毕业有大礼包。` : '每天 0 点换新委托，周一换主题城市。'}</div>
+    </div>
+  );
+}
+
+/** 回来时：“你不在的时候”摘要（离开超过 8 小时） */
+export function ReturnSummaryCard() {
+  const s = useQuests((x) => x.summary);
+  if (!s) return null;
+  const close = () => useQuests.getState().closeSummary();
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-[60] grid place-items-center bg-cocoa-800/20 p-4" onClick={close}>
+      <div className="wobble-in w-full max-w-sm rounded-[2rem] bg-cream-50 p-5 shadow-soft" data-testid="return-summary" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-black text-cocoa-800">👋 欢迎回来！你不在的 {s.hours} 小时里：</div>
+        <ul className="mt-2 space-y-1.5 text-sm text-cocoa-800">
+          {s.replies.length > 0 && <li>💬 <b>{s.replies.length}</b> 位店主回复了你留下的需求：{s.replies.map((r) => r.shop ?? r.name).join('、')}</li>}
+          <li>📰 街区动态更新了 <b>{s.feed}</b> 条</li>
+          <li>🏙️ 本周主题城市：<b>{s.theme}</b></li>
+          <li>🔥 连续签到 <b>{s.streak}</b> 天（今天已签到）</li>
+          <li>🎯 今天的委托：{s.todayTitles.join(' · ')}</li>
+        </ul>
+        <div className="mt-3 flex gap-2">
+          {s.replies.length > 0 && <Btn onClick={() => { close(); useTown.getState().setTab('messages'); }}>去看回复</Btn>}
+          <Btn tone="cream" data-testid="return-close" onClick={close}>开始逛</Btn>
+        </div>
+      </div>
     </div>
   );
 }

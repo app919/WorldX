@@ -14,13 +14,14 @@ import { useLots } from './store/useLots';
 import { remoteToOpc } from './net/shopMap';
 import { useTown } from './store/useTown';
 import { Onboarding } from './ui/Onboarding';
-import { BottomNav, Coach, Controls, DistrictSwitcher, Toasts, TopBar } from './ui/Hud';
+import { BottomNav, Coach, Controls, DistrictSwitcher, Toasts, TopBar , ReturnSummaryCard } from './ui/Hud';
 import { CityCards } from './ui/CityCards';
 import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
 import { Confetti, FlyOverlay, LiveChat } from './ui/LiveChat';
 import { FeedPanel, LivePanel } from './ui/Buzz';
+import { AutoClose } from './ui/AutoClose';
 import { OpcWizard } from './ui/OpcWizard';
 import { CommunityPanel } from './ui/Community';
 import { MePanel } from './ui/MePanel';
@@ -67,6 +68,8 @@ export default function App() {
             <BottomNav />
             <AgentChat />
             <LiveChat />
+            <AutoClose />
+            <ReturnSummaryCard />
             <FlyOverlay />
             <Confetti />
             <FeedPanel />

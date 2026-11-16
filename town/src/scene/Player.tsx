@@ -45,6 +45,7 @@ export function Player() {
   const slideMemo = useRef({ side: 0 });
   const ghost = useRef<Group | null>(null);
   const ring = useRef<Mesh>(null);
+  const plane = useRef<Group>(null);
   const beacon = useRef<Group>(null);
   const { camera, gl } = useThree();
   const camTarget = useRef(new Vector3(avatar.position.x, 0, avatar.position.z));
@@ -102,15 +103,28 @@ export function Player() {
     const s = useTown.getState();
     const nav = navOf(s.district);
     if (playerRuntime.teleported) { playerRuntime.teleported = false; camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); }
+    // 打个飞的：小飞机载着角色飞（镜头跟着飞）
+    const fr = playerRuntime.fly;
+    if (fr) {
+      const k = Math.min(1, (performance.now() - fr.t0) / fr.dur);
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      playerRuntime.x = fr.from.x + (fr.to.x - fr.from.x) * e;
+      playerRuntime.z = fr.from.z + (fr.to.z - fr.from.z) * e;
+      playerRuntime.flyY = fr.mode === 'arc' ? Math.sin(Math.PI * k) * 7 : fr.mode === 'up' ? e * 16 : (1 - e) * 16;
+      if (Math.hypot(fr.to.x - fr.from.x, fr.to.z - fr.from.z) > 0.1) playerRuntime.heading = Math.atan2(fr.to.x - fr.from.x, fr.to.z - fr.from.z);
+      if (k >= 1) { playerRuntime.fly = null; playerRuntime.flyY = 0; fr.done?.(); }
+      camTarget.current.lerp(new Vector3(playerRuntime.x, 0, playerRuntime.z), 0.35);
+    }
     if (happy.current === -1) happy.current = performance.now() / 1000 + 1.2;
     const k = keys.current;
     let dx = (k['d'] || k['arrowright'] ? 1 : 0) - (k['a'] || k['arrowleft'] ? 1 : 0) + input.joyX;
     let dz = (k['s'] || k['arrowdown'] ? 1 : 0) - (k['w'] || k['arrowup'] ? 1 : 0) + input.joyY;
-    const manual = Math.hypot(dx, dz) > 0.1;
+    const manual = !fr && Math.hypot(dx, dz) > 0.1;
+    if (fr) { dx = 0; dz = 0; }
     const run = !!k['shift'] || input.run;
 
     if (manual && s.walkPath) s.clearPath();
-    if (!manual && s.walkPath) {
+    if (!manual && !fr && s.walkPath) {
       const tgt = s.walkPath[Math.min(pathIdx.current, s.walkPath.length - 1)];
       dx = tgt.x - playerRuntime.x; dz = tgt.z - playerRuntime.z;
       if (Math.hypot(dx, dz) < 0.25) {
@@ -150,7 +164,8 @@ export function Player() {
     playerRuntime.moving = moving.current > 0;
 
     if (group.current) {
-      group.current.position.set(playerRuntime.x, 0.16, playerRuntime.z);
+      group.current.position.set(playerRuntime.x, 0.16 + playerRuntime.flyY, playerRuntime.z);
+      if (plane.current) { plane.current.visible = !!playerRuntime.fly; const sp = plane.current.getObjectByName('prop'); if (sp) sp.rotation.z += dt * 40; }
       let diff = playerRuntime.heading - group.current.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       group.current.rotation.y += diff * Math.min(1, dt * 10);
@@ -243,6 +258,7 @@ export function Player() {
     <>
       <group ref={group} position={[avatar.position.x, 0.16, avatar.position.z]}>
         <Chibi look={dressed} movingRef={moving} happyRef={happy} />
+        <group ref={plane} visible={false}><LittlePlane /></group>
         <GhostChibi look={dressed} movingRef={moving} happyRef={happy} groupRef={ghost} />
         {/* 脚下定位光圈：永远画在最上层，被树和楼挡住也能看到自己在哪 */}
         <mesh ref={ring} position-y={0.05} rotation-x={-Math.PI / 2} renderOrder={1000}>
@@ -278,6 +294,23 @@ function PathDots({ path }: { path: { x: number; z: number }[] }) {
         <mesh key={i} position={[p.x, 0.2, p.z]} rotation-x={-Math.PI / 2}><circleGeometry args={[0.12, 10]} /><meshBasicMaterial color="#E8C77A" /></mesh>
       ))}
       <mesh position={[end.x, 0.21, end.z]} rotation-x={-Math.PI / 2}><ringGeometry args={[0.3, 0.45, 24]} /><meshBasicMaterial color="#E8C77A" /></mesh>
+    </group>
+  );
+}
+
+/** 小飞机（软萌粉白配色）：角色坐在机身上，螺旋桨转动 */
+function LittlePlane() {
+  return (
+    <group position={[0, 0.15, 0]}>
+      <mesh rotation-x={Math.PI / 2} position-z={0.1}><capsuleGeometry args={[0.38, 1.3, 8, 16]} /><meshStandardMaterial color="#FFF6EA" roughness={0.6} /></mesh>
+      <mesh position={[0, 0.02, 0.15]}><boxGeometry args={[2.6, 0.08, 0.6]} /><meshStandardMaterial color="#F07FAF" roughness={0.6} /></mesh>
+      <mesh position={[0, 0.05, -0.75]}><boxGeometry args={[1.0, 0.06, 0.32]} /><meshStandardMaterial color="#F07FAF" roughness={0.6} /></mesh>
+      <mesh position={[0, 0.35, -0.8]}><boxGeometry args={[0.06, 0.5, 0.3]} /><meshStandardMaterial color="#3D7BD8" roughness={0.6} /></mesh>
+      <group name="prop" position={[0, 0, 1.0]}>
+        <mesh><boxGeometry args={[0.9, 0.08, 0.04]} /><meshStandardMaterial color="#4A3426" /></mesh>
+        <mesh rotation-z={Math.PI / 2}><boxGeometry args={[0.9, 0.08, 0.04]} /><meshStandardMaterial color="#4A3426" /></mesh>
+      </group>
+      <mesh position={[0, 0, 0.98]} rotation-x={Math.PI / 2}><coneGeometry args={[0.16, 0.25, 12]} /><meshStandardMaterial color="#D9A62E" /></mesh>
     </group>
   );
 }

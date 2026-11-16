@@ -3,22 +3,19 @@
  * 聊一聊：店主在线 → 直接聊；店主不在线 → 写下需求（做什么 / 预算 / 时间 / 线上线下）发给对方。
  */
 import { useEffect, useRef, useState } from 'react';
-import { FLY_MS, chatStarted, useLive, type NeedNote } from '../store/useLive';
+import { chatStarted, useLive, type NeedNote } from '../store/useLive';
 import { useCelebrate } from '../store/useCelebrate';
 import { residentById } from '../data/seed';
 import { Btn, Panel } from './kit';
 import { WORK_HOURS, hourLabel, isWorkTime, localHour } from '../scene/clock';
 
+/** 打个飞的：顶部一条小提示（飞机动画在 3D 场景里：小飞机载着你飞过去） */
 export function FlyOverlay() {
   const f = useLive((s) => s.flying);
   if (!f) return null;
   return (
-    <div className="pointer-events-none fixed inset-0 z-[70] grid place-items-center bg-sky-200/40 backdrop-blur-[1px]" data-testid="fly-overlay">
-      <style>{`@keyframes fly-across{0%{transform:translate(-55vw,18vh) rotate(-12deg) scale(.8)}50%{transform:translate(0,-4vh) rotate(-6deg) scale(1.15)}100%{transform:translate(55vw,10vh) rotate(8deg) scale(.8)}}@keyframes cloud{from{opacity:0;transform:translateX(12vw)}to{opacity:.9;transform:translateX(-12vw)}}`}</style>
-      <div className="absolute left-[18%] top-[30%] text-5xl" style={{ animation: `cloud ${FLY_MS}ms ease-out both` }}>☁️</div>
-      <div className="absolute right-[22%] top-[58%] text-4xl" style={{ animation: `cloud ${FLY_MS}ms ease-out both` }}>☁️</div>
-      <div className="text-7xl" style={{ animation: `fly-across ${FLY_MS}ms ease-in-out both` }}>✈️</div>
-      <div className="absolute bottom-[30%] rounded-full bg-cream-50/95 px-4 py-2 text-sm font-black text-cocoa-800 shadow-soft">打个飞的 → {f.title}</div>
+    <div className="pointer-events-none fixed inset-x-0 top-24 z-[70] flex justify-center" data-testid="fly-overlay">
+      <div className="fx-pop rounded-full bg-cream-50/95 px-4 py-1.5 text-sm font-black text-cocoa-800 shadow-soft">✈️ 打个飞的 → {f.title}</div>
     </div>
   );
 }

@@ -110,7 +110,7 @@ export function NeedBox() {
       }} className="flex items-center gap-2 rounded-full bg-cream-50/95 px-3 py-2 shadow-soft ring-2 ring-almond-400">
         <span>🔍</span>
         <input data-testid="need-input" value={q} onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          placeholder="今天来找什么？回车搜，再回车直接飞过去" className="min-w-0 flex-1 bg-transparent text-sm text-cocoa-800 outline-none placeholder:text-stone-400" maxLength={30} />
+          placeholder="今天来找什么？回车搜，再回车直接打个飞的" className="min-w-0 flex-1 bg-transparent text-sm text-cocoa-800 outline-none placeholder:text-stone-400" maxLength={30} />
         {q && <button type="button" aria-label="清空" className="text-xs text-stone-400" onClick={() => setQ('')}>✕</button>}
       </form>
     </div>

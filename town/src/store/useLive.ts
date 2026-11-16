@@ -8,10 +8,12 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { lotById } from '../world';
 import { residentById, SHOPS } from '../data/seed';
-import { useTown } from './useTown';
+import { playerRuntime, useTown } from './useTown';
+import type { DistrictKey } from '../domain/commerce';
 import { emitGame } from './gameEvents';
 import { track } from '../net/api';
 import { useCelebrate } from './useCelebrate';
+import { registerPendingReplies } from './useQuests';
 
 export interface LiveMsg { from: 'me' | 'them' | 'system'; text: string; at: number; need?: NeedNote }
 export interface NeedNote { what: string; budget: string; when: string; how: '线上' | '线下' | '都可以' }
@@ -40,7 +42,8 @@ export function shopDoorOf(ownerId: string) {
 /** 有对聊的会话：至少一来一回，或已经把需求发给对方 */
 export const chatStarted = (t: Thread) => t.msgs.some((m) => m.need) || (t.msgs.some((m) => m.from === 'me') && t.msgs.some((m) => m.from === 'them'));
 
-export const FLY_MS = 1100;
+/** 打个飞的总时长：非常快 */
+export const FLY_MS = 850;
 
 /** 演示店主的模拟回复（不承诺价格，只做初步沟通） */
 function demoReply(text: string, shopName?: string): string {
@@ -58,18 +61,33 @@ export const useLive = create<LiveState>()(
         set({ flying: { ...t, started: Date.now() } });
         emitGame('fly');
         track('action', 'buy', 'fly', { to: t.title.slice(0, 30) });
-        setTimeout(() => {
-          const town = useTown.getState();
-          const lot = t.lotId ? lotById(t.lotId) : undefined;
-          if (lot) {
-            town.goDistrict(lot.district, lot.door.trigger ?? lot.door.p);
-            setTimeout(() => { town.enterLot(lot.door.lotId!); t.then?.(); }, 120);
-          } else if (t.at) {
-            town.goDistrict(t.at.district as never, { x: t.at.x, z: t.at.z });
-            setTimeout(() => t.then?.(), 120);
-          } else t.then?.();
+        const town = useTown.getState();
+        const lot = t.lotId ? lotById(t.lotId) : undefined;
+        const dest = lot ? { district: lot.district, p: lot.door.trigger ?? lot.door.p } : t.at ? { district: t.at.district as DistrictKey, p: { x: t.at.x, z: t.at.z } } : undefined;
+        const land = () => {
           set({ flying: undefined });
-        }, FLY_MS);
+          if (lot) useTown.getState().enterLot(lot.door.lotId!);
+          t.then?.();
+        };
+        if (!dest) return land();
+        town.openCard(undefined); town.openChat(undefined); town.clearPath();
+        const here = { x: playerRuntime.x, z: playerRuntime.z };
+        // 保险：画面没在渲染（切到别的页面）时也要按时落地
+        setTimeout(() => { for (let i = 0; i < 2 && playerRuntime.fly; i++) { const f = playerRuntime.fly; playerRuntime.fly = null; playerRuntime.flyY = 0; f.done?.(); } }, FLY_MS * 3);
+        if (dest.district === town.district) {
+          // 同一个街区：小飞机沿弧线飞过去
+          const d = Math.hypot(dest.p.x - here.x, dest.p.z - here.z);
+          playerRuntime.fly = { mode: 'arc', from: here, to: dest.p, t0: performance.now(), dur: Math.min(FLY_MS, 380 + d * 4), done: land };
+        } else {
+          // 别的街区 / 城市：起飞 → 换地图 → 从天而降
+          playerRuntime.fly = {
+            mode: 'up', from: here, to: here, t0: performance.now(), dur: FLY_MS * 0.42,
+            done: () => {
+              useTown.getState().goDistrict(dest.district, dest.p);
+              playerRuntime.fly = { mode: 'down', from: dest.p, to: dest.p, t0: performance.now(), dur: FLY_MS * 0.5, done: land };
+            },
+          };
+        }
       },
       openLive(ownerId) {
         if (!ownerId) return set({ open: undefined });
@@ -118,3 +136,19 @@ export const useLive = create<LiveState>()(
     { name: 'sanlinbang-live', version: 1, partialize: (s) => ({ threads: s.threads }) },
   ),
 );
+
+/** 回来时：不在线的店主回复了你之前留下的需求（演示回复），并在「消息」里通知 */
+registerPendingReplies(() => {
+  const st = useLive.getState();
+  const out: { name: string; shop?: string }[] = [];
+  const threads = { ...st.threads };
+  for (const [id, th] of Object.entries(threads)) {
+    const needAt = th.msgs.filter((m) => m.need).map((m) => m.at).pop();
+    if (!needAt || th.msgs.some((m) => m.from === 'them' && m.at > needAt)) continue;
+    threads[id] = { ...th, unread: th.unread + 1, msgs: [...th.msgs, { from: 'them', text: `你好！刚看到你的需求，我们可以做。方便的话约个 15 分钟线上聊聊细节？（演示回复）`, at: Date.now() }] };
+    useTown.getState().notify({ kind: 'chat', title: `${th.name} 回复了你的需求`, body: th.shopName ? `来自「${th.shopName}」` : '点「聊一聊」继续沟通', needsMe: true, ref: id });
+    out.push({ name: th.name, shop: th.shopName });
+  }
+  useLive.setState({ threads });
+  return out;
+});

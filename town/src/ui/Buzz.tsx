@@ -1,5 +1,5 @@
 /**
- * 「逛」：街区动态（此刻大家在做什么，点一下飞过去）；
+ * 「逛」：街区动态（此刻大家在做什么，点一下打个飞的过去）；
  * 「跟」：活动现场（围观人数、报名人数、弹幕、报名）。
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -32,7 +32,7 @@ export function FeedPanel() {
   const close = () => useFollow.getState().setFeed(false);
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center p-3 md:items-center md:justify-start md:pl-20">
-      <Panel testId="feed-panel" title="📰 街区动态" subtitle="此刻各个城市的街上在发生什么（演示数据）· 点一下飞过去" onClose={close} className="max-h-[70vh] w-full max-w-sm">
+      <Panel testId="feed-panel" title="📰 街区动态" subtitle="此刻各个城市的街上在发生什么（演示数据）· 点一下打个飞的过去" onClose={close} className="max-h-[70vh] w-full max-w-sm">
         <div className="space-y-1.5">
           {items.map((it) => (
             <button key={it.id} data-testid="feed-item" onClick={() => { close(); if (it.liveId) flyToLive(it.liveId); else if (it.lotId) useLive.getState().fly({ title: it.who, lotId: it.lotId }); }}
@@ -42,7 +42,7 @@ export function FeedPanel() {
                 <b className="text-cocoa-800">{it.who}</b> {it.text}
                 <span className="block text-[10px] text-stone-500">{cityOfDistrict(it.district).name} · {DISTRICTS[it.district].name} · {ago(now - it.at)}</span>
               </span>
-              <span className="shrink-0 text-[10px] font-bold text-cocoa-600">✈️ 去看看</span>
+              <span className="shrink-0 text-[10px] font-bold text-cocoa-600">✈️ 打个飞的</span>
             </button>
           ))}
         </div>

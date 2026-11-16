@@ -434,5 +434,7 @@ export function vitality(d: DistrictKey, st: Pick<TownState, 'myOpc' | 'intros' 
   return { score: Math.round(parts.reduce((s, p) => s + p.score * p.w, 0)), parts, occupied: occupied.length, total: lots.length };
 }
 
-export const playerRuntime = { x: 0, z: 0, heading: 0, moving: false, bumpUntil: 0, teleported: false, /** 点了「找到我」的时间（performance.now 毫秒） */ locateAt: 0 };
+/** 打个飞的：小飞机载着角色沿弧线飞到目的地（arc 同街区；up 起飞离开；down 从天而降） */
+export interface FlyRun { mode: 'arc' | 'up' | 'down'; from: { x: number; z: number }; to: { x: number; z: number }; t0: number; dur: number; done?: () => void }
+export const playerRuntime = { x: 0, z: 0, heading: 0, moving: false, bumpUntil: 0, teleported: false, /** 点了「找到我」的时间（performance.now 毫秒） */ locateAt: 0, fly: null as FlyRun | null, flyY: 0 };
 export { compiledOf, streetOfDoor };

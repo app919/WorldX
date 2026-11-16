@@ -16,14 +16,18 @@ export function PurseChip() {
   const enabled = useWork((s) => s.enabled);
   const purse = useWork((s) => s.purse);
   const openBoard = useWork((s) => s.openBoard);
+  const active = useWork((s) => !!s.active);
   const [tip, setTip] = useState(false);
   if (!enabled) return null;
   return (
     <div className="relative flex items-center gap-1.5">
-      <button data-testid="purse" onClick={() => setTip(!tip)} className="glass flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold">
-        <span>💴 {purse.cash}</span>
-        <span className={purse.stamina < 20 ? 'text-brick-500' : 'text-sage-700'}>⚡ {Math.round(purse.stamina)}</span>
-      </button>
+      {/* 钞票 / 体力只属于打工小游戏：打工时才显示 */}
+      {active && (
+        <button data-testid="purse" onClick={() => setTip(!tip)} className="glass flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold" title="打工小游戏：钞票与体力">
+          <span>💴 {purse.cash}</span>
+          <span className={purse.stamina < 20 ? 'text-brick-500' : 'text-sage-700'}>⚡ {Math.round(purse.stamina)}</span>
+        </button>
+      )}
       <button data-testid="open-jobs" onClick={() => openBoard(true)} className="jelly bg-almond-400 px-3 py-1 text-xs font-black text-cocoa-800">💼 打工</button>
       {tip && (
         <div className="glass absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl p-3 text-xs">

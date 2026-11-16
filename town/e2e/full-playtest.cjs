@@ -95,9 +95,12 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must(await page.getByText('街区活力 = 加权平均').isVisible(), '没有计算依据');
     await T('vitality').click();
   });
-  await step('顶栏：星星 / 成长值说明（获取方式、用途、不可兑换）', async () => {
+  await step('顶栏：右上角只显示「等级 + 星星」，点开有说明；钞票 / 体力只在打工时出现', async () => {
+    must(/Lv\.\d/.test(await T('wallet').innerText()), '没有等级');
+    must(await T('purse').count() === 0, '没打工时不应该显示钞票 / 体力');
     await T('wallet').click();
-    must(await page.getByText('不能兑换人民币', { exact: false }).isVisible(), '缺少不可兑换说明');
+    const t = await T('wallet-pop').innerText();
+    must(t.includes('经验') && t.includes('不能兑换人民币'), t);
     await T('wallet').click();
   });
   await step('顶栏：时间跟随当地（东八区），可预览昼夜；显示当地天气', async () => {
@@ -725,7 +728,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.2.0'), `版本号是 ${v}`);
+    must(v.includes('1.3.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -962,6 +965,23 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     for (const k of ['example', 'company', 'investor', 'brand', 'personal']) must(r[k] > 0, `缺少 ${k} 屋顶：${JSON.stringify(r)}`);
     await page.screenshot({ path: path.join(OUT, '30-quests.png') });
     return `可领取 ${n} 个；屋顶 ${JSON.stringify(r)}`;
+  });
+
+  await step('信息牌：走开自动收起（不用手动关）', async () => {
+    await closeAll(); await toCity();
+    await evalTown(() => { const t = window.__town.useTown.getState(); t.openCard(undefined); t.enterLot('wk_s1'); });
+    await T('entity-card').waitFor({ timeout: 10000 });
+    await evalTown(() => { const p = window.__town.playerRuntime; p.x += 6; p.teleported = true; });
+    must(await waitFor(async () => (await T('entity-card').count()) === 0, 5000), '走开后信息牌没有收起');
+  });
+  await step('签到与成长：每天自动签到，30 天一季的进度条；第 8 天起每日委托', async () => {
+    await toCity();
+    if (await T('quest-open').count()) await T('quest-open').click();
+    await T('checkin').waitFor();
+    must(/连续 \d+ 天/.test(await T('checkin').innerText()), '没有签到信息');
+    const n = await evalTown(() => window.__town.useQuests.getState().checkins.length);
+    must(n >= 1, '没有签到');
+    return await T('checkin').innerText();
   });
 
   // —— 三条街道 ——

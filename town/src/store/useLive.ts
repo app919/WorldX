@@ -22,7 +22,8 @@ export interface Thread { ownerId: string; name: string; shopName?: string; msgs
 export interface FlyTarget { title: string; lotId?: string; at?: { district: string; x: number; z: number }; then?: () => void }
 
 interface LiveState {
-  flying?: FlyTarget & { started: number };
+  /** 打个飞的进行中：起飞 → 穿越云层（遮住换地图 / 渲染 / 网络的时间）→ 降落 → 我们到了 */
+  flying?: FlyTarget & { started: number; phase: 'up' | 'clouds' | 'down' | 'arrived' };
   fly(t: FlyTarget): void;
   threads: Record<string, Thread>;
   open?: string;
@@ -42,8 +43,9 @@ export function shopDoorOf(ownerId: string) {
 /** 有对聊的会话：至少一来一回，或已经把需求发给对方 */
 export const chatStarted = (t: Thread) => t.msgs.some((m) => m.need) || (t.msgs.some((m) => m.from === 'me') && t.msgs.some((m) => m.from === 'them'));
 
-/** 打个飞的总时长：非常快 */
-export const FLY_MS = 850;
+/** 打个飞的节奏（毫秒）：起飞 → 云层（至少这么久，等新地图渲染好）→ 降落 → 「我们到了」 */
+export const FLY = { up: 320, clouds: 750, down: 380, arrived: 1600 } as const;
+export const FLY_MS = FLY.up + FLY.clouds + FLY.down;
 
 /** 演示店主的模拟回复（不承诺价格，只做初步沟通） */
 function demoReply(text: string, shopName?: string): string {
@@ -58,36 +60,45 @@ export const useLive = create<LiveState>()(
     (set, get) => ({
       threads: {},
       fly(t) {
-        set({ flying: { ...t, started: Date.now() } });
+        if (get().flying && get().flying!.phase !== 'arrived') return;
         emitGame('fly');
         track('action', 'buy', 'fly', { to: t.title.slice(0, 30) });
         const town = useTown.getState();
         const lot = t.lotId ? lotById(t.lotId) : undefined;
         const dest = lot ? { district: lot.district, p: lot.door.trigger ?? lot.door.p } : t.at ? { district: t.at.district as DistrictKey, p: { x: t.at.x, z: t.at.z } } : undefined;
+        const phase = (p: 'up' | 'clouds' | 'down' | 'arrived') => set({ flying: { ...t, started: Date.now(), phase: p } });
         const land = () => {
-          set({ flying: undefined });
+          phase('arrived');
           if (lot) useTown.getState().enterLot(lot.door.lotId!);
           t.then?.();
+          setTimeout(() => { if (get().flying?.phase === 'arrived') set({ flying: undefined }); }, FLY.arrived);
         };
-        if (!dest) return land();
+        if (!dest) { land(); return; }
         town.openCard(undefined); town.openChat(undefined); town.clearPath();
         const here = { x: playerRuntime.x, z: playerRuntime.z };
+        phase('up');
+        // 1）小飞机载着角色起飞
+        playerRuntime.fly = {
+          mode: 'up', from: here, to: here, t0: performance.now(), dur: FLY.up,
+          done: () => {
+            // 2）穿越云层：这时候换地图 / 瞬移，云层挡住渲染与加载
+            phase('clouds');
+            playerRuntime.flyY = 16;
+            const t0 = performance.now();
+            if (dest.district !== useTown.getState().district) useTown.getState().goDistrict(dest.district, dest.p);
+            else { playerRuntime.x = dest.p.x; playerRuntime.z = dest.p.z; playerRuntime.teleported = true; }
+            // 等两帧确认新画面已经渲染，再保证云层至少停留 FLY.clouds
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              setTimeout(() => {
+                // 3）从天而降
+                phase('down');
+                playerRuntime.fly = { mode: 'down', from: dest.p, to: dest.p, t0: performance.now(), dur: FLY.down, done: land };
+              }, Math.max(0, FLY.clouds - (performance.now() - t0)));
+            }));
+          },
+        };
         // 保险：画面没在渲染（切到别的页面）时也要按时落地
         setTimeout(() => { for (let i = 0; i < 2 && playerRuntime.fly; i++) { const f = playerRuntime.fly; playerRuntime.fly = null; playerRuntime.flyY = 0; f.done?.(); } }, FLY_MS * 3);
-        if (dest.district === town.district) {
-          // 同一个街区：小飞机沿弧线飞过去
-          const d = Math.hypot(dest.p.x - here.x, dest.p.z - here.z);
-          playerRuntime.fly = { mode: 'arc', from: here, to: dest.p, t0: performance.now(), dur: Math.min(FLY_MS, 380 + d * 4), done: land };
-        } else {
-          // 别的街区 / 城市：起飞 → 换地图 → 从天而降
-          playerRuntime.fly = {
-            mode: 'up', from: here, to: here, t0: performance.now(), dur: FLY_MS * 0.42,
-            done: () => {
-              useTown.getState().goDistrict(dest.district, dest.p);
-              playerRuntime.fly = { mode: 'down', from: dest.p, to: dest.p, t0: performance.now(), dur: FLY_MS * 0.5, done: land };
-            },
-          };
-        }
       },
       openLive(ownerId) {
         if (!ownerId) return set({ open: undefined });

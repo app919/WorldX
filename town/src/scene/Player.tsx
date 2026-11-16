@@ -10,6 +10,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { Chibi, GhostChibi } from './Chibi';
+import { useServer } from '../store/useServer';
 import { cam, zoomBy } from './input';
 import { dress } from '../domain/identity';
 import { compiledOf, navOf, streetOfDoor } from '../world';
@@ -191,6 +192,9 @@ export function Player() {
       // 进门：站到门口触发点
       const cd = compiledOf(s.district);
       const door = cd.doors.find((d) => dist(d.trigger, playerRuntime) < 0.75);
+      // 站在门口时，不管信息牌是走过来触发的还是「打个飞的」/ 搜索打开的，都算这扇门已经处理过：
+      // 关掉信息牌后不会立刻又弹出来，离开门口再回来才会再弹
+      if (door && (s.card || s.chatOpc || useServer.getState().shopView)) lastDoor.current = door.id;
       // 打工：取货 / 送达 / 到店帮工（路过别的店弹出的名片不影响送货）
       if (door && door.id !== lastDoor.current && door.lotId && useWork.getState().active && useWork.getState().arrive(door.lotId)) {
         lastDoor.current = door.id;

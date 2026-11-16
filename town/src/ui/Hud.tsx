@@ -166,7 +166,8 @@ export function BottomNav() {
   );
 }
 
-const KIND_TONE: Record<string, string> = { 买: 'bg-[#3D7BD8] text-white', 逛: 'bg-[#8C6BD6] text-white', 跟: 'bg-[#D9A62E] text-white' };
+/** 任务类型只用小图标区分（设计内核不外显） */
+const KIND_ICON: Record<string, string> = { 买: '🎯', 逛: '👀', 跟: '🎪' };
 
 /** 新手 7 天 → 第 8 天起每日委托；底部是 30 天一季的签到条 */
 export function Coach() {
@@ -215,7 +216,7 @@ export function Coach() {
           return (
             <div key={q.id} className={`rounded-2xl px-2 py-1.5 text-[11px] ${got ? 'bg-sage-200/50 text-stone-400' : 'bg-cream-100'}`} data-testid="quest-item">
               <div className="flex items-start gap-1.5">
-                <span className={`mt-0.5 shrink-0 rounded px-1 text-[9px] font-black ${KIND_TONE[q.kind]}`}>{q.kind}</span>
+                <span className="shrink-0 text-[12px] leading-none">{KIND_ICON[q.kind]}</span>
                 <span className={`flex-1 ${got ? 'line-through' : 'font-bold text-cocoa-800'}`}>{q.title}</span>
                 {got ? <span>✅</span> : ok
                   ? <button data-testid="quest-claim" onClick={() => useQuests.getState().claim(q.id)} className="shrink-0 rounded-full bg-almond-400 px-2 py-0.5 text-[10px] font-black text-cocoa-800">领取 ⭐{q.stars}</button>

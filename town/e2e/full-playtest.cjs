@@ -728,7 +728,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.3.0'), `版本号是 ${v}`);
+    must(v.includes('1.3.1'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -982,6 +982,28 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const n = await evalTown(() => window.__town.useQuests.getState().checkins.length);
     must(n >= 1, '没有签到');
     return await T('checkin').innerText();
+  });
+
+  await step('信息牌：站在门口点「✕」能关掉，不会马上又弹出来', async () => {
+    await closeAll(); await toCity();
+    const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); return window.__town.doors('wukang').find((d) => d.lotId && p.opc.includes(d.lotId) && !p.examples.includes(d.lotId) && d.lotId.startsWith('wukang_lot'))?.lotId; });
+    await evalTown((l) => window.__town.nearLot(l, 3), lot);
+    await T('lot-card').waitFor({ timeout: 150000 });
+    await T('lot-card').getByLabel('关闭').click();
+    await page.waitForTimeout(2000);
+    must(await T('lot-card').count() === 0, '点了关闭又弹出来了');
+  });
+  await step('打个飞的：起飞 → 穿越云层 → 降落 →「我们到了」', async () => {
+    await closeAll(); await toCity();
+    await T('need-input').click();
+    await T('need-input').fill('找拍摄');
+    await page.keyboard.press('Enter');
+    await T('need-hit').filter({ hasText: '光影小棚' }).first().click();
+    await T('fly-overlay').waitFor({ timeout: 3000 });
+    await T('fly-arrived').waitFor({ timeout: 8000 });
+    must((await T('fly-arrived').innerText()).includes('我们到了'), '没有「我们到了」');
+    await T('agent-chat').waitFor({ timeout: 8000 });
+    await evalTown(() => window.__town.useTown.getState().openChat(undefined));
   });
 
   // —— 三条街道 ——

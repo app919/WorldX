@@ -2,7 +2,7 @@
  * 铺位规则（纯逻辑，可单测）：
  *
  * - 每个街区的铺位：60% 是 OPC 招租位（无论有没有营业执照都可以开店），40% 是「黄金位」，留给赞助商付资金赞助；
- *   黄金位按“离街区入口近 + 在主街上 + 靠近路口”挑选，已有店铺的铺位不会被划成黄金位；
+ *   黄金位按“离街区入口近 + 在主街上”排序后均匀穿插（每 5 个取 2 个），已有店铺的铺位不会被划成黄金位；
  * - 每个人只能开一家店：店主「姓名」和「手机号」都是唯一的（同一手机号、同一姓名不能重复开店）；
  * - 有营业执照的店铺在招牌和名片上显示「企」角标；执照信息需填写企业名称与 18 位统一社会信用代码（含校验位）。
  */
@@ -34,7 +34,11 @@ export function lotPlan(d: DistrictKey): LotPlan {
   const main = def.roads[0].name;
   const score = (l: (typeof lots)[number]) => dist(l.door.p, def.spawn) - (l.street === main ? 30 : 0);
   const n = Math.round(lots.length * GOLDEN_RATIO);
-  const golden = lots.filter((l) => !taken.has(l.door.lotId!)).sort((a, b) => score(a) - score(b)).slice(0, n).map((l) => l.door.lotId!);
+  // 黄金位均匀穿插：按“离入口近 + 在主街上”排好序后，每 5 个铺位取第 1、3 个（40%），
+  // 这样走到哪里都是黄金位与 OPC 招租位交错，不会一出门全是黄金位
+  const ranked = lots.filter((l) => !taken.has(l.door.lotId!)).sort((a, b) => score(a) - score(b));
+  const spread = ranked.filter((_, i) => i % 5 === 0 || i % 5 === 2);
+  const golden = [...spread, ...ranked.filter((l) => !spread.includes(l))].slice(0, n).map((l) => l.door.lotId!);
   const g = new Set(golden);
   // 【例】：离入口较近、未被占用的招租位里隔一个取一个，既容易被看到，又不扎堆
   const exs = examplesOf(d);

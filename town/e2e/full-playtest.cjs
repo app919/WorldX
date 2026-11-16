@@ -986,18 +986,18 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
 
   await step('信息牌：站在门口点「✕」能关掉，不会马上又弹出来', async () => {
     await closeAll(); await toCity();
-    const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); return window.__town.doors('wukang').find((d) => d.lotId && p.opc.includes(d.lotId) && !p.examples.includes(d.lotId) && d.lotId.startsWith('wukang_lot'))?.lotId; });
+    const lot = await evalTown(() => { const p = window.__town.lotPlan('wukang'); const mine = window.__town.useTown.getState().myOpc?.lotId; return window.__town.doors('wukang').filter((d) => d.lotId && p.opc.includes(d.lotId) && !p.examples.includes(d.lotId) && d.lotId !== mine && d.lotId.startsWith('wukang_lot'))[2]?.lotId; });
     await evalTown((l) => window.__town.nearLot(l, 3), lot);
     await T('lot-card').waitFor({ timeout: 150000 });
     await T('lot-card').getByLabel('关闭').click();
     await page.waitForTimeout(2000);
     must(await T('lot-card').count() === 0, '点了关闭又弹出来了');
+    return lot;
   });
   await step('打个飞的：起飞 → 穿越云层 → 降落 →「我们到了」', async () => {
     await closeAll(); await toCity();
     await T('need-input').click();
-    await T('need-input').fill('找拍摄');
-    await page.keyboard.press('Enter');
+    await T('need-chip-找拍摄').click();
     await T('need-hit').filter({ hasText: '光影小棚' }).first().click();
     await T('fly-overlay').waitFor({ timeout: 3000 });
     await T('fly-arrived').waitFor({ timeout: 8000 });

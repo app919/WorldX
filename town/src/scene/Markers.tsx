@@ -37,7 +37,7 @@ export function Markers({ district }: { district: DistrictKey }) {
         const active = focus === r.id;
         return (
           <group key={r.id} position={[lot.door.p.x + lot.door.out.x * 1.2, 4.6, lot.door.p.z + lot.door.out.z * 1.2]}>
-            <Html center zIndexRange={active ? [40, 30] : [25, 20]}>
+            <Html center zIndexRange={active ? [19, 16] : [15, 12]}>
               <button
                 data-testid={`marker-${r.counterpartyId}`}
                 onClick={() => { setBiz(type, r.id); setTab('biz'); }}

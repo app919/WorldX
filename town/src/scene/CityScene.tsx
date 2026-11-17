@@ -21,12 +21,12 @@ import { Traffic } from './Traffic';
 import { Markers } from './Markers';
 import { ConnectionLines, Effects } from './Effects';
 import { lightingFor } from './lighting';
-import { applyNight } from './materials';
+import { applyNight, applyWet } from './materials';
 import { compiledOf } from '../world';
 import { DRAW_DIST, LOW_GFX, ULTRA_GFX } from './quality';
 import { Sky, Stars } from '@react-three/drei';
 import { cam } from './input';
-import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { playerRuntime, useTown } from '../store/useTown';
 
@@ -96,6 +96,7 @@ function DayNight() {
     if (amb.current) amb.current.intensity = L.ambient;
     state.scene.environmentIntensity = 0.55 * (1 - L.night * 0.6);
     applyNight(L.night);
+    applyWet(weatherNow(cityOfDistrict(s.district).id) === 'rain' ? 1 : 0);
   });
   return (
     <>
@@ -191,6 +192,9 @@ export function CityScene() {
           <N8AO aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality={ULTRA_GFX ? 'high' : 'medium'} halfRes={!ULTRA_GFX} />
           <Bloom luminanceThreshold={0.92} luminanceSmoothing={0.2} intensity={0.45} mipmapBlur />
           <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+          {/* 调色：略提对比与饱和，让阳光下的砖墙、梧桐更有层次 */}
+          <BrightnessContrast brightness={0} contrast={0.07} />
+          <HueSaturation saturation={0.06} />
           <SMAA />
           <Vignette offset={0.35} darkness={0.25} />
         </EffectComposer>

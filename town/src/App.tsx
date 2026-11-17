@@ -21,6 +21,7 @@ import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
 import { Confetti, FlyOverlay, LiveChat, preloadFlyScene } from './ui/LiveChat';
+import { StrollCard, StrollDriver } from './ui/Stroll';
 import { FeedPanel, LivePanel } from './ui/Buzz';
 import { AutoClose } from './ui/AutoClose';
 import { OpcWizard } from './ui/OpcWizard';
@@ -72,6 +73,8 @@ export default function App() {
             <LiveChat />
             <AutoClose />
             <ReturnSummaryCard />
+            <StrollDriver />
+            <StrollCard />
             <FlyOverlay />
             <Confetti />
             <FeedPanel />

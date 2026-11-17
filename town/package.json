@@ -1,7 +1,7 @@
 {
   "name": "sanlinbang",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "type": "module",
   "description": "三邻邦（OPC Town） — 在上海，逛着逛着，就可能找到下一位客户。",
   "scripts": {
@@ -20,25 +20,19 @@
     "start": "npm run build && tsx server/src/server.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.8.0",
     "@fastify/cookie": "^9.4.0",
     "@fastify/multipart": "^8.3.1",
     "@fastify/static": "^7.0.4",
-    "@react-three/drei": "^9.117.3",
-    "@react-three/fiber": "^8.17.10",
-    "@react-three/postprocessing": "^2.16.6",
     "fastify": "^4.29.1",
-    "framer-motion": "^11.11.17",
     "jszip": "^3.10.2",
     "mammoth": "^1.13.0",
     "pdf-parse": "^1.1.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.170.0",
-    "zod": "^3.25.76",
-    "zustand": "^4.5.5"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@react-three/drei": "^9.117.3",
+    "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.6",
     "@types/node": "^26.6.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -46,11 +40,18 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.15",
+    "three": "^0.170.0",
     "tsx": "^4.23.15",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vite-plugin-singlefile": "^2.0.3",
-    "vitest": "^2.1.5"
+    "vitest": "^2.1.5",
+    "zustand": "^4.5.5"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^1.8.0"
   }
 }

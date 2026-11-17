@@ -21,7 +21,7 @@ export function JobTarget({ district }: { district: string }) {
   return (
     <group position={[pl.trigger.x, 0, pl.trigger.z]}>
       <group ref={g}>
-        <Html center zIndexRange={[45, 40]} style={{ pointerEvents: 'none' }}>
+        <Html center zIndexRange={[19, 17]} style={{ pointerEvents: 'none' }}>
           <div className="flex flex-col items-center">
             <span className="whitespace-nowrap rounded-2xl bg-[#FF8A3D] px-3 py-1 text-xs font-black text-white shadow-soft">{label} · {pl.name}</span>
             <span className="h-4 w-1 bg-[#FF8A3D]" />

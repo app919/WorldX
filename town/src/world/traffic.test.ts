@@ -148,4 +148,27 @@ describe.each(DISTRICT_ORDER)('街区「%s」的车辆遵守物理规律', (id) 
     expect(hits).toEqual([]);
     expect(CAR_W).toBeGreaterThan(1);
   });
+
+  it('人站在停着的车身侧面（不在车头前方）：车照常开走，不会和人互相等着卡住', () => {
+    const tr = createTraffic(cd);
+    for (let f = 0; f < 200; f++) stepTraffic(tr, 0.05, []);
+    const car = tr.cars.find((c) => !c.hidden && c.v > 2 && !c.turn)!;
+    const p = carPos(tr, car), d = carDir(tr, car);
+    // 人贴着车头侧边站着（车头之后 0.4 米、离车身中线 1.45 米）
+    const side = { x: p.x + d.x * (CAR_LEN / 2 - 0.4) - d.z * 1.45, z: p.z + d.z * (CAR_LEN / 2 - 0.4) + d.x * 1.45 };
+    car.v = 0; // 车已经停着（例如刚礼让过行人）
+    const t0 = car.t;
+    for (let f = 0; f < 80; f++) stepTraffic(tr, 0.05, [side]);
+    expect(car.t - t0).toBeGreaterThan(2);
+    // 人站在车头正前方：车一定停下
+    const tr2 = createTraffic(cd);
+    for (let f = 0; f < 200; f++) stepTraffic(tr2, 0.05, []);
+    const c2 = tr2.cars.find((c) => !c.hidden && c.v > 2 && !c.turn)!;
+    const p2 = carPos(tr2, c2), d2 = carDir(tr2, c2);
+    const front = { x: p2.x + d2.x * (CAR_LEN / 2 + 3), z: p2.z + d2.z * (CAR_LEN / 2 + 3) };
+    for (let f = 0; f < 80; f++) stepTraffic(tr2, 0.05, [front]);
+    expect(c2.v).toBeLessThan(0.2);
+    const pc = carPos(tr2, c2);
+    expect(Math.hypot(pc.x - front.x, pc.z - front.z)).toBeGreaterThan(CAR_LEN / 2 + 0.3);
+  });
 });

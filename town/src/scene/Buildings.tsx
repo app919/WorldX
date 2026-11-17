@@ -10,7 +10,8 @@
  * - 菜场：大跨坡屋顶、开敞门面。  - 沿街小店：橱窗、遮阳棚、招牌。
  */
 import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
+import { cam } from './input';
 import type { Group } from 'three';
 import { RoundedBox } from '@react-three/drei';
 import { ExtrudeGeometry, InstancedMesh, MeshStandardMaterial, Object3D, Shape, Vector2, type Material } from 'three';
@@ -19,7 +20,7 @@ import type { V2 } from '../world/geom';
 import { mats } from './materials';
 import { extrudePolygon, worldBox } from './geo';
 import { ROOF_COLORS, signTex, type ShopCategory } from './textures';
-import { rng } from '../world/geom';
+import { inOBB, inPolygon, rng } from '../world/geom';
 import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
@@ -28,7 +29,10 @@ import { ROLE_BADGE, ROLE_DARK, ROLE_TINT } from '../domain/palette';
 import { useLots } from '../store/useLots';
 import { shopAtLot, useServer } from '../store/useServer';
 
-const FH = 1.35; // 层高（游戏单位）
+/**
+ * 真实比例（1 单位 = 1 米）：人约 1.7 米、门约 2.25 米、住宅层高 3 米、底层商铺 3.6 米、窗约 1.1 × 1.5 米。
+ */
+export const FH = 3.0; // 层高
 
 /** 店铺屋顶染色：【例】蓝 /【企】砖红 / 个人店 绿；其他建筑保持原样 */
 const RoofTint = createContext<Material | null>(null);
@@ -39,29 +43,36 @@ const tintMat = (c: ShopCategory) => {
 };
 const useRoof = (fallback: Material) => useContext(RoofTint) ?? fallback;
 const RANK: Record<ShopCategory, number> = { example: 5, investor: 4, brand: 3, company: 2, personal: 1 };
-const GF = 1.8; // 商铺底层层高
+const GF = 3.6; // 商铺底层层高
 
 export interface WinSpec { x: number; y: number; z: number; ry: number; w: number; h: number }
 
 /** 窗户：实例化的窗框 + 玻璃 + 窗台 */
 export function Windows({ list, frame, glass }: { list: WinSpec[]; frame?: Material; glass?: Material }) {
   const M = mats();
-  const fr = useRef<InstancedMesh>(null), gl = useRef<InstancedMesh>(null), sl = useRef<InstancedMesh>(null);
+  const fr = useRef<InstancedMesh>(null), gl = useRef<InstancedMesh>(null), gd = useRef<InstancedMesh>(null), sl = useRef<InstancedMesh>(null);
+  // 夜里约 40% 的窗不开灯（按位置哈希，固定不闪）
+  const dimOf = (w: WinSpec) => ((Math.floor(w.x * 7.3) * 31 + Math.floor(w.y * 3.1) * 17 + Math.floor(w.z * 5.7) * 13) & 1023) % 10 < 4;
+  const nDim = list.filter(dimOf).length;
   useLayoutEffect(() => {
     const o = new Object3D();
+    let a = 0, b = 0;
     list.forEach((w, i) => {
       o.position.set(w.x, w.y, w.z); o.rotation.set(0, w.ry, 0);
       o.scale.set(w.w + 0.12, w.h + 0.12, 1); o.updateMatrix(); fr.current!.setMatrixAt(i, o.matrix);
-      o.translateZ(0.03); o.scale.set(w.w, w.h, 1); o.updateMatrix(); gl.current!.setMatrixAt(i, o.matrix);
+      o.translateZ(0.03); o.scale.set(w.w, w.h, 1); o.updateMatrix();
+      if (dimOf(w)) gd.current?.setMatrixAt(b++, o.matrix); else gl.current?.setMatrixAt(a++, o.matrix);
       o.position.set(w.x, w.y - w.h / 2 - 0.07, w.z); o.translateZ(0.06); o.scale.set(w.w + 0.16, 1, 1); o.updateMatrix(); sl.current!.setMatrixAt(i, o.matrix);
     });
-    [fr, gl, sl].forEach((r) => (r.current!.instanceMatrix.needsUpdate = true));
+    [fr, gl, gd, sl].forEach((r) => { if (r.current) r.current.instanceMatrix.needsUpdate = true; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list]);
   if (!list.length) return null;
   return (
     <group>
       <instancedMesh ref={fr} args={[undefined, frame ?? M.frame, list.length]}><boxGeometry args={[1, 1, 0.08]} /></instancedMesh>
-      <instancedMesh ref={gl} args={[undefined, glass ?? M.glass, list.length]}><boxGeometry args={[1, 1, 0.06]} /></instancedMesh>
+      {list.length - nDim > 0 && <instancedMesh ref={gl} args={[undefined, glass ?? M.glass, list.length - nDim]}><boxGeometry args={[1, 1, 0.06]} /></instancedMesh>}
+      {nDim > 0 && <instancedMesh ref={gd} args={[undefined, glass ?? M.glassDim, nDim]}><boxGeometry args={[1, 1, 0.06]} /></instancedMesh>}
       <instancedMesh ref={sl} args={[undefined, M.trim, list.length]} castShadow><boxGeometry args={[1, 0.08, 0.2]} /></instancedMesh>
     </group>
   );
@@ -78,13 +89,13 @@ export function Buildings({ def }: { def: DistrictDef }) {
       {def.buildings.map((b) => {
         if (b.kind === 'wukang_mansion') {
           const c = b.polygon!.reduce((a, p) => ({ x: a.x + p.x / b.polygon!.length, z: a.z + p.z / b.polygon!.length }), { x: 0, z: 0 });
-          return <Cutaway key={b.id} cx={c.x} cz={c.z} reach={14} height={12}><WukangMansion poly={b.polygon!} /></Cutaway>;
+          return <Cutaway key={b.id} cx={c.x} cz={c.z} reach={14} height={26} contains={(p) => inPolygon(b.polygon!, p)}><WukangMansion poly={b.polygon!} /></Cutaway>;
         }
         const o = b.box!;
         const signs = b.doors.map((d) => ({ ...d, sign: signFor(d.lotId, myOpc && myOpc.lotId === d.lotId ? myOpc.name : undefined, !!myOpc?.license, myRole ?? (myOpc?.license ? 'company' : undefined)) }));
         const cat = signs.reduce<ShopCategory | undefined>((a, x) => (x.sign?.cat && (!a || RANK[x.sign.cat] > RANK[a]) ? x.sign.cat : a), undefined);
         return (
-          <Cutaway key={b.id} cx={o.cx} cz={o.cz} reach={Math.max(o.w, o.d) / 2} height={b.floors * FH + 2.5}>
+          <Cutaway key={b.id} cx={o.cx} cz={o.cz} reach={Math.max(o.w, o.d) / 2} height={b.floors * FH + 2.5} contains={(p) => inOBB(o, p, 0.2)}>
             <group position={[o.cx, 0, o.cz]} rotation-y={o.rot} userData={{ roof: cat }}>
               <RoofTint.Provider value={cat ? tintMat(cat) : null}>
                 <Model b={b} signs={signs} />
@@ -102,11 +113,31 @@ export function Buildings({ def }: { def: DistrictDef }) {
  * 之前的“前景建筑自动压低”会在角色走过时让建筑反复升降，造成闪烁，已移除；
  * 被建筑挡住时，角色会以半透明轮廓显示（见 Player）。
  */
-function Cutaway({ cx, cz, reach, children }: { cx: number; cz: number; reach: number; height?: number; children: React.ReactNode }) {
+function Cutaway({ cx, cz, reach, height = 8, contains, children }: { cx: number; cz: number; reach: number; height?: number; contains?: (p: V2) => boolean; children: React.ReactNode }) {
   const g = useRef<Group>(null);
-  useFrame(() => {
+  const st = useRef({ k: 1, until: 0 });
+  const { camera } = useThree();
+  useFrame((_, dtRaw) => {
     if (!g.current) return;
+    const dt = Math.min(dtRaw, 0.05);
     g.current.visible = Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) < DRAW_DIST + reach;
+    if (!g.current.visible || !contains) return;
+    // 俯视时挡住角色的楼：平滑“切”到只剩底层（店面与招牌仍可见），走开后再长回去；有 1.2 秒停留，避免来回闪
+    let occ = false;
+    if (cam.mode === 'top' && Math.hypot(cx - playerRuntime.x, cz - playerRuntime.z) < reach + 30) {
+      const px = playerRuntime.x, pz = playerRuntime.z, py = 1.5;
+      const c = camera.position;
+      for (let k = 0.03; k <= 0.7 && !occ; k += 0.03) {
+        const y = py + (c.y - py) * k;
+        if (y > height) break;
+        occ = contains({ x: px + (c.x - px) * k, z: pz + (c.z - pz) * k });
+      }
+    }
+    const now = performance.now();
+    if (occ) st.current.until = now + 1200;
+    const want = now < st.current.until ? 0.14 : 1; // 压成一圈矮墙（像模拟经营游戏的“降墙”），露出里面的角色
+    st.current.k += (want - st.current.k) * Math.min(1, dt * 6);
+    g.current.scale.y = st.current.k;
   });
   return <group ref={g}>{children}</group>;
 }
@@ -159,18 +190,20 @@ const wallOf = (p: BuildingDef['palette']) => {
 };
 
 /** 正立面上一排排窗户（局部坐标，正立面在 +z） */
+/** 窗户真实尺寸系数（参数沿用旧的相对值，乘上它得到约 1.1 × 1.5 米） */
+const WIN_W = 1.4, WIN_H = 1.75;
 function facadeWindows(w: number, d: number, floors: number, y0: number, cols: number, ww = 0.75, wh = 0.85, skip?: (f: number, c: number) => boolean, sides = true): WinSpec[] {
   const out: WinSpec[] = [];
   for (let f = 0; f < floors; f++) for (let c = 0; c < cols; c++) {
     if (skip?.(f, c)) continue;
     const x = -w / 2 + (w / cols) * (c + 0.5);
-    out.push({ x, y: y0 + f * FH + FH * 0.5, z: d / 2 + 0.02, ry: 0, w: ww, h: wh });
+    out.push({ x, y: y0 + f * FH + FH * 0.5, z: d / 2 + 0.02, ry: 0, w: ww * WIN_W, h: wh * WIN_H });
     if (sides && c === 0) {
       const sc = Math.max(1, Math.floor(d / 2.6));
       for (let k = 0; k < sc; k++) {
         const z = -d / 2 + (d / sc) * (k + 0.5);
-        out.push({ x: -w / 2 - 0.02, y: y0 + f * FH + FH * 0.5, z, ry: -Math.PI / 2, w: ww * 0.9, h: wh });
-        out.push({ x: w / 2 + 0.02, y: y0 + f * FH + FH * 0.5, z, ry: Math.PI / 2, w: ww * 0.9, h: wh });
+        out.push({ x: -w / 2 - 0.02, y: y0 + f * FH + FH * 0.5, z, ry: -Math.PI / 2, w: ww * 0.9 * WIN_W, h: wh * WIN_H });
+        out.push({ x: w / 2 + 0.02, y: y0 + f * FH + FH * 0.5, z, ry: Math.PI / 2, w: ww * 0.9 * WIN_W, h: wh * WIN_H });
       }
     }
   }
@@ -208,7 +241,7 @@ function Gable({ w, d, y, h, mat: m0 }: { w: number; d: number; y: number; h: nu
   return <mesh geometry={g} material={mat} position-y={y} castShadow receiveShadow />;
 }
 
-function Door({ x, z, y = 0, w = 0.9, h = 1.5, mat }: { x: number; z: number; y?: number; w?: number; h?: number; mat?: Material }) {
+function Door({ x, z, y = 0, w = 1.1, h = 2.25, mat }: { x: number; z: number; y?: number; w?: number; h?: number; mat?: Material }) {
   const M = mats();
   return (
     <group position={[x, y, z]}>
@@ -228,22 +261,22 @@ function Storefront({ x, z, w, sign, awning }: { x: number; z: number; w: number
   return (
     <group position={[x, 0, z]}>
       {/* 室内（暖色）+ 橱窗玻璃 */}
-      <mesh material={M.interior} position={[-w * 0.18, 0.95, -0.12]}><boxGeometry args={[w * 0.55, 1.3, 0.05]} /></mesh>
-      <mesh material={M.shopGlass} position={[-w * 0.18, 0.95, 0.04]}><boxGeometry args={[w * 0.58, 1.36, 0.06]} /></mesh>
+      <mesh material={M.interior} position={[-w * 0.18, 1.45, -0.12]}><boxGeometry args={[w * 0.55, 2.3, 0.05]} /></mesh>
+      <mesh material={M.shopGlass} position={[-w * 0.18, 1.45, 0.04]}><boxGeometry args={[w * 0.58, 2.4, 0.06]} /></mesh>
       <mesh material={M.frameDark} position={[-w * 0.18, 0.26, 0.06]}><boxGeometry args={[w * 0.62, 0.12, 0.12]} /></mesh>
       {/* 店内的小桌与货架剪影 */}
-      <mesh material={M.wood} position={[-w * 0.28, 0.5, -0.06]}><boxGeometry args={[0.6, 0.06, 0.05]} /></mesh>
+      <mesh material={M.wood} position={[-w * 0.28, 0.75, -0.06]}><boxGeometry args={[0.6, 0.06, 0.05]} /></mesh>
       {/* 遮阳棚：条纹 */}
-      <group position={[0, 1.95, 0.42]} rotation-x={0.42}>
+      <group position={[0, 2.85, 0.6]} rotation-x={0.42}>
         {Array.from({ length: n }).map((_, i) => (
           <mesh key={i} material={i % 2 ? M.awningCream : awnMat} position={[-w / 2 + (w / n) * (i + 0.5), 0, 0]} castShadow>
-            <boxGeometry args={[w / n, 0.05, 0.95]} />
+            <boxGeometry args={[w / n, 0.05, 1.3]} />
           </mesh>
         ))}
       </group>
       {tex && (
-        <mesh position={[0, 2.55, 0.08]}>
-          <planeGeometry args={[Math.min(w * 0.9, 4.2), 0.62]} />
+        <mesh position={[0, 3.25, 0.08]}>
+          <planeGeometry args={[Math.min(w * 0.9, 4.2), 0.6]} />
           <meshStandardMaterial map={tex} roughness={0.6} emissive="#FFE7BE" emissiveIntensity={0.08} />
         </mesh>
       )}
@@ -271,7 +304,7 @@ function Shop({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       {signs.map((s, i) => (
         <group key={i}>
           <Storefront x={s.offset * 0.4} z={d / 2} w={w * 0.86} sign={s.sign} awning={awnings[(b.seed ?? 0) % awnings.length]} />
-          <Door x={s.offset * 0.4 + w * 0.3} z={d / 2} h={1.5} mat={M.woodDark} />
+          <Door x={s.offset * 0.4 + w * 0.3} z={d / 2} mat={M.woodDark} />
         </group>
       ))}
       {pitched ? <HipRoof w={w + 0.5} d={d + 0.5} y={H} h={1.4} mat={R() > 0.5 ? M.roofRed : M.roofGrey} /> : (
@@ -307,7 +340,7 @@ function Fronts({ signs, w, d, awning, door }: { signs: Signed[]; w: number; d: 
       {signs.map((sg, i) => (
         <group key={i}>
           {sg.lotId ? <Storefront x={sg.offset * 0.4} z={d / 2} w={w * 0.84} sign={sg.sign} awning={awning} /> : null}
-          <Door x={sg.offset * 0.4 + (sg.lotId ? w * 0.3 : 0)} z={d / 2} h={1.5} mat={door ?? M.woodDark} />
+          <Door x={sg.offset * 0.4 + (sg.lotId ? w * 0.3 : 0)} z={d / 2} mat={door ?? M.woodDark} />
         </group>
       ))}
     </>
@@ -328,7 +361,7 @@ function Siheyuan({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       {/* 红漆门框 + 门墩 */}
       {signs.filter((x) => !x.lotId).map((sg, i) => (
         <group key={i} position={[sg.offset * 0.4, 0, d / 2]}>
-          <mesh material={C.red} position={[0, 1.0, 0.08]}><boxGeometry args={[1.5, 2.0, 0.12]} /></mesh>
+          <mesh material={C.red} position={[0, 1.35, 0.08]}><boxGeometry args={[1.8, 2.7, 0.12]} /></mesh>
           {[-0.6, 0.6].map((x) => <mesh key={x} material={M.stone} position={[x, 0.22, 0.3]}><boxGeometry args={[0.3, 0.44, 0.4]} /></mesh>)}
         </group>
       ))}
@@ -409,14 +442,14 @@ function Chuanxi({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
 function Temple({ b }: { b: BuildingDef }) {
   const M = mats(), C = CM();
   const { w, d } = b.box!;
-  const base = 1.6;
+  const base = 2.0;
   const tiers = Math.max(1, Math.min(3, b.floors));
   const roof = b.palette === 'brick' ? C.tileGreen : C.tileGrey;
   const tex = useMemo(() => signTex(b.name ?? '', '#2F3B5C', '#F2D27A', 512, 128), [b.name]);
   let y = base;
   const parts: React.ReactNode[] = [];
   for (let t = 0; t < tiers; t++) {
-    const k = 1 - t * 0.22, ww = w * 0.8 * k, dd = d * 0.7 * k, hh = t === 0 ? 3.2 : 2.2;
+    const k = 1 - t * 0.22, ww = w * 0.8 * k, dd = d * 0.7 * k, hh = t === 0 ? 5.5 : 4.0;
     parts.push(
       <group key={t}>
         <Box w={ww} h={hh} d={dd} y={y} mat={C.red} />
@@ -431,7 +464,7 @@ function Temple({ b }: { b: BuildingDef }) {
       <Box w={w} h={base} d={d} mat={M.stone} />
       <Box w={3} h={0.5} d={1.6} y={0} z={d / 2 + 0.8} mat={M.stone} />
       {parts}
-      <mesh position={[0, base + 2.6, d * 0.35 + 0.22]}><planeGeometry args={[Math.min(5, w * 0.5), 0.9]} /><meshStandardMaterial map={tex} /></mesh>
+      <mesh position={[0, base + 4.4, d * 0.35 + 0.22]}><planeGeometry args={[Math.min(5, w * 0.5), 0.9]} /><meshStandardMaterial map={tex} /></mesh>
     </group>
   );
 }
@@ -460,7 +493,7 @@ function GardenVilla({ b }: { b: BuildingDef }) {
       {/* 门廊 */}
       <Box w={2.4} h={0.18} d={1.4} y={FH + 0.35} z={d / 2 + 0.7} mat={M.trim} />
       {[-1, 1].map((s) => <mesh key={s} material={M.trim} position={[s * 1.05, (FH + 0.35) / 2, d / 2 + 1.25]} castShadow><cylinderGeometry args={[0.1, 0.12, FH + 0.35, 10]} /></mesh>)}
-      <Door x={0} z={d / 2} y={0.4} h={1.3} />
+      <Door x={0} z={d / 2} y={0.4} />
       <Box w={2.0} h={0.2} d={0.8} z={d / 2 + 0.4} mat={M.stone} />
       <HipRoof w={w + 0.8} d={d + 0.8} y={H} h={2.0} mat={b.palette === 'white' ? M.roofGrey : M.roofRed} />
       <Box w={0.6} h={1.6} d={0.6} x={w * 0.28} y={H + 0.4} z={-d * 0.15} mat={M.brickWall} />
@@ -483,8 +516,8 @@ function ShikumenRow({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
     const out: WinSpec[] = [];
     for (let u = 0; u < units; u++) {
       const cx = -w / 2 + uw * (u + 0.5);
-      out.push({ x: cx - uw * 0.22, y: FH + 0.3 + FH * 0.5, z: d / 2 + 0.02, ry: 0, w: 0.7, h: 0.8 });
-      out.push({ x: cx + uw * 0.22, y: FH + 0.3 + FH * 0.5, z: d / 2 + 0.02, ry: 0, w: 0.7, h: 0.8 });
+      out.push({ x: cx - uw * 0.22, y: FH + 0.3 + FH * 0.5, z: d / 2 + 0.02, ry: 0, w: 0.95, h: 1.45 });
+      out.push({ x: cx + uw * 0.22, y: FH + 0.3 + FH * 0.5, z: d / 2 + 0.02, ry: 0, w: 0.95, h: 1.45 });
     }
     return out;
   }, [w, d, units, uw]);
@@ -498,13 +531,13 @@ function ShikumenRow({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
         return (
           <group key={i} position={[cx, 0, d / 2]}>
             {/* 石库门：石门框 + 弧形门楣 + 黑漆双扇门 */}
-            <mesh material={M.stone} position={[0, 0.95, 0.06]} castShadow><boxGeometry args={[1.6, 1.9, 0.14]} /></mesh>
-            <mesh material={M.stone} position={[0, 2.05, 0.08]} rotation-x={Math.PI / 2} castShadow><cylinderGeometry args={[0.85, 0.85, 0.18, 18, 1, false, -Math.PI / 2, Math.PI]} /></mesh>
-            <mesh material={M.door} position={[-0.27, 0.8, 0.14]}><boxGeometry args={[0.52, 1.55, 0.06]} /></mesh>
-            <mesh material={M.door} position={[0.27, 0.8, 0.14]}><boxGeometry args={[0.52, 1.55, 0.06]} /></mesh>
-            {[-0.1, 0.1].map((x) => <mesh key={x} material={M.metalLight} position={[x, 0.85, 0.18]}><torusGeometry args={[0.06, 0.015, 6, 12]} /></mesh>)}
+            <mesh material={M.stone} position={[0, 1.35, 0.06]} castShadow><boxGeometry args={[1.9, 2.7, 0.14]} /></mesh>
+            <mesh material={M.stone} position={[0, 2.7, 0.08]} rotation-x={Math.PI / 2} castShadow><cylinderGeometry args={[0.95, 0.95, 0.18, 18, 1, false, -Math.PI / 2, Math.PI]} /></mesh>
+            <mesh material={M.door} position={[-0.31, 1.15, 0.14]}><boxGeometry args={[0.6, 2.3, 0.06]} /></mesh>
+            <mesh material={M.door} position={[0.31, 1.15, 0.14]}><boxGeometry args={[0.6, 2.3, 0.06]} /></mesh>
+            {[-0.1, 0.1].map((x) => <mesh key={x} material={M.metalLight} position={[x, 1.2, 0.18]}><torusGeometry args={[0.06, 0.015, 6, 12]} /></mesh>)}
             {s.sign && !s.sign.empty && (
-              <mesh position={[0, 2.62, 0.1]}><planeGeometry args={[1.8, 0.4]} /><meshStandardMaterial map={signTex(s.sign.text, s.sign.bg, s.sign.fg)} /></mesh>
+              <mesh position={[0, 3.85, 0.1]}><planeGeometry args={[1.8, 0.4]} /><meshStandardMaterial map={signTex(s.sign.text, s.sign.bg, s.sign.fg)} /></mesh>
             )}
           </group>
         );
@@ -547,11 +580,11 @@ function ArtDeco({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       {tint && <Box w={w * 0.7 + 0.1} h={0.12} d={d * 0.8 + 0.1} y={H + 0.9} mat={tint} />}
       {shop ? <Storefront x={0} z={d / 2} w={w * 0.6} sign={shop.sign} awning="#C98068" /> : (
         <>
-          <mesh material={M.glass} position={[-w * 0.3, 0.95, d / 2 + 0.03]}><boxGeometry args={[w * 0.3, 1.2, 0.05]} /></mesh>
-          <mesh material={M.glass} position={[w * 0.3, 0.95, d / 2 + 0.03]}><boxGeometry args={[w * 0.3, 1.2, 0.05]} /></mesh>
+          <mesh material={M.glass} position={[-w * 0.3, 1.5, d / 2 + 0.03]}><boxGeometry args={[w * 0.3, 2.3, 0.05]} /></mesh>
+          <mesh material={M.glass} position={[w * 0.3, 1.5, d / 2 + 0.03]}><boxGeometry args={[w * 0.3, 2.3, 0.05]} /></mesh>
         </>
       )}
-      <Door x={shop ? w * 0.38 : 0} z={d / 2} h={1.55} mat={M.woodDark} />
+      <Door x={shop ? w * 0.38 : 0} z={d / 2} mat={M.woodDark} />
     </group>
   );
 }
@@ -571,7 +604,7 @@ function Arcade({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
       {signs.map((s, i) => (
         <group key={i}>
           <Storefront x={s.offset} z={d / 2} w={Math.min(6, w / signs.length - 0.6)} sign={s.sign} awning="#E8C77A" />
-          <Door x={s.offset + 2.2} z={d / 2} h={1.55} mat={M.woodDark} />
+          <Door x={s.offset + 2.2} z={d / 2} mat={M.woodDark} />
         </group>
       ))}
       {/* 出挑的上层 */}
@@ -618,8 +651,8 @@ function WorkersHousing({ b }: { b: BuildingDef }) {
       ))}
       {b.doors.map((dr, i) => (
         <group key={i}>
-          <Door x={dr.offset} z={d / 2} h={1.4} mat={M.metal} />
-          <mesh material={M.trim} position={[dr.offset, 1.8, d / 2 + 0.4]}><boxGeometry args={[1.6, 0.12, 0.9]} /></mesh>
+          <Door x={dr.offset} z={d / 2} mat={M.metal} />
+          <mesh material={M.trim} position={[dr.offset, 2.65, d / 2 + 0.4]}><boxGeometry args={[1.6, 0.12, 0.9]} /></mesh>
         </group>
       ))}
       <Box w={w + 0.2} h={0.35} d={d + 0.2} y={H} mat={M.roofFlat} />
@@ -635,8 +668,8 @@ function MarketHall({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
   const tex = useMemo(() => signTex(sign?.text ?? '社区菜场', '#5E8C6A', '#FFFFFF'), [sign?.text]);
   return (
     <group>
-      <Box w={w} h={2.6} d={d} mat={M.stuccoCream} />
-      <Box w={w * 0.9} h={2.0} d={0.2} z={d / 2} mat={M.interior} cast={false} />
+      <Box w={w} h={4.5} d={d} mat={M.stuccoCream} />
+      <Box w={w * 0.9} h={3.4} d={0.2} z={d / 2} mat={M.interior} cast={false} />
       {/* 开敞门面里的摊位 */}
       {[-0.3, 0, 0.3].map((f) => (
         <group key={f} position={[f * w, 0, d / 2 - 1.2]}>
@@ -649,7 +682,7 @@ function MarketHall({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
           ))}
         </group>
       ))}
-      <group position={[0, 2.25, d / 2 + 0.6]} rotation-x={0.35}>
+      <group position={[0, 3.4, d / 2 + 0.7]} rotation-x={0.35}>
         {Array.from({ length: 12 }).map((_, i) => (
           <mesh key={i} position={[-w / 2 + (w / 12) * (i + 0.5), 0, 0]} castShadow>
             <boxGeometry args={[w / 12, 0.05, 1.3]} />
@@ -657,8 +690,8 @@ function MarketHall({ b, signs }: { b: BuildingDef; signs: Signed[] }) {
           </mesh>
         ))}
       </group>
-      <Gable w={w + 0.6} d={d + 0.6} y={2.6} h={2.0} mat={M.metalLight} />
-      <mesh position={[0, 3.3, d / 2 + 0.05]}><planeGeometry args={[5.5, 1.1]} /><meshStandardMaterial map={tex} /></mesh>
+      <Gable w={w + 0.6} d={d + 0.6} y={4.5} h={2.4} mat={M.metalLight} />
+      <mesh position={[0, 4.1, d / 2 + 0.05]}><planeGeometry args={[5.5, 0.8]} /><meshStandardMaterial map={tex} /></mesh>
     </group>
   );
 }
@@ -674,8 +707,8 @@ function Civic({ b }: { b: BuildingDef }) {
       <Box w={w * 0.96} h={H * 0.5} d={0.1} y={H * 0.35} z={d / 2} mat={M.glass} cast={false} />
       <Box w={w + 0.3} h={0.3} d={d + 0.3} y={H} mat={M.roofFlat} />
       <RoofDetails w={w} d={d} y={H + 0.3} seed={7} />
-      <Box w={3.5} h={0.18} d={1.6} y={2.0} z={d / 2 + 0.8} mat={M.trim} />
-      <Door x={0} z={d / 2} h={1.6} mat={M.glass} w={1.6} />
+      <Box w={3.5} h={0.18} d={1.6} y={2.85} z={d / 2 + 0.8} mat={M.trim} />
+      <Door x={0} z={d / 2} h={2.5} mat={M.glass} w={1.8} />
       <mesh position={[0, H - 0.5, d / 2 + 0.06]}><planeGeometry args={[6, 0.8]} /><meshStandardMaterial map={tex} /></mesh>
     </group>
   );
@@ -712,9 +745,9 @@ function WukangMansion({ poly }: { poly: V2[] }) {
       {/* 底层拱廊：深色券洞 + 白色券面 */}
       {arches.map((a, i) => (
         <group key={i} position={[a.x, 0, a.z]} rotation-y={a.ry}>
-          <mesh material={M.woodDark} position={[0, 0.85, 0.02]}><boxGeometry args={[0.9, 1.7, 0.06]} /></mesh>
-          <mesh material={M.woodDark} position={[0, 1.7, 0.02]} rotation-x={Math.PI / 2}><cylinderGeometry args={[0.45, 0.45, 0.06, 14, 1, false, -Math.PI / 2, Math.PI]} /></mesh>
-          <mesh material={M.trim} position={[0, 1.7, 0.06]}><torusGeometry args={[0.5, 0.07, 6, 16, Math.PI]} /></mesh>
+          <mesh material={M.woodDark} position={[0, 1.6, 0.02]}><boxGeometry args={[1.6, 3.2, 0.06]} /></mesh>
+          <mesh material={M.woodDark} position={[0, 3.2, 0.02]} rotation-x={Math.PI / 2}><cylinderGeometry args={[0.8, 0.8, 0.06, 14, 1, false, -Math.PI / 2, Math.PI]} /></mesh>
+          <mesh material={M.trim} position={[0, 3.2, 0.06]}><torusGeometry args={[0.88, 0.1, 6, 16, Math.PI]} /></mesh>
         </group>
       ))}
       {/* 顶层与船头的阳台栏杆 */}
@@ -764,7 +797,7 @@ function mansionFacade(poly: V2[], base: number, mid: number) {
     if (L < 1.2) {
       // 船头圆弧：每段一扇窗 + 阳台
       const m = at(L / 2, 0.1);
-      for (let f = 0; f < 5; f++) wins.push({ ...m, y: base + 0.17 + f * FH + FH / 2, ry, w: 0.42, h: 0.8 });
+      for (let f = 0; f < 5; f++) wins.push({ ...m, y: base + 0.17 + f * FH + FH / 2, ry, w: 0.55, h: 1.5 });
       if (i % 2 === 0) for (const y of [base + 0.17 + FH * 1.05, base + 0.17 + FH * 3.05, base + 0.47 + mid]) {
         const r = at(L / 2, 0.32); rails.push({ ...r, y, ry, len: L + 0.05 });
       }
@@ -775,12 +808,12 @@ function mansionFacade(poly: V2[], base: number, mid: number) {
     for (let c = 0; c < cols; c++) {
       const t = (L / cols) * (c + 0.5);
       for (let f = 0; f < 5; f++) {
-        for (const dx of [-0.36, 0.36]) wins.push({ ...at(t + dx, 0.1), y: base + 0.17 + f * FH + FH / 2, ry, w: 0.4, h: 0.8 });
+        for (const dx of [-0.42, 0.42]) wins.push({ ...at(t + dx, 0.1), y: base + 0.17 + f * FH + FH / 2, ry, w: 0.55, h: 1.5 });
       }
       // 基座二层窗
-      wins.push({ ...at(t, 0.04), y: FH + 0.2 + FH / 2, ry, w: 0.9, h: 0.75 });
+      wins.push({ ...at(t, 0.04), y: FH + 0.2 + FH / 2, ry, w: 1.2, h: 1.4 });
       // 顶层窗
-      wins.push({ ...at(t, -0.2), y: base + 0.47 + mid + FH / 2, ry, w: 0.8, h: 0.7 });
+      wins.push({ ...at(t, -0.2), y: base + 0.47 + mid + FH / 2, ry, w: 1.0, h: 1.4 });
       // 底层拱廊
       if (L > 6) arches.push({ ...at(t, 0.04), ry });
     }

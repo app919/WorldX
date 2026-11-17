@@ -58,28 +58,30 @@ export const brickPaveTex = () => make('brickpave', 256, (g, s) => {
   }
 });
 
-export const brickWallTex = () => make('brickwall', 256, (g, s) => {
+/** 清水红砖墙：一张贴图对应 4 米见方，砖约 0.25 × 0.077 米（真实比例） */
+export const brickWallTex = () => make('brickwall', 512, (g, s) => {
   g.fillStyle = '#E3D2C4'; g.fillRect(0, 0, s, s);
   const R = rng(17);
-  const bw = s / 8, bh = s / 16;
-  for (let j = 0; j < 16; j++) for (let i = -1; i < 9; i++) {
+  const cols = 16, rows = 52, bw = s / cols, bh = s / rows;
+  for (let j = 0; j < rows; j++) for (let i = -1; i < cols + 1; i++) {
     const x = i * bw + (j % 2 ? bw / 2 : 0);
-    g.fillStyle = ['#B8644C', '#C2705A', '#AE5D47', '#C77B63', '#B46A52'][Math.floor(R() * 5)];
-    g.fillRect(x + 1.5, j * bh + 1.5, bw - 3, bh - 3);
+    g.fillStyle = ['#B8644C', '#C2705A', '#AE5D47', '#C77B63', '#B46A52', '#A9573F'][Math.floor(R() * 6)];
+    g.fillRect(x + 1.2, j * bh + 1.2, bw - 2.4, bh - 2.4);
   }
 });
 
-export const greyBrickTex = () => make('greybrick', 256, (g, s) => {
+/** 青砖：一张贴图对应 3 米见方，砖约 0.25 × 0.075 米 */
+export const greyBrickTex = () => make('greybrick', 512, (g, s) => {
   g.fillStyle = '#D6D1C9'; g.fillRect(0, 0, s, s);
   const R = rng(23);
-  const bw = s / 8, bh = s / 16;
-  for (let j = 0; j < 16; j++) for (let i = -1; i < 9; i++) {
+  const cols = 12, rows = 40, bw = s / cols, bh = s / rows;
+  for (let j = 0; j < rows; j++) for (let i = -1; i < cols + 1; i++) {
     const x = i * bw + (j % 2 ? bw / 2 : 0);
-    g.fillStyle = ['#8F8B86', '#9A9690', '#86827D', '#A39F99'][Math.floor(R() * 4)];
-    g.fillRect(x + 1.5, j * bh + 1.5, bw - 3, bh - 3);
+    g.fillStyle = ['#8F8B86', '#9A9690', '#86827D', '#A39F99', '#7F7B76'][Math.floor(R() * 5)];
+    g.fillRect(x + 1.2, j * bh + 1.2, bw - 2.4, bh - 2.4);
   }
   // 石库门常见的红砖腰线
-  g.fillStyle = '#B8644C'; g.fillRect(0, s * 0.5 - 4, s, 8);
+  g.fillStyle = '#B8644C'; g.fillRect(0, s * 0.5 - 7, s, 14);
 });
 
 export const stuccoTex = (tone: string, key: string) => make(`stucco_${key}`, 128, (g, s) => {
@@ -188,4 +190,46 @@ export function streetPlateTex(name: string): Texture {
     g.fillText(clean, 256, en ? 64 : 82);
     if (en) { g.font = '600 30px "Helvetica Neue",Arial,sans-serif'; g.fillText(en, 256, 122); }
   }, false);
+}
+
+/**
+ * 从颜色贴图自动生成“细节贴图”，让表面有真实的凹凸与粗糙度变化（光线斜照时砖缝、瓦楞、地砖缝有明暗）：
+ * - 高度 = 亮度（invert 时取反：浅色灰缝是凹下去的）；
+ * - 法线贴图：对高度做 Sobel 求导；
+ * - 粗糙度贴图（绿色通道）：凹处更粗糙、凸面略光滑。
+ * 全部在本地 Canvas 里算，不需要下载任何图片。
+ */
+const detailCache = new Map<string, { normal: Texture; rough: Texture }>();
+export function detailMaps(key: string, src: Texture, opts: { strength?: number; invert?: boolean; rough?: [number, number] } = {}) {
+  const hit = detailCache.get(key);
+  if (hit) return hit;
+  const img = src.image as HTMLCanvasElement;
+  const W = img.width, H = img.height;
+  const data = img.getContext('2d')!.getImageData(0, 0, W, H).data;
+  const h = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    const l = (0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]) / 255;
+    h[i] = opts.invert ? 1 - l : l;
+  }
+  const at = (x: number, y: number) => h[((y + H) % H) * W + ((x + W) % W)];
+  const k = opts.strength ?? 2.5;
+  const [r0, r1] = opts.rough ?? [0.95, 0.7];
+  const nC = document.createElement('canvas'), rC = document.createElement('canvas');
+  nC.width = rC.width = W; nC.height = rC.height = H;
+  const nI = nC.getContext('2d')!.createImageData(W, H), rI = rC.getContext('2d')!.createImageData(W, H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1));
+    const dy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1));
+    let nx = -dx * k, ny = dy * k, nz = 1;
+    const len = Math.hypot(nx, ny, nz); nx /= len; ny /= len; nz /= len;
+    const i = (y * W + x) * 4;
+    nI.data[i] = (nx * 0.5 + 0.5) * 255; nI.data[i + 1] = (ny * 0.5 + 0.5) * 255; nI.data[i + 2] = (nz * 0.5 + 0.5) * 255; nI.data[i + 3] = 255;
+    const r = r0 + (r1 - r0) * h[y * W + x];
+    rI.data[i] = rI.data[i + 1] = rI.data[i + 2] = Math.max(0, Math.min(255, r * 255)); rI.data[i + 3] = 255;
+  }
+  nC.getContext('2d')!.putImageData(nI, 0, 0); rC.getContext('2d')!.putImageData(rI, 0, 0);
+  const wrap = (c: HTMLCanvasElement) => { const t = new CanvasTexture(c); t.wrapS = t.wrapT = RepeatWrapping; t.anisotropy = 4; return t; };
+  const out = { normal: wrap(nC), rough: wrap(rC) };
+  detailCache.set(key, out);
+  return out;
 }

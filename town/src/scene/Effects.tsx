@@ -76,7 +76,7 @@ function Floater({ f }: { f: Fx }) {
   const c = FLOAT[f.kind];
   return (
     <group ref={g}>
-      <Html center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}>
+      <Html center zIndexRange={[19, 0]} style={{ pointerEvents: 'none' }}>
         <div className={`fx-pop whitespace-nowrap ${c.cls}`}>{c.text}</div>
       </Html>
     </group>

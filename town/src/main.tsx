@@ -1,4 +1,5 @@
 import { useLive } from './store/useLive';
+import { useStroll } from './store/useStroll';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -43,9 +44,11 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
     signals: () => { const tr = trafficRuntime.tr; return tr ? { junctions: [...tr.signals.values()].filter((s) => s.roads.length > 1).length, pedCrossings: tr.cwSignal.filter(Boolean).length, centers: [...tr.signals.values()].filter((s) => s.roads.length > 1).map((s) => s.center) } : null; },
     lotPlan: (d: string) => lotPlan(d as 'wukang'),
     cam,
+    buildings: (d: string) => compiledOf(d as 'wukang').def.buildings.map((b) => ({ id: b.id, kind: b.kind, floors: b.floors, box: b.box, polygon: b.polygon })),
     camPos: () => { const c = camRef.current; return c ? { x: c.position.x, y: c.position.y, z: c.position.z } : { x: 0, y: 0, z: 0 }; },
     useQuests,
     useLive,
+    useStroll,
     roofs: () => { const out: Record<string, number> = {}; for (const d of DISTRICT_ORDER) for (const l of allLots().filter((x) => x.district === d)) { const c = signFor(l.door.lotId)?.cat; if (c) out[c] = (out[c] ?? 0) + 1; } return out; },
     playerRuntime,
     props: (d: string) => compiledOf(d as 'wukang').props.map((p) => ({ kind: p.kind, x: p.p.x, z: p.p.z })),

@@ -34,7 +34,7 @@ export function OppPins({ district }: { district: string }) {
         if (!lot) return null;
         return (
           <group key={lotId} position={[lot.door.p.x + lot.door.out.x * 2.2, 3.4, lot.door.p.z + lot.door.out.z * 2.2]}>
-            <Html center zIndexRange={[22, 18]}>
+            <Html center zIndexRange={[16, 13]}>
               <button data-testid={`opp-pin-${lotId}`} onClick={() => { setOppTab('hall'); setTab('opps'); }}
                 className="whitespace-nowrap rounded-full bg-[#2F5D8A] px-2 py-0.5 text-[10px] font-black text-white shadow-soft ring-2 ring-white/70">
                 {v.label}{v.n > 1 ? ` +${v.n - 1}` : ''} · {v.status}

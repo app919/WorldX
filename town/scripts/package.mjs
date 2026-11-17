@@ -42,7 +42,18 @@ for (const entry of readdirSync(root)) {
 cpSync(join(root, 'docs', 'TEST_GUIDE.md'), join(stage, '测试链路与检验标准.md'));
 cpSync(join(root, 'docs', 'REQUIREMENTS_CHECK.md'), join(stage, '需求核对.md'));
 cpSync(join(root, 'docs', 'BACKEND.md'), join(stage, '后端与部署说明.md'));
-if (existsSync(join(root, 'e2e', 'playtest'))) cpSync(join(root, 'e2e', 'playtest'), join(stage, '自检报告'), { recursive: true });
+// 自检截图：缩到 960 宽、转成 JPG（体积约为 PNG 的 1/8，看得清就够了）；没有 ImageMagick 时原样复制
+if (existsSync(join(root, 'e2e', 'playtest'))) {
+  const dst = join(stage, '自检报告');
+  mkdirSync(dst, { recursive: true });
+  let hasConvert = true;
+  try { execSync('convert -version', { stdio: 'ignore' }); } catch { hasConvert = false; }
+  for (const f of readdirSync(join(root, 'e2e', 'playtest'))) {
+    const src = join(root, 'e2e', 'playtest', f);
+    if (hasConvert && f.endsWith('.png')) execSync(`convert "${src}" -resize '960x>' -quality 70 "${join(dst, f.replace(/\.png$/, '.jpg'))}"`);
+    else cpSync(src, join(dst, f), { recursive: true });
+  }
+}
 console.log('3/4 写使用说明…');
 writeFileSync(join(stage, '使用说明.txt'), `三邻邦（OPC Town）  v${pkg.version}
 在上海，逛着逛着，就可能找到下一位客户。
@@ -72,11 +83,15 @@ writeFileSync(join(stage, '使用说明.txt'), `三邻邦（OPC Town）  v${pkg.
     npm run dev        开发模式（http://localhost:5180）
     npm test           单元测试（含全量道路走查）
     npm run package    重新打包
+  只部署服务器（不需要开发工具）：npm run build 之后在服务器上 npm ci --omit=dev，依赖体积约为完整安装的 1/4。
+
+【体积】
+  「三邻邦.html」就是完整的游戏（约 2MB）。node_modules 是开发工具链（构建、测试、类型检查），只在二次开发时需要，不影响游戏本身。
 `);
 
 console.log('4/4 压缩…');
 const zip = join(out, `${name}.zip`);
 if (existsSync(zip)) rmSync(zip);
-execSync(`cd "${stage}" && zip -qr "${zip}" .`, { stdio: 'inherit' });
+execSync(`cd "${stage}" && zip -9 -qr "${zip}" .`, { stdio: 'inherit' });
 rmSync(stage, { recursive: true, force: true });
 console.log(`完成：${zip}`);

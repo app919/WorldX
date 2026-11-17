@@ -145,10 +145,28 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const r = await evalTown(() => window.__town.useTown.getState().walkTo({ x: 40, z: 0 }));
     return r ? '已规划绕行路径' : '提示走不过去';
   });
-  await step('走路：“随便逛逛”规划一条可走的路线', async () => {
-    await T('autowalk').click();
-    must(await evalTown(() => !!window.__town.useTown.getState().walkPath), '没有路线');
-    await evalTown(() => window.__town.useTown.getState().clearPath());
+  await step('随便逛逛：串起附近 3–5 个地方（地标 / 示范店 / 公园 / 活动），跟随视角一站站走，到站有讲解卡，可随时停止', async () => {
+    await T('autowalk').dispatchEvent('click');
+    await T('stroll').waitFor();
+    must((await T('autowalk').innerText()).includes('停止'), '按钮没有变成停止逛逛');
+    await page.waitForTimeout(1500);
+    must(await evalTown(() => !!window.__town.useTown.getState().walkPath), '没有开始走向第一站');
+    const info = await evalTown(() => { const s = window.__town.useStroll.getState(); return { n: s.stops.length, kinds: [...new Set(s.stops.map((x) => x.kind))], first: s.stops[0].title, at: s.stops[0].at, mode: window.__town.cam.mode }; });
+    must(info.n >= 3 && info.n <= 5, `站数 ${info.n}`);
+    must(info.mode === 'chase', `没有切到跟随视角：${info.mode}`);
+    // 直接把角色放到第一站（自动化测试里浏览器很慢，真实走过去要很久）
+    await evalTown((at) => { const t = window.__town; t.playerRuntime.x = at.x; t.playerRuntime.z = at.z; t.playerRuntime.teleported = true; t.useTown.getState().clearPath(); }, info.at);
+    await T('stroll-card').waitFor({ timeout: 20000 });
+    const card = await T('stroll-card').innerText();
+    must(card.includes('第 1/'), `讲解卡：${card}`);
+    await page.screenshot({ path: path.join(OUT, '64-stroll.png') });
+    // 讲解卡停留 8 秒后自动去下一站（测试浏览器很慢，直接调用“继续逛”）
+    await evalTown(() => { const s = window.__town.useStroll.getState(); if (s.i === 0) s.next(); });
+    must(await evalTown(() => window.__town.useStroll.getState().i) >= 1, '没有去下一站');
+    await T('autowalk').dispatchEvent('click');
+    must(!(await evalTown(() => window.__town.useStroll.getState().active)), '没有停止');
+    must(await evalTown(() => window.__town.cam.mode) === 'top', '停止后没有恢复俯视');
+    return `${info.n} 站（${info.kinds.join(' / ')}），第一站「${info.first}」`;
   });
 
   // —— 地标与门 ——
@@ -460,9 +478,9 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   });
   await step('视角：俯视 → 跟随 → 第一人称（V 键 / 👁️ 按钮），第一人称视线高度约 1.3 米，W 朝视线方向走', async () => {
     await closeAll(); await toCity();
-    await T('view-toggle').click();
+    await T('view-toggle').dispatchEvent('click');
     must((await T('view-toggle').innerText()).includes('跟随'), '没有切到跟随');
-    await T('view-toggle').click();
+    await T('view-toggle').dispatchEvent('click');
     must((await T('view-toggle').innerText()).includes('第一人称'), '没有切到第一人称');
     await page.waitForTimeout(2500);
     const camY = await evalTown(() => window.__town.camPos().y);
@@ -473,7 +491,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const p1 = await evalTown(() => ({ x: window.__town.playerRuntime.x, z: window.__town.playerRuntime.z }));
     const along = (p1.x - p0.x) * Math.sin(yaw) + (p1.z - p0.z) * Math.cos(yaw);
     await page.screenshot({ path: path.join(OUT, '63-first-person.png') });
-    await T('view-toggle').click();
+    await T('view-toggle').dispatchEvent('click');
     must((await T('view-toggle').innerText()).includes('俯视'), '没有回到俯视');
     return `视线高度 ${camY.toFixed(2)} 米；按 W 沿视线前进 ${along.toFixed(2)} 米`;
   });
@@ -844,7 +862,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.6.0'), `版本号是 ${v}`);
+    must(v.includes('1.7.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -1134,6 +1152,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
       await page.waitForTimeout(3000);
       const stats = await evalTown(() => window.__townStats);
       await page.screenshot({ path: path.join(OUT, `09-${d}.png`) });
+      if (await evalTown(() => window.__town.useStroll.getState().active)) await T('autowalk').click();
       return `draw calls ${stats?.calls}, triangles ${stats?.triangles}`;
     });
   }

@@ -22,6 +22,8 @@ import { NeedBox } from './NeedBox';
 import { PurseChip } from './Work';
 import { APP_BUILD_NOTE, APP_VERSION } from '../version';
 import { getPref, setPref } from './uiPrefs';
+import { toggleStroll } from './Stroll';
+import { useStroll } from '../store/useStroll';
 import { useWork } from '../store/useWork';
 
 export function TopBar() {
@@ -295,10 +297,9 @@ export function Controls() {
   const myOpc = useTown((s) => s.myOpc);
   const setWizard = useTown((s) => s.setWizard);
   const enterLot = useTown((s) => s.enterLot);
-  const walkTo = useTown((s) => s.walkTo);
-  const district = useTown((s) => s.district);
   const tab = useTown((s) => s.tab);
   const workOn = useWork((s) => s.enabled);
+  const strolling = useStroll((s) => s.active);
   const [view, setView] = useState(cam.mode);
   useEffect(() => { const f = () => setView(cam.mode); cam.listeners.add(f); return () => { cam.listeners.delete(f); }; }, []);
   const pad = useRef<HTMLDivElement>(null);
@@ -311,13 +312,7 @@ export function Controls() {
     knob.current!.style.transform = `translate(${x * 28}px, ${y * 28}px)`;
   };
   const end = () => { input.joyX = input.joyY = 0; input.run = false; knob.current!.style.transform = ''; };
-  const stroll = () => {
-    const nav = navOf(district); const b = nav.cd.def.bounds;
-    for (let k = 0; k < 30; k++) {
-      const p = { x: b.minX + Math.random() * (b.maxX - b.minX), z: b.minZ + Math.random() * (b.maxZ - b.minZ) };
-      if (nav.walkable(p) && walkTo(p)) { emitGame('stroll'); return; }
-    }
-  };
+
   if (tab !== 'city') return null;
   return (
     <>
@@ -344,7 +339,7 @@ export function Controls() {
         <NeedBox />
         <div className="pointer-events-auto flex gap-1.5">
           <Btn size="sm" tone={myOpc ? 'sakura' : 'cream'} onClick={() => (myOpc ? enterLot(myOpc.lotId) : setWizard(true))} data-testid="my-shop-btn">🏪 {myOpc ? '我的小店' : '开一家小店'}</Btn>
-          <Btn size="sm" onClick={stroll} data-testid="autowalk">🚶 随便逛逛</Btn>
+          <Btn size="sm" onClick={toggleStroll} data-testid="autowalk">{strolling ? '⏹ 停止逛逛' : '🚶 随便逛逛'}</Btn>
         </div>
       </div>
     </>

@@ -414,7 +414,7 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
   const obstacles: Obstacle[] = tunnels.map((t) => ({ kind: 'tunnel', box: t.box }));
   for (const p of props) {
     // 树的碰撞半径跟着树的大小走（树干 + 根部隆起，画面上看到多粗就挡多粗）
-    const r = p.kind === 'tree' ? Math.min(0.75, 0.44 * (p.scale ?? 1)) : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45 : p.kind === 'park_sign' ? 0.4
+    const r = p.kind === 'tree' ? Math.min(0.85, 0.52 * (p.scale ?? 1)) : p.kind === 'lamp' || p.kind === 'street_sign' ? 0.25 : p.kind === 'hydrant' ? 0.3 : p.kind === 'bin' ? 0.32 : p.kind === 'mailbox' ? 0.45 : p.kind === 'park_sign' ? 0.4
       : p.kind === 'fitness' ? 0.9 : p.kind === 'stall' ? 1.4 : p.kind === 'shrub' ? 0.7 : p.kind === 'umbrella_table' ? 1.0 : 0;
     if (r) obstacles.push({ kind: p.kind, p: p.p, r });
     if (p.kind === 'notice_board') obstacles.push({ kind: 'notice_board', box: { cx: p.p.x, cz: p.p.z, w: 2.0, d: 0.5, rot: p.rot ?? 0 } });

@@ -347,15 +347,16 @@ function StreetSign({ text }: { text: string }) {
   const tb = useMemo(() => (b ? streetPlateTex(b) : null), [b]);
   return (
     <group>
-      <mesh material={M.metal} position-y={1.35} castShadow><cylinderGeometry args={[0.05, 0.06, 2.7, 8]} /></mesh>
-      <mesh position={[0, 2.62, 0]}><boxGeometry args={[0.06, 0.6, 1.9]} /><meshStandardMaterial color="#1F4E8C" /></mesh>
-      <mesh position={[0.035, 2.62, 0]} rotation-y={Math.PI / 2}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={ta} /></mesh>
-      <mesh position={[-0.035, 2.62, 0]} rotation-y={-Math.PI / 2}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={ta} /></mesh>
+      {/* 上海路名牌：杆高约 3.2 米，蓝底白字牌约 1.0 × 0.33 米（真实比例） */}
+      <mesh material={M.metal} position-y={1.6} castShadow><cylinderGeometry args={[0.045, 0.055, 3.2, 8]} /></mesh>
+      <mesh position={[0, 3.05, 0]}><boxGeometry args={[0.05, 0.34, 1.02]} /><meshStandardMaterial color="#1F4E8C" /></mesh>
+      <mesh position={[0.03, 3.05, 0]} rotation-y={Math.PI / 2}><planeGeometry args={[1.0, 0.32]} /><meshStandardMaterial map={ta} /></mesh>
+      <mesh position={[-0.03, 3.05, 0]} rotation-y={-Math.PI / 2}><planeGeometry args={[1.0, 0.32]} /><meshStandardMaterial map={ta} /></mesh>
       {tb && (
-        <group position-y={2.0}>
-          <mesh><boxGeometry args={[1.9, 0.6, 0.06]} /><meshStandardMaterial color="#1F4E8C" /></mesh>
-          <mesh position-z={0.035}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={tb} /></mesh>
-          <mesh position-z={-0.035} rotation-y={Math.PI}><planeGeometry args={[1.86, 0.58]} /><meshStandardMaterial map={tb} /></mesh>
+        <group position-y={2.62}>
+          <mesh><boxGeometry args={[1.02, 0.34, 0.05]} /><meshStandardMaterial color="#1F4E8C" /></mesh>
+          <mesh position-z={0.03}><planeGeometry args={[1.0, 0.32]} /><meshStandardMaterial map={tb} /></mesh>
+          <mesh position-z={-0.03} rotation-y={Math.PI}><planeGeometry args={[1.0, 0.32]} /><meshStandardMaterial map={tb} /></mesh>
         </group>
       )}
     </group>

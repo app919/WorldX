@@ -432,10 +432,14 @@ function stepTrafficRaw(tr: Traffic, dt: number, peds: V2[]) {
       }
     }
     // 行人感应：车头前方（含转弯曲线）任何位置有人 —— 玩家、路人，不论在不在斑马线上 —— 都提前刹停，绝不压过去
+    // 只算挡在车头前方的人：站在车身侧面（车头之后）的人不在这辆车的行驶路线上，车开走并不会碰到他，
+    // 不能因为他停车 —— 否则人被车身挡住、车又在等人，两边互相等，画面就“卡住”了
     const lookP = (c.v * c.v) / (2 * BRAKE * 0.6) + 4.5;
+    const cp0 = poseAt(tr, c, c.t);
+    const ahead = peds.filter((q) => (q.x - cp0.p.x) * cp0.dir.x + (q.z - cp0.p.z) * cp0.dir.z > CAR_LEN / 2 - 0.25);
     for (let d = 0; d <= lookP; d += 0.5) {
       const p = poseAt(tr, c, front + d).p;
-      if (peds.some((q) => dist(q, p) < CAR_W / 2 + 0.7)) { lim(stopIn(d - 1.2), 'ped'); break; }
+      if (ahead.some((q) => dist(q, p) < CAR_W / 2 + 0.6)) { lim(stopIn(d - 1.2), 'ped'); break; }
     }
     const target = Math.max(0, vMax);
     const dv = target - c.v;

@@ -12,6 +12,7 @@ import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { Chibi, GhostChibi } from './Chibi';
 import { useServer } from '../store/useServer';
 import { cam, camRef, cycleView, zoomBy } from './input';
+import { useStroll } from '../store/useStroll';
 import { dress } from '../domain/identity';
 import { compiledOf, navOf, streetOfDoor } from '../world';
 import { Zone } from '../world/nav';
@@ -52,11 +53,13 @@ export function Player() {
   const beacon = useRef<Group>(null);
   const { camera, gl } = useThree();
   const camTarget = useRef(new Vector3(avatar.position.x, 0, avatar.position.z));
+  const snapCam = useRef(true);
 
   useEffect(() => { pathIdx.current = 0; }, [walkPath]);
   useEffect(() => {
     playerRuntime.x = avatar.position.x; playerRuntime.z = avatar.position.z;
     camTarget.current.set(avatar.position.x, 0, avatar.position.z);
+    snapCam.current = true; // 进入 / 切换街区：镜头直接到位，不从远处飘过来
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [district]);
 
@@ -118,7 +121,7 @@ export function Player() {
     const dt = Math.min(dtRaw, 0.05);
     const s = useTown.getState();
     const nav = navOf(s.district);
-    if (playerRuntime.teleported) { playerRuntime.teleported = false; camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); }
+    if (playerRuntime.teleported) { playerRuntime.teleported = false; camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); snapCam.current = true; }
     // 打个飞的：小飞机载着角色飞（镜头跟着飞）
     const fr = playerRuntime.fly;
     if (fr) {
@@ -165,14 +168,19 @@ export function Player() {
       const to = { x: from.x + (dx / len) * speed * dt, z: from.z + (dz / len) * speed * dt };
       let res = nav.move(from, to, slideMemo.current);
       // 不能穿过车辆：车在斑马线上时会被挡住
-      if (hitsCar(trafficRuntime.tr, res.p)) res = { p: from, hit: true };
+      let carBlock = false;
+      if (hitsCar(trafficRuntime.tr, res.p)) {
+        res = { p: from, hit: true }; carBlock = true;
+        if (now > signalHint.current) { signalHint.current = now + 3; s.toast('🚗 车挡在前面，稍等它开走', 'info'); }
+      }
       // 过马路看信号灯：红灯不能走上斑马线；没有信号灯的斑马线，有车驶来要先等一等
+      let waitSignal = false;
       const cwIdx = nav.cd.crosswalks.findIndex((c) => inOBB(c.box, res.p, 0.05));
       if (cwIdx >= 0 && !inOBB(nav.cd.crosswalks[cwIdx].box, from, 0.05)) {
         const sig = pedLight(trafficRuntime.tr, cwIdx);
         const busy = sig === 'none' && crosswalkBusy(trafficRuntime.tr, nav.cd.crosswalks[cwIdx].box, 9);
         if (sig === 'stop' || busy) {
-          res = { p: from, hit: true };
+          res = { p: from, hit: true }; waitSignal = true;
           if (now > signalHint.current) { signalHint.current = now + 3; s.toast(sig === 'stop' ? '🚦 红灯，请等行人绿灯再过马路' : '🚗 有车驶来，稍等再过', 'info'); }
         }
       }
@@ -183,15 +191,17 @@ export function Player() {
       }
       // 脱困：一直按着方向却没有移动（被树、路灯、栏杆夹住）→ 往按的方向找最近的可走点，挪过去
       const movedBy = Math.hypot(res.p.x - from.x, res.p.z - from.z);
-      stuckFor.current = movedBy < speed * dt * 0.08 && res.hit ? stuckFor.current + dt : 0;
+      // 等红灯、等车开走不算卡住（不能借脱困穿过斑马线或车）
+      stuckFor.current = movedBy < speed * dt * 0.08 && res.hit && !carBlock && !waitSignal ? stuckFor.current + dt : 0;
       if (stuckFor.current > 0.8) {
         stuckFor.current = 0;
         const out = nav.unstick(from, dx / len, dz / len);
-        if (out && !hitsCar(trafficRuntime.tr, out)) { res = { p: out, hit: false }; slideMemo.current = { side: 0 }; }
+        if (out && !hitsCar(trafficRuntime.tr, out) && !nav.cd.crosswalks.some((c) => inOBB(c.box, out, 0.05))) { res = { p: out, hit: false }; slideMemo.current = { side: 0 }; }
       }
       playerRuntime.x = res.p.x; playerRuntime.z = res.p.z;
       playerRuntime.heading = Math.atan2(dx, dz);
-      moving.current = run ? 2 : 1;
+      // 被车挡住、或者红灯等着：原地站着（不再“原地踏步”）
+      moving.current = carBlock || (res.hit && Math.hypot(res.p.x - from.x, res.p.z - from.z) < 1e-4) ? 0 : run ? 2 : 1;
       if (!s.tutorial.walked) s.markWalked();
     } else { moving.current = 0; stuckFor.current = 0; }
     playerRuntime.moving = moving.current > 0;
@@ -220,10 +230,16 @@ export function Player() {
     if (group.current) group.current.visible = !fpMode;
     if (cam.mode === 'top' || playerRuntime.fly) {
       // 俯视约 55°，柔和跟随
-      const off = new Vector3(0, 40, 22).multiplyScalar(cam.dist);
+      const off = new Vector3(0, 44, 18).multiplyScalar(cam.dist);
+      if (snapCam.current) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); camera.position.copy(camTarget.current).add(off); snapCam.current = false; }
       camera.position.lerp(camTarget.current.clone().add(off), Math.min(1, dt * 3));
       camera.lookAt(camTarget.current.x, 0.8 + playerRuntime.flyY * 0.6, camTarget.current.z);
     } else {
+      // 随便逛逛：镜头慢慢转到角色前进的方向（电影感），到站时转向要看的地方
+      if (useStroll.getState().active) {
+        let dy = playerRuntime.heading - cam.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        cam.yaw += dy * Math.min(1, dt * 1.6);
+      }
       const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
       const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
       // 走路时镜头轻微起伏（第一人称更明显），站定时平稳
@@ -242,14 +258,14 @@ export function Player() {
         for (let d = 0.8; d <= want; d += 0.4) {
           const p = { x: camTarget.current.x - fx * d, z: camTarget.current.z - fz * d };
           if (cd.def.buildings.some((b) => (b.polygon ? inPolygon(b.polygon, p) : inOBB(b.box!, p, 0.3)))
-            || cd.props.some((t) => t.kind === 'tree' && dist(t.p, p) < 0.55 * (t.scale ?? 1))) { back = Math.max(0.8, d - 0.4); break; }
+            || cd.props.some((t) => t.kind === 'tree' && dist(t.p, p) < 0.7 * (t.scale ?? 1))) { back = Math.max(0.8, d - 0.4); break; }
         }
         let h = 2.9 - sp * back * 0.8;
         // 镜头位置落在树冠里（树冠大约 2.4 米以上、半径约 2.2）：降到树冠下面，从树下拍过去
         const cpos = { x: camTarget.current.x - fx * back * cp - fz * 0.9, z: camTarget.current.z - fz * back * cp + fx * 0.9 };
         // 镜头到角色的视线穿过树冠（不只是镜头本身在树冠里）也降下来
-        const crownHit = (k: number) => { const q = { x: camTarget.current.x + (cpos.x - camTarget.current.x) * k, z: camTarget.current.z + (cpos.z - camTarget.current.z) * k }; return cd.props.some((t) => t.kind === 'tree' && dist(t.p, q) < 2.3 * (t.scale ?? 1)); };
-        if ([0.35, 0.55, 0.75, 1].some(crownHit)) h = Math.min(h, 1.75);
+        const crownHit = (k: number) => { const q = { x: camTarget.current.x + (cpos.x - camTarget.current.x) * k, z: camTarget.current.z + (cpos.z - camTarget.current.z) * k }; return cd.props.some((t) => t.kind === 'tree' && dist(t.p, q) < 2.9 * (t.scale ?? 1)); };
+        if ([0.35, 0.55, 0.75, 1].some(crownHit)) h = Math.min(h, 2.4);
         // 过肩：镜头稍微偏到角色右后方，画面中间留给前方的街道
         const rx = -fz * 0.9, rz = fx * 0.9;
         const pos = new Vector3(camTarget.current.x - fx * back * cp + rx, Math.max(0.6, h) + bob, camTarget.current.z - fz * back * cp + rz);
@@ -297,7 +313,7 @@ export function Player() {
         for (let d = 1; d <= 16 && !hidden; d += 0.8) {
           const p = { x: playerRuntime.x, z: playerRuntime.z + d * 0.48 };
           const h = 1.2 + d * 0.48 * 1.82;
-          hidden = cd.def.buildings.some((b) => (b.polygon ? inPolygon(b.polygon, p) : inOBB(b.box!, p)) && (b.kind === 'wukang_mansion' ? 11 : b.floors * 1.35 + 2) > h);
+          hidden = cd.def.buildings.some((b) => (b.polygon ? inPolygon(b.polygon, p) : inOBB(b.box!, p)) && (b.kind === 'wukang_mansion' ? 26 : b.floors * 3 + 2.5) > h);
         }
         if (!hidden) {
           // 树冠大约在 2.4–6.5 高、半径约 2：视线在这一高度段经过树冠就算被挡住
@@ -305,7 +321,7 @@ export function Player() {
             if (t.kind !== 'tree') return false;
             const dz = t.p.z - playerRuntime.z, dx = Math.abs(t.p.x - playerRuntime.x);
             const sc = t.scale ?? 1;
-            return dx < 2.1 * sc && dz > -1.2 && dz < 3.6 * sc;
+            return dx < 2.6 * sc && dz > -1.2 && dz < 6.2 * sc;
           });
         }
         ghost.current.visible = hidden && cam.mode === 'top';
@@ -347,7 +363,7 @@ export function Player() {
             <meshBasicMaterial color="#FF8A3D" depthTest={false} depthWrite={false} toneMapped={false} fog={false} />
           </mesh>
         </group>
-        <Html position={[0, 2.3, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+        <Html position={[0, 2.3, 0]} center zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}>
           <div className="whitespace-nowrap rounded-full bg-almond-300 px-2 py-0.5 text-[11px] font-bold text-cocoa-800 shadow-soft">我 · {avatar.nickname}</div>
         </Html>
       </group>

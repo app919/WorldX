@@ -180,6 +180,9 @@ export function Trees({ props }: { props: PropDef[] }) {
   return <>{groups.map((g) => <TreeBatch key={g.key} list={g.list} geo={g.geo} />)}</>;
 }
 
+/** 树的真实比例系数（建筑层高改为 3 米后，树也要相应长高） */
+export const TREE_Y = 1.75, TREE_XZ = 1.25;
+
 function TreeBatch({ list, geo }: { list: PropDef[]; geo: BufferGeometry }) {
   const ref = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -188,7 +191,8 @@ function TreeBatch({ list, geo }: { list: PropDef[]; geo: BufferGeometry }) {
       const s = t.scale ?? 1;
       o.position.set(t.p.x, 0, t.p.z);
       o.rotation.set(0, t.rot ?? 0, 0);
-      o.scale.set(s, s * (0.95 + ((i * 37) % 10) / 100), s);
+      // 真实比例：梧桐长到三四层楼高（与 3 米层高的建筑相配），树干和树冠横向略放大
+      o.scale.set(s * TREE_XZ, s * TREE_Y * (0.95 + ((i * 37) % 10) / 100), s * TREE_XZ);
       o.updateMatrix();
       ref.current!.setMatrixAt(i, o.matrix);
     });

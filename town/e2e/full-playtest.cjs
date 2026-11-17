@@ -89,6 +89,17 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await page.screenshot({ path: path.join(OUT, '01-start.png') });
   });
 
+  await step('快速开张：OPC 进街区就弹出「上传资料，1 分钟开张」，粘贴介绍 → 自动预填开店向导（店名 / 介绍 / 类别 / 产品）', async () => {
+    await T('quick-start').waitFor({ timeout: 20000 });
+    await T('quick-text').fill('光影小作坊\n我们是一家做产品摄影和短视频剪辑的一人工作室，帮小品牌拍产品图、做宣传片。');
+    await T('quick-go').click();
+    await T('opc-wizard').waitFor();
+    const txt = await T('opc-wizard').innerText();
+    const name = await page.locator('[data-testid=opc-wizard] input').evaluateAll((els) => els.map((e) => e.value).join('|'));
+    await T('opc-wizard').getByLabel('关闭').first().click();
+    must(await T('quick-start').count() === 0, '快速开张卡片应该收起');
+    return `向导预填：${name.slice(0, 60)}${txt.includes('第 1') ? '' : ''}`;
+  });
   // —— 顶栏 ——
   await step('顶栏：街区活力说明（含计算依据）', async () => {
     await T('vitality').click();
@@ -495,6 +506,39 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     must((await T('view-toggle').innerText()).includes('俯视'), '没有回到俯视');
     return `视线高度 ${camY.toFixed(2)} 米；按 W 沿视线前进 ${along.toFixed(2)} 米`;
   });
+  await step('地图纵览：小地图旁「🏪 N」→ 本街区真实 OPC（蓝字）/ 演示店铺 /【例】/ 黄金位 / 空铺，全部 5 座城市，本周新增', async () => {
+    await closeAll(); await toCity();
+    await T('overview-open').first().click();
+    await T('overview-panel').waitFor();
+    const t = await T('overview-district').innerText();
+    for (const k of ['真实用户 OPC', '演示店铺', '【例】示范店', '空铺可租']) must(t.includes(k), `纵览缺少 ${k}`);
+    const list = await T('overview-new-list').innerText();
+    await page.screenshot({ path: path.join(OUT, '65-overview.png') });
+    await page.mouse.click(5, 5);
+    return list.split('\n').slice(0, 2).join(' / ');
+  });
+  await step('管理后台（演示）：「我的」→ 打开管理后台 → 店铺治理：下架商品 → 审计日志有记录', async () => {
+    await closeAll();
+    await evalTown(() => window.__town.useTown.getState().setTab('me'));
+    await T('open-admin-demo').click();
+    await T('admin-demo').waitFor();
+    await T('admin-tab-governance').click();
+    await T('admin-governance').waitFor();
+    const n = await T('gov-shop').count();
+    page.once('dialog', (d) => d.accept('1'));
+    await T('gov-product-takedown').first().click();
+    await page.waitForTimeout(500);
+    const g = await T('admin-governance').innerText();
+    must(g.includes('已下架'), '下架后没有显示');
+    await T('admin-tab-audit').click();
+    await page.waitForTimeout(500);
+    const a = await T('admin-demo').innerText();
+    must(a.includes('product.takedown'), '审计日志没有记录');
+    await page.screenshot({ path: path.join(OUT, '66-admin.png') });
+    await page.getByText('✕ 回到游戏').click();
+    await toCity();
+    return `${n} 家店铺可治理`;
+  });
   // —— v0.5：产业链黄页 + 上下游速配 + 服务商抢位 + 机会广场 ——
   for (const ind of ['ecommerce', 'heritage', 'education']) {
     await step(`产业链：「${ind}」完整上下游（上游 / 中游 / 下游 / 服务支撑 + 流向）`, async () => {
@@ -862,7 +906,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.7.0'), `版本号是 ${v}`);
+    must(v.includes('1.8.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {

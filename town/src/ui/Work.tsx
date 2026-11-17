@@ -106,6 +106,8 @@ export function ActiveJobBar() {
   return (
     <div className="pointer-events-auto glass absolute left-1/2 top-[5.2rem] z-30 flex -translate-x-1/2 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold text-cocoa-800" data-testid="active-job">
       <span>{text}</span>
+      {/* 打工的钞票 / 体力只在这里显示（顶栏不再重复） */}
+      <PurseChip />
       {pl && pl.district !== district
         ? <Btn size="sm" onClick={() => goDistrict(pl.district as never, pl.trigger)}>去那个街区</Btn>
         : <Btn size="sm" onClick={guide} data-testid="job-guide">🧭 带我去</Btn>}

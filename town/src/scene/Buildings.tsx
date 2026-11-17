@@ -13,7 +13,7 @@ import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'rea
 import { useFrame, useThree } from '@react-three/fiber';
 import { cam } from './input';
 import type { Group } from 'three';
-import { RoundedBox } from '@react-three/drei';
+import { RoundedBox } from './RBox';
 import { ExtrudeGeometry, InstancedMesh, MeshStandardMaterial, Object3D, Shape, Vector2, type Material } from 'three';
 import type { BuildingDef, DistrictDef } from '../world/types';
 import type { V2 } from '../world/geom';
@@ -25,7 +25,7 @@ import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { demoRoleOfLot, exampleAtLot, isGolden } from '../domain/lots';
-import { ROLE_BADGE, ROLE_DARK, ROLE_TINT } from '../domain/palette';
+import { REAL_BLUE, ROLE_BADGE, ROLE_DARK, ROLE_TINT } from '../domain/palette';
 import { useLots } from '../store/useLots';
 import { shopAtLot, useServer } from '../store/useServer';
 
@@ -147,10 +147,10 @@ export function signFor(lotId?: string, mine?: string, mineLicensed?: boolean, m
   if (!lotId) return undefined;
   const C = (licensed: boolean): ShopCategory => (licensed ? 'company' : 'personal');
   const tag = (c?: ShopCategory) => (c && ROLE_BADGE[c] ? `${ROLE_BADGE[c]}|` : '');
-  if (mine) { const c = mineRole ?? C(!!mineLicensed); return { text: `${tag(c)}${mine}`, bg: '#E8C77A', fg: '#4A3426', empty: false, cat: c }; }
+  if (mine) { const c = mineRole ?? C(!!mineLicensed); return { text: `${tag(c)}${mine}`, bg: '#E8C77A', fg: REAL_BLUE, empty: false, cat: c }; }
   // 真实用户开的店（来自后端）
   const remote = shopAtLot(lotId);
-  if (remote) return { text: `${tag(C(remote.licensed))}${remote.name}`, bg: '#FBF6EC', fg: '#4A3426', empty: false, cat: C(remote.licensed) };
+  if (remote) return { text: `${tag(C(remote.licensed))}${remote.name}`, bg: '#FBF6EC', fg: REAL_BLUE, empty: false, cat: C(remote.licensed) }; // 真实用户：蓝字
   const cat = demoRoleOfLot(lotId);
   const ex = exampleAtLot(lotId);
   if (ex) return { text: `例|${ex.name}`, bg: ROLE_TINT.example, fg: ROLE_DARK.example, empty: false, cat: 'example' };

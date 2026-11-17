@@ -122,5 +122,6 @@ export function searchTown(q: string, opts: { lotOfExample: (id: string) => stri
   // 先筛相关（去掉只沾一点边的），再按「评价分」排序；【例】示范店无法交易，排在最后
   const top = Math.max(0, ...hits.map((h) => h.score));
   const relevant = hits.filter((h) => h.score >= Math.max(1, Math.ceil(top * 0.3)));
-  return relevant.sort((a, b) => Number(a.kind === 'example') - Number(b.kind === 'example') || b.rep.score - a.rep.score || b.score - a.score || a.title.localeCompare(b.title)).slice(0, 12);
+  // 真实用户开的店排最前（蓝字），【例】示范店排最后
+  return relevant.sort((a, b) => Number(b.kind === 'remote') - Number(a.kind === 'remote') || Number(a.kind === 'example') - Number(b.kind === 'example') || b.rep.score - a.rep.score || b.score - a.score || a.title.localeCompare(b.title)).slice(0, 12);
 }

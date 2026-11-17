@@ -8,3 +8,4 @@ e2e/playtest/
 dist-v9
 server/data/
 e2e/backend-flow/
+dist-prof/

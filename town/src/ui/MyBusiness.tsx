@@ -8,7 +8,7 @@ import { extractProfile, suggestDirections, toProfile, type ExtractionResult } f
 import { CAPABILITIES, DISTRICT_LABEL, capLabel } from '../domain/taxonomy';
 import type { DistrictId } from '../domain/types';
 import { STORY_INTRO_TEXT, entityById, residentOfEntity } from '../data/seed';
-import { allLots, districtName } from '../world';
+import { lotById, districtName } from '../world';
 import { ME, useBusinessMap, useTown } from '../store/useTown';
 import { Btn, Card, Chip, Disclaimer, Drawer, Pill } from './kit';
 
@@ -98,7 +98,7 @@ function RelationCard({ r, rank, open, onOpen }: { r: BizRelation; rank: number;
   const goDistrict = useTown((s) => s.goDistrict);
   const walkTo = useTown((s) => s.walkTo);
   const district = useTown((s) => s.district);
-  const lot = e.place.lotId ? allLots().find((l) => l.door.lotId === e.place.lotId) : undefined;
+  const lot = e.place.lotId ? lotById(e.place.lotId) : undefined;
   const goSee = () => {
     if (!lot) return;
     setTab('city');

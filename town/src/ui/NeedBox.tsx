@@ -11,6 +11,7 @@ import { useServer } from '../store/useServer';
 import { useCenter } from '../store/useCenter';
 import { residentOfEntity } from '../data/seed';
 import { track } from '../net/api';
+import { REAL_BLUE } from '../domain/palette';
 import { useLive } from '../store/useLive';
 import { emitGame } from '../store/gameEvents';
 import { ROLE_COLORS } from '../domain/palette';
@@ -85,7 +86,7 @@ export function NeedBox() {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1 text-xs font-black text-cocoa-800">
                       {h.badge && <span className="rounded px-1 text-[9px] font-black text-white" style={{ background: BADGE_BG[h.badge] ?? ROLE_COLORS.personal }}>{h.badge}</span>}
-                      <span className="truncate">{h.title}</span>
+                      <span className="truncate" style={h.kind === 'remote' ? { color: REAL_BLUE } : undefined} data-real={h.kind === 'remote' ? '1' : undefined}>{h.title}</span>
                     </span>
                     <span className="mt-0.5 line-clamp-2 block text-[11px] text-stone-600">{h.sub}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] text-stone-500" data-testid="hit-rep">

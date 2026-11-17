@@ -1,2 +1,2 @@
-export const APP_VERSION = '1.7.0';
-export const APP_BUILD_NOTE = '真实比例（3 米层高、2.25 米门、真实路牌与砖块）· 随便逛逛城市漫步 · 人车互等卡住修复 · 砖墙地砖凹凸与雨天湿路面 · 体积大幅精简';
+export const APP_VERSION = '1.8.0';
+export const APP_BUILD_NOTE = '首屏提速约 6 倍 · 手机画质 · 地图纵览与本周新增 · 真实用户蓝字优先 · 上传资料 1 分钟开张 · 公司主页（视频 / 路演 PPT）· 店铺治理与整改提醒 · Q 版打个飞的 · 路牌减密';

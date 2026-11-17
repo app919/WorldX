@@ -45,6 +45,8 @@ export const config = {
   /** 初始管理员手机号（逗号分隔）：这些手机号登录后自动获得管理员权限 */
   adminPhones: (env.ADMIN_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 25),
+  /** 公司介绍视频上限（MB） */
+  maxVideoMb: Number(env.MAX_VIDEO_MB ?? 200),
   devToken: randomBytes(8).toString('hex'),
 };
 

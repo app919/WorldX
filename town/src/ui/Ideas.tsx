@@ -14,6 +14,7 @@ import { useCenter } from '../store/useCenter';
 import { useOpp } from '../store/useOpp';
 import { useEco } from '../store/useEco';
 import { goToHit, searchAllTown } from './NeedBox';
+import { REAL_BLUE } from '../domain/palette';
 import { Btn, Disclaimer } from './kit';
 import type { SearchHit } from '../domain/search';
 
@@ -45,7 +46,7 @@ export function IdeasPlaza() {
           <div key={i.id} className="rounded-2xl bg-cream-50 p-3 text-xs shadow-soft ring-1 ring-cream-200" data-testid={`idea-${i.id}`}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-black text-cocoa-800">{i.title}</div>
+                <div className="text-sm font-black text-cocoa-800" style={i.mine ? { color: REAL_BLUE } : undefined}>{i.title}</div>
                 <div className="mt-0.5 text-[10px] text-stone-400">{i.mine ? '我' : i.author} · {cityName(i.city)}{i.mine && !i.public ? ' · 🔒 仅自己可见' : ''}</div>
               </div>
               <button className="chip shrink-0 bg-cream-100 text-stone-600" onClick={() => useIdeas.getState().like(i.id)}>{liked.includes(i.id) ? '❤️' : '🤍'} {i.likes + (liked.includes(i.id) ? 1 : 0)}</button>

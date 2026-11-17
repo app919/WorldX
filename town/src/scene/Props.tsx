@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { MeshStandardMaterial, type Group } from 'three';
 import { playerRuntime, useTown } from '../store/useTown';
 import { DRAW_DIST } from './quality';
-import { RoundedBox } from '@react-three/drei';
+import { RoundedBox } from './RBox';
 import type { PropDef } from '../world/types';
 import { mats } from './materials';
 import { signTex, streetPlateTex } from './textures';

@@ -7,7 +7,7 @@
 import { Html } from '@react-three/drei';
 import { BIZ_LABEL, ENTITY_KIND_LABEL, type BizRelation, type DistrictKey } from '../domain/commerce';
 import { entityById } from '../data/seed';
-import { allLots } from '../world';
+import { lotById } from '../world';
 import { useBusinessMap, useTown } from '../store/useTown';
 
 const TONE: Record<string, string> = {
@@ -32,7 +32,7 @@ export function Markers({ district }: { district: DistrictKey }) {
       {rels.map((r) => {
         const e = entityById(r.counterpartyId);
         if (!e?.place.lotId || e.kind === 'individual') return null;
-        const lot = allLots().find((l) => l.door.lotId === e.place.lotId);
+        const lot = lotById(e.place.lotId);
         if (!lot || lot.district !== district) return null;
         const active = focus === r.id;
         return (

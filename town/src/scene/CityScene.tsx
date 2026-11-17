@@ -23,7 +23,7 @@ import { ConnectionLines, Effects } from './Effects';
 import { lightingFor } from './lighting';
 import { applyNight, applyWet } from './materials';
 import { compiledOf } from '../world';
-import { DRAW_DIST, LOW_GFX, ULTRA_GFX } from './quality';
+import { DRAW_DIST, IS_MOBILE, LOW_GFX, ULTRA_GFX } from './quality';
 import { Sky, Stars } from '@react-three/drei';
 import { cam } from './input';
 import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
@@ -102,7 +102,7 @@ function DayNight() {
     <>
       <ambientLight ref={amb} intensity={0.5} />
       <hemisphereLight ref={hemi} args={['#FFF8EC', '#E3D9C9', 0.6]} />
-      <directionalLight ref={sun} castShadow intensity={2} shadow-mapSize={ULTRA_GFX ? [4096, 4096] : [2048, 2048]}
+      <directionalLight ref={sun} castShadow intensity={2} shadow-mapSize={ULTRA_GFX ? [4096, 4096] : IS_MOBILE ? [1024, 1024] : [2048, 2048]}
         shadow-camera-left={-48} shadow-camera-right={48} shadow-camera-top={48} shadow-camera-bottom={-48}
         shadow-camera-near={1} shadow-camera-far={160} shadow-bias={-0.0005} shadow-normalBias={0.04} />
     </>
@@ -174,9 +174,11 @@ export function CityScene() {
   return (
     <Canvas
       shadows={LOW_GFX ? false : 'soft'}
-      dpr={LOW_GFX ? 0.75 : ULTRA_GFX ? [1.25, 2] : [1, 2]}
+      dpr={LOW_GFX ? 0.75 : ULTRA_GFX ? [1.25, 2] : IS_MOBILE ? [1, 1.5] : [1, 2]}
       camera={{ fov: 30, near: 0.5, far: 500, position: [0, 30, 30] }}
       onPointerMissed={() => openCard(undefined)}
+      // 生产环境不逐个读取着色器编译日志（three.js 默认会读，首屏要多花约半秒）
+      onCreated={({ gl }) => { gl.debug.checkShaderErrors = location.search.includes('e2e'); }}
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: AgXToneMapping, toneMappingExposure: 1.15 }}
     >
       <color attach="background" args={['#DDEBF2']} />
@@ -189,7 +191,7 @@ export function CityScene() {
       {!LOW_GFX && (
         /* 画质：环境光遮蔽（墙角、屋檐、车底的自然阴影）+ 夜晚灯光的柔光 + 抗锯齿 */
         <EffectComposer multisampling={0} enableNormalPass={false}>
-          <N8AO aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality={ULTRA_GFX ? 'high' : 'medium'} halfRes={!ULTRA_GFX} />
+          {(!IS_MOBILE || ULTRA_GFX) ? <N8AO aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality={ULTRA_GFX ? 'high' : 'medium'} halfRes={!ULTRA_GFX} /> : <Vignette offset={0.5} darkness={0} />}
           <Bloom luminanceThreshold={0.92} luminanceSmoothing={0.2} intensity={0.45} mipmapBlur />
           <ToneMapping mode={ToneMappingMode.NEUTRAL} />
           {/* 调色：略提对比与饱和，让阳光下的砖墙、梧桐更有层次 */}

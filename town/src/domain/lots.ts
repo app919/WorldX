@@ -6,7 +6,7 @@
  * - 每个人只能开一家店：店主「姓名」和「手机号」都是唯一的（同一手机号、同一姓名不能重复开店）；
  * - 有营业执照的店铺在招牌和名片上显示「企」角标；执照信息需填写企业名称与 18 位统一社会信用代码（含校验位）。
  */
-import { allLots, DISTRICTS, DISTRICT_ORDER } from '../world';
+import { lotsOf, DISTRICTS, DISTRICT_ORDER } from '../world';
 import type { DistrictKey } from './commerce';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
 import { dist } from '../world/geom';
@@ -29,7 +29,7 @@ export function lotPlan(d: DistrictKey): LotPlan {
   const hit = cache.get(d);
   if (hit) return hit;
   const def = DISTRICTS[d];
-  const lots = allLots().filter((l) => l.district === d);
+  const lots = lotsOf(d);
   const taken = baseTaken();
   const main = def.roads[0].name;
   const score = (l: (typeof lots)[number]) => dist(l.door.p, def.spawn) - (l.street === main ? 30 : 0);

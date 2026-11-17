@@ -11,7 +11,10 @@ export interface PublicShop {
   licensed: boolean; licenseCompany: string | null; ownerUserId: string; ownerNickname: string;
   products: { name: string; description: string; priceFrom?: number; unit?: string; priceConfirmed: boolean }[]; needs: string[]; faqs: { q: string; a: string }[];
   companyIntro: Intro | null; productIntro: Intro | null; createdAt: number;
+  /** 公司主页资料：视频 / 演讲稿（PDF）/ 产品资料（PDF） */
+  media?: ShopMedia[];
 }
+export interface ShopMedia { id: string; kind: 'video' | 'deck' | 'product'; title: string; size: number; status: string; url: string; createdAt: number; removedReason?: string | null }
 
 interface ServerState {
   mode: Mode;

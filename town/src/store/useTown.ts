@@ -13,7 +13,7 @@ import * as intro from '../domain/introductions';
 import { agentRespond } from '../domain/agent';
 import { COUNTERPARTIES, RESIDENTS, SHOPS, entityById, residentById } from '../data/seed';
 import { EVENTS, type TownEvent } from '../data/events';
-import { DISTRICTS, allLots, compiledOf, navOf, streetOfDoor } from '../world';
+import { DISTRICTS, lotsOf, lotById, compiledOf, navOf, streetOfDoor } from '../world';
 import { shopAtLot, useServer } from './useServer';
 import { exampleAtLot } from '../domain/lots';
 import { emitGame } from './gameEvents';
@@ -145,7 +145,7 @@ export const streetOfDistrict = (d: DistrictKey) => DISTRICTS[d].name;
 /** 人物在地图上的锚点：有店的站在店门口，没有店的在所属街区的人行道上 */
 export function residentAnchor(r: { id: string; entityId: string; district: DistrictKey }): { district: DistrictKey; p: { x: number; z: number } } {
   const e = entityById(r.entityId);
-  const lot = e?.place.lotId ? allLots().find((l) => l.door.lotId === e.place.lotId) : undefined;
+  const lot = e?.place.lotId ? lotById(e.place.lotId) : undefined;
   if (lot) return { district: lot.district, p: lot.door.trigger };
   const nav = navOf(r.district);
   const def = DISTRICTS[r.district];
@@ -156,7 +156,7 @@ export function residentAnchor(r: { id: string; entityId: string; district: Dist
 
 export function myAnchor(s: Pick<TownState, 'myOpc' | 'avatar'>): { district: DistrictKey; p: { x: number; z: number } } | undefined {
   if (s.myOpc) {
-    const lot = allLots().find((l) => l.door.lotId === s.myOpc!.lotId);
+    const lot = lotById(s.myOpc!.lotId);
     if (lot) return { district: lot.district, p: lot.door.trigger };
   }
   return s.avatar ? { district: s.avatar.district, p: s.avatar.position } : undefined;
@@ -251,7 +251,7 @@ export const useTown = create<TownState>()(
         openShop(opc, agent) {
           set((s) => ({ myOpc: opc, myAgent: agent, wizardOpen: false, wallet: reward(s.wallet, 'shop_opened') }));
           log({ actor: ME, action: 'opc.opened', target: opc.id, detail: opc.entityStatus });
-          const lot = allLots().find((l) => l.door.lotId === opc.lotId);
+          const lot = lotById(opc.lotId);
           if (lot) { get().goDistrict(lot.district, lot.door.trigger); get().fxPush({ kind: 'coins', from: lot.door.p }); }
           inbox({ kind: 'system', title: '开张啦！', body: `「${opc.name}」已上线。这是个人创业主页，不代表已注册公司或获得企业法人资格。`, needsMe: false });
           get().toast('开张啦！你的小店已上线', 'ok');
@@ -421,7 +421,7 @@ export function useBusinessMap() {
 
 /** 街区活力指数：明确的计算依据，而不是一个没有解释的百分比 */
 export function vitality(d: DistrictKey, st: Pick<TownState, 'myOpc' | 'intros' | 'myEvents'>) {
-  const lots = allLots().filter((l) => l.district === d);
+  const lots = lotsOf(d);
   const occupied = lots.filter((l) => SHOPS.some((s) => s.lotId === l.door.lotId) || COUNTERPARTIES.some((c) => c.place.lotId === l.door.lotId) || st.myOpc?.lotId === l.door.lotId);
   const settled = lots.filter((l) => SHOPS.some((s) => s.lotId === l.door.lotId) || st.myOpc?.lotId === l.door.lotId);
   const owners = RESIDENTS.filter((r) => r.district === d);

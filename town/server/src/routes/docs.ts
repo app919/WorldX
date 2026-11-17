@@ -24,7 +24,7 @@ export async function docRoutes(app: FastifyInstance) {
     const ext = extname(file.filename).toLowerCase();
     if (!ACCEPT.includes(ext)) return reply.code(400).send({ error: `只支持 ${ACCEPT.join(' / ')}` });
     const buf = await file.toBuffer();
-    if (file.file.truncated) return reply.code(413).send({ error: `文件不能超过 ${config.maxUploadMb} MB` });
+    if (file.file.truncated || buf.length > config.maxUploadMb * 1024 * 1024) return reply.code(413).send({ error: `文件不能超过 ${config.maxUploadMb} MB` });
     const id = newId('doc');
     const dir = join(config.uploadDir, me.id);
     await mkdir(dir, { recursive: true });

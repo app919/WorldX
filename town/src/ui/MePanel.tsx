@@ -7,6 +7,39 @@ import { useTown } from '../store/useTown';
 import { LOW_GFX, ULTRA_GFX, setLowGfx, setUltraGfx } from '../scene/quality';
 import { LIFE_TAGS } from './Onboarding';
 import { Btn, Card, Chip, Disclaimer, Drawer } from './kit';
+import { Suspense, lazy, useState } from 'react';
+import { ShopMediaManager } from './ShopMediaManager';
+
+const AdminAppLazy = lazy(async () => {
+  const [{ AdminApp, setAdminAdapter }, { demoAdminApi }] = await Promise.all([import('../admin/AdminApp'), import('../admin/demoAdapter')]);
+  setAdminAdapter(demoAdminApi);
+  return { default: AdminApp };
+});
+
+/** 管理后台入口：正式版管理员直接打开 /admin.html；离线演示版在游戏里打开同一套界面（演示数据） */
+function AdminEntry() {
+  const mode = useServer((s) => s.mode);
+  const me = useServer((s) => s.me);
+  const [demo, setDemo] = useState(false);
+  if (mode === 'online' && me?.role !== 'admin') return null;
+  return (
+    <Card className="!p-3">
+      <div className="text-sm font-black">🛠️ 管理后台</div>
+      <div className="mt-1 text-xs text-stone-600">数据看板（注册 / 活跃 / PV·UV / 点击）、消息审查、店铺治理（下架商品与视频、关店整改，并给店主发委婉的整改提醒）、审计日志。</div>
+      {mode === 'online'
+        ? <Btn size="sm" className="mt-2" data-testid="open-admin" onClick={() => window.open('/admin.html', '_blank')}>打开管理后台</Btn>
+        : <><Btn size="sm" className="mt-2" data-testid="open-admin-demo" onClick={() => setDemo(true)}>打开管理后台（演示）</Btn>
+          <div className="mt-1 text-[10px] text-stone-400">离线演示用的是演示数据。正式版：用 ADMIN_PHONES 里配置的手机号登录后，访问 /admin.html。</div></>}
+      {demo && (
+        <div className="pointer-events-auto fixed inset-0 z-[90] overflow-y-auto bg-white" data-testid="admin-demo">
+          <button className="fixed right-3 top-3 z-[91] rounded-full bg-stone-800 px-3 py-1 text-sm text-white" onClick={() => setDemo(false)}>✕ 回到游戏</button>
+          <div className="bg-[#FFF4D6] px-4 py-1.5 text-xs text-[#7A5A12]">离线演示 · 以下为演示数据，操作只在本次打开期间生效，不会影响任何真实用户</div>
+          <Suspense fallback={<div className="p-8 text-sm">正在打开管理后台…</div>}><AdminAppLazy /></Suspense>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export function MePanel() {
   const avatar = useTown((s) => s.avatar)!;
@@ -33,6 +66,8 @@ export function MePanel() {
   return (
     <Drawer testId="me-panel" title={`🧸 ${avatar.nickname}`} subtitle="角色 · OPC · AI 分身 · 隐私设置" onClose={() => setTab('city')}>
       <div className="space-y-3">
+        <AdminEntry />
+        {myOpc && <ShopMediaManager />}
         <Card className="!p-3">
           <div className="text-xs font-bold text-stone-600">我的身份（随时可换，不是职业审核；着装跟身份走）</div>
           <div className="mt-2 flex flex-wrap gap-1.5">

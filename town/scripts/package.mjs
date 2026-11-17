@@ -94,4 +94,10 @@ const zip = join(out, `${name}.zip`);
 if (existsSync(zip)) rmSync(zip);
 execSync(`cd "${stage}" && zip -9 -qr "${zip}" .`, { stdio: 'inherit' });
 rmSync(stage, { recursive: true, force: true });
-console.log(`完成：${zip}`);
+// 只保留最近两个版本的发布包（更早的自动删除）
+const verOf = (f) => (f.match(/v(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
+const vers = [...new Set(readdirSync(out).map((f) => verOf(f).join('.')).filter(Boolean))]
+  .sort((a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); return y[0] - x[0] || y[1] - x[1] || y[2] - x[2]; });
+const keep = new Set(vers.slice(0, 2));
+for (const f of readdirSync(out)) { const v = verOf(f).join('.'); if (v && !keep.has(v)) rmSync(join(out, f), { force: true }); }
+console.log(`完成：${zip}（保留版本：${[...keep].join('、')}）`);

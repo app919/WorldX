@@ -2,7 +2,7 @@
  * 「打个飞的」动画 + 「聊一聊」窗口。
  * 聊一聊：店主在线 → 直接聊；店主不在线 → 写下需求（做什么 / 预算 / 时间 / 线上线下）发给对方。
  */
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FLY, chatStarted, useLive, type NeedNote } from '../store/useLive';
 import { useCelebrate } from '../store/useCelebrate';
 import { residentById } from '../data/seed';
@@ -13,10 +13,56 @@ import { WORK_HOURS, hourLabel, isWorkTime, localHour } from '../scene/clock';
  * 打个飞的：起飞后整屏穿越云层（小飞机飞过云海），云层挡住换地图 / 渲染 / 网络的时间；
  * 降落时云层散开，顶部出现「✈️ 我们到了！」。
  */
-const FlySceneLazy = lazy(() => import('./FlyScene').then((m) => ({ default: m.FlyScene })));
-/** 提前在后台加载穿云场景，第一次打飞的也不会卡 */
-export function preloadFlyScene() { void import('./FlyScene'); }
+/** Q 版小飞机：圆滚滚的机身、舷窗里一张笑脸、粉色小翅膀、转动的螺旋桨（纯 SVG，零加载） */
+function QPlane() {
+  return (
+    <svg viewBox="0 0 220 140" width="220" height="140" aria-label="小飞机">
+      <ellipse cx="112" cy="128" rx="58" ry="7" fill="rgba(70,90,130,0.18)" />
+      {/* 后翼与尾翼 */}
+      <path d="M38 62 L14 34 Q10 28 18 28 L46 50 Z" fill="#F07FAF" />
+      <path d="M40 74 L18 92 Q14 98 22 97 L52 80 Z" fill="#E86A9E" />
+      {/* 机身 */}
+      <ellipse cx="104" cy="70" rx="72" ry="36" fill="#FFFDF8" stroke="#F3D9C9" strokeWidth="3" />
+      <path d="M44 84 Q104 108 168 82" fill="none" stroke="#3D7BD8" strokeWidth="6" strokeLinecap="round" />
+      {/* 主翼 */}
+      <path d="M86 78 L60 122 Q58 128 66 127 L118 86 Z" fill="#F07FAF" />
+      <path d="M92 60 L70 24 Q68 18 76 20 L122 56 Z" fill="#F59BC2" />
+      {/* 舷窗 + 笑脸 */}
+      <circle cx="136" cy="62" r="20" fill="#BFE3FF" stroke="#7FB7E8" strokeWidth="3" />
+      <circle cx="129" cy="60" r="3.2" fill="#3A2A22" /><circle cx="143" cy="60" r="3.2" fill="#3A2A22" />
+      <circle cx="130" cy="59" r="1" fill="#fff" /><circle cx="144" cy="59" r="1" fill="#fff" />
+      <path d="M131 67 Q136 72 141 67" fill="none" stroke="#3A2A22" strokeWidth="2.2" strokeLinecap="round" />
+      <ellipse cx="124" cy="68" rx="4" ry="2.4" fill="#F7A9C4" /><ellipse cx="148" cy="68" rx="4" ry="2.4" fill="#F7A9C4" />
+      {/* 小窗 */}
+      {[96, 76].map((x) => <circle key={x} cx={x} cy="62" r="7" fill="#D9EEFF" stroke="#9CC6EC" strokeWidth="2" />)}
+      {/* 机头与螺旋桨 */}
+      <circle cx="176" cy="70" r="9" fill="#D9A62E" />
+      <g className="fly-prop" style={{ transformOrigin: '182px 70px' }}>
+        <rect x="179" y="38" width="6" height="64" rx="3" fill="rgba(74,52,38,0.75)" />
+      </g>
+    </svg>
+  );
+}
 
+/** 一朵 SVG 积云（顶部亮、底部略蓝灰） */
+function Cloud({ w, o }: { w: number; o: number }) {
+  return (
+    <svg viewBox="0 0 200 100" width={w} height={w / 2} style={{ opacity: o }}>
+      <g fill="#DCE7F5"><circle cx="60" cy="66" r="30" /><circle cx="110" cy="62" r="36" /><circle cx="150" cy="70" r="26" /><rect x="40" y="62" width="130" height="32" rx="16" /></g>
+      <g fill="#FFFFFF"><circle cx="58" cy="58" r="26" /><circle cx="104" cy="48" r="34" /><circle cx="146" cy="60" r="22" /><rect x="40" y="56" width="124" height="26" rx="13" /></g>
+    </svg>
+  );
+}
+
+const CLOUDS = Array.from({ length: 18 }, (_, i) => {
+  const layer = i % 3; // 0 远 1 中 2 近
+  return { layer, top: ((i * 41) % 92) - 6, delay: -((i * 173) % 900), w: [140, 240, 420][layer], o: [0.55, 0.8, 0.95][layer], dur: [1500, 900, 520][layer] };
+});
+
+/**
+ * 打个飞的：起飞后整屏穿越云层。天空、云、Q 版小飞机在同一帧出现（纯 CSS / SVG，不需要加载任何东西），
+ * 云分三层（远慢近快）呼啸而过、速度线、飞机随气流颠簸；降落时云层散开，顶部出现「✈️ 我们到了！」。
+ */
 export function FlyOverlay() {
   const f = useLive((s) => s.flying);
   if (!f) return null;
@@ -31,19 +77,32 @@ export function FlyOverlay() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[70] overflow-hidden" data-testid="fly-overlay">
       <style>{`
-        @keyframes clouds-in { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes clouds-out { 0% { opacity: 1 } 60% { opacity: .85 } 100% { opacity: 0 } }
-        @keyframes flash { 0% { opacity: .9 } 100% { opacity: 0 } }
+        @keyframes fly-in { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes fly-out { 0% { opacity: 1 } 55% { opacity: .9 } 100% { opacity: 0 } }
+        @keyframes cloud-rush { from { transform: translateX(110vw) } to { transform: translateX(-60vw) } }
+        @keyframes speed-line { from { transform: translateX(100vw) } to { transform: translateX(-30vw) } }
+        @keyframes plane-bob { 0%,100% { transform: translate(-50%, -50%) rotate(-4deg) } 50% { transform: translate(-50%, calc(-50% - 14px)) rotate(3deg) } }
+        @keyframes plane-dive { from { transform: translate(-50%, -50%) rotate(0) scale(1) } to { transform: translate(-50%, 40vh) rotate(18deg) scale(.6) } }
+        .fly-prop { animation: prop-spin .08s linear infinite }
+        @keyframes prop-spin { from { transform: scaleY(1) } 50% { transform: scaleY(.15) } to { transform: scaleY(1) } }
       `}</style>
       {show && (
-        <div className="absolute inset-0" style={{ animation: `${f.phase === 'down' ? 'clouds-out' : 'clouds-in'} ${f.phase === 'down' ? FLY.down : 140}ms ease both` }}>
-          {/* 天空：上深下浅，靠近云层顶部偏暖 */}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(#5E9BE6 0%, #A9CDF5 38%, #E8F2FD 72%, #FFF6E6 100%)' }} />
-          <Suspense fallback={null}><FlySceneLazy phase={f.phase === 'down' ? 'down' : 'clouds'} /></Suspense>
-          {/* 进云的一瞬间：白色闪一下 */}
-          {f.phase === 'clouds' && <div className="absolute inset-0 bg-white" style={{ animation: 'flash 260ms ease-out both' }} />}
-          <div className="absolute inset-x-0 bottom-[18%] flex justify-center">
-            <div className="rounded-full bg-cream-50/85 px-4 py-1.5 text-sm font-black text-cocoa-800 shadow-soft backdrop-blur">✈️ 打个飞的 → {f.title}</div>
+        <div className="absolute inset-0" style={{ animation: `${f.phase === 'down' ? 'fly-out' : 'fly-in'} ${f.phase === 'down' ? FLY.down : 120}ms ease both` }}>
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(#5E9BE6 0%, #A9CDF5 42%, #E8F2FD 78%, #FFF6E6 100%)' }} />
+          {/* 远中层云在飞机后面 */}
+          {CLOUDS.filter((c) => c.layer < 2).map((c, i) => (
+            <div key={i} className="absolute left-0" style={{ top: `${c.top}%`, animation: `cloud-rush ${c.dur}ms linear ${c.delay}ms infinite` }}><Cloud w={c.w} o={c.o} /></div>
+          ))}
+          {Array.from({ length: 10 }).map((_, i) => (
+            <i key={i} className="absolute left-0 block h-[2px] rounded-full bg-white/70" style={{ top: `${8 + i * 9}%`, width: `${80 + (i % 4) * 50}px`, animation: `speed-line ${380 + (i % 3) * 120}ms linear ${-(i * 97)}ms infinite` }} />
+          ))}
+          <div className="absolute left-1/2 top-[46%]" style={{ animation: f.phase === 'down' ? `plane-dive ${FLY.down}ms ease-in both` : 'plane-bob 600ms ease-in-out infinite' }} data-testid="fly-plane"><QPlane /></div>
+          {/* 近层云从飞机前面掠过：穿云感 */}
+          {CLOUDS.filter((c) => c.layer === 2).map((c, i) => (
+            <div key={i} className="absolute left-0" style={{ top: `${c.top}%`, animation: `cloud-rush ${c.dur}ms linear ${c.delay}ms infinite` }}><Cloud w={c.w} o={c.o} /></div>
+          ))}
+          <div className="absolute inset-x-0 bottom-[16%] flex justify-center">
+            <div className="rounded-full bg-cream-50/90 px-4 py-1.5 text-sm font-black text-cocoa-800 shadow-soft">✈️ 打个飞的 → {f.title}</div>
           </div>
         </div>
       )}

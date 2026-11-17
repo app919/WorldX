@@ -26,3 +26,7 @@ export const ROLE_TINT: Readonly<Record<ShopCategory, string>> = Object.freeze({
 export const ROLE_BADGE: Readonly<Record<ShopCategory, string>> = Object.freeze({ example: '例', company: '企', investor: '投', brand: '品', personal: '' });
 export const ROLE_LABEL: Readonly<Record<ShopCategory, string>> = Object.freeze({ example: '例 · 系统示范', company: '企 · 公司', investor: '投 · 投资人', brand: '品 · 品牌', personal: '个人 / 其他' });
 export const BADGE_ROLE: Readonly<Record<string, ShopCategory>> = Object.freeze({ 例: 'example', 企: 'company', 投: 'investor', 品: 'brand', 赞: 'brand' });
+
+/** 真实用户（不是演示数据）：统一用蓝色字体，并且在列表里排在最前面 */
+export const REAL_BLUE = '#1A56DB';
+export const REAL_NOTE = '蓝字 = 真实用户（优先展示）';

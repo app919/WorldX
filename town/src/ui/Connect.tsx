@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../net/api';
 import { DmList } from './DirectMessages';
 import { useServer } from '../store/useServer';
 import { DEFAULT_HELLO, STATUS_LABEL, canSeeContact } from '../domain/introductions';
@@ -60,6 +61,7 @@ export function MessagesPanel() {
   const needsMe = intros.filter((i) => i.status === 'accepted' && !i.contactConsent[i.fromUserId === ME ? 'from' : 'to']).length + inbox.filter((i) => i.needsMe && !i.read).length;
   return (
     <Drawer wide testId="messages-panel" title="💌 消息" subtitle={needsMe ? `${needsMe} 件需要你本人处理` : '商务连接、AI 接待、会议与活动'} onClose={() => { markRead(); setTab('city'); }}>
+      {online && <PlatformNotices />}
       <div className="mb-3 flex flex-wrap gap-1.5">
         {online && <button data-testid="msg-tab-dm" onClick={() => setView('dm')} className={`chip ${view === 'dm' ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>💬 私信</button>}
         <button onClick={() => setView('connect')} className={`chip ${view === 'connect' ? 'bg-almond-400' : 'bg-cream-100 text-stone-600'}`}>商务连接 {intros.length}</button>
@@ -158,6 +160,25 @@ function Steps({ status }: { status: Introduction['status'] }) {
         <div key={l} className="flex flex-1 flex-col items-center">
           <div className={`h-1.5 w-full rounded-full ${i <= idx ? 'bg-sage-400' : 'bg-cream-300'}`} />
           <span className={`mt-0.5 text-[9px] ${i <= idx ? 'font-bold text-sage-700' : 'text-stone-400'}`}>{l}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 平台通知（正式版）：管理员的整改提醒、恢复营业等；打开消息即标为已读 */
+function PlatformNotices() {
+  const [list, setList] = useState<{ id: string; title: string; body: string; createdAt: number; readAt: number | null }[]>([]);
+  useEffect(() => {
+    api<{ notices: typeof list }>('/api/me/notices').then((r) => { setList(r.notices); if (r.notices.some((n) => !n.readAt)) void api('/api/me/notices/read', { method: 'POST', json: {} }); }).catch(() => {});
+  }, []);
+  if (!list.length) return null;
+  return (
+    <div className="mb-3 space-y-1.5" data-testid="platform-notices">
+      {list.slice(0, 5).map((n) => (
+        <div key={n.id} className={`rounded-2xl p-2.5 text-xs ${n.readAt ? 'bg-cream-100' : 'bg-[#FFF4D6] ring-1 ring-[#E8C77A]'}`}>
+          <div className="font-black text-cocoa-800">📮 {n.title}<span className="ml-2 text-[10px] font-normal text-stone-400">{new Date(n.createdAt).toLocaleString('zh-CN', { hour12: false })}</span></div>
+          <div className="mt-0.5 text-stone-600">{n.body}</div>
         </div>
       ))}
     </div>

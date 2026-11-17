@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { COUNTERPARTIES, SHOPS } from '../data/seed';
-import { allLots, DISTRICT_ORDER } from '../world';
+import { lotsOf, DISTRICT_ORDER } from '../world';
 import {
   buy, canWork, deliveryPay, emptyPurse, gameOf, getPaid, itemById, jobsFor, rest, shiftPay, startWork,
   type ActiveJob, type GameKind, type Job, type Place, type Purse,
@@ -17,7 +17,7 @@ export const today = () => Math.floor(Date.now() / 86400000);
 /** 某个街区里可以打工 / 消费的小店（有名字的铺位） */
 export function workPlaces(district: string): (Place & { game: GameKind; p: { x: number; z: number }; trigger: { x: number; z: number } })[] {
   const out: (Place & { game: GameKind; p: { x: number; z: number }; trigger: { x: number; z: number } })[] = [];
-  for (const l of allLots().filter((x) => x.district === district)) {
+  for (const l of lotsOf(district as Parameters<typeof lotsOf>[0])) {
     const lotId = l.door.lotId!;
     const shop = SHOPS.find((s) => s.lotId === lotId);
     const ent = COUNTERPARTIES.find((c) => c.place.lotId === lotId && c.kind !== 'individual');

@@ -1,3 +1,4 @@
+import { useQuick, type DocState } from '../store/useQuick';
 import { useMemo, useState } from 'react';
 import { useServer, type Intro, type PublicShop } from '../store/useServer';
 import { api } from '../net/api';
@@ -7,10 +8,10 @@ import type { FacadeStyle, OpcProfile, Product, StartupStage } from '../domain/t
 import { allLots, districtName } from '../world';
 import { checkOwner, isGolden, maskPhone, takenByDemo, validPhone, validUSCC } from '../domain/lots';
 import { useLots } from '../store/useLots';
-import { ME, defaultAgent, useTown } from '../store/useTown';
+import { ME, defaultAgent, playerRuntime, useTown } from '../store/useTown';
 import { Btn, Chip, Disclaimer, Modal, Panel } from './kit';
 
-const CATEGORIES = ['AI技术服务', '设计与创意', '咨询与培训', '内容与传媒', '生活服务', '商品零售', '软件与开发', '其他服务'];
+export const CATEGORIES = ['AI技术服务', '设计与创意', '咨询与培训', '内容与传媒', '生活服务', '商品零售', '软件与开发', '投资与孵化', '其他服务'];
 const NEEDS = ['客户', '供应商', '合伙人', '渠道', '资金', '场地', '技术'];
 const STAGES: { v: StartupStage; l: string }[] = [
   { v: 'exploring', l: '正在探索' }, { v: 'has_product', l: '已有产品，寻找客户' }, { v: 'seeking_partner', l: '正在找合伙人' },
@@ -27,6 +28,7 @@ export function OpcWizard() {
 }
 
 function WizardInner() {
+  const pre = useQuick.getState().prefill; // 只在打开时读一次
   const setWizard = useTown((s) => s.setWizard);
   const openShop = useTown((s) => s.openShop);
   const profile = useTown((s) => s.profile);
@@ -37,7 +39,7 @@ function WizardInner() {
     const taken = takenByDemo(); // 演示店铺 / 主体 /【例】示范店
     // 黄金位留给赞助商：OPC 只能在 60% 的招租位开店
     for (const s of useServer.getState().shops) taken.add(s.lotId);
-    return allLots().filter((l) => !taken.has(l.door.lotId!) && !isGolden(l.door.lotId!)).sort((a, b) => (a.district === district ? -1 : 0) - (b.district === district ? -1 : 0));
+    return allLots().filter((l) => !taken.has(l.door.lotId!) && !isGolden(l.door.lotId!)).sort((a, b) => (a.district === district ? -1 : 0) - (b.district === district ? -1 : 0) || (a.district === district && b.district === district ? Math.hypot(a.door.p.x - playerRuntime.x, a.door.p.z - playerRuntime.z) - Math.hypot(b.door.p.x - playerRuntime.x, b.door.p.z - playerRuntime.z) : 0));
   }, [district]);
   const [step, setStep] = useState(0);
   const [facade, setFacade] = useState<FacadeStyle>('studio');
@@ -56,22 +58,22 @@ function WizardInner() {
   const me = useServer((s) => s.me);
   const [bindCode, setBindCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [docs, setDocs] = useState<Record<'company' | 'product', DocState | undefined>>({ company: undefined, product: undefined });
+  const [docs, setDocs] = useState<Record<'company' | 'product', DocState | undefined>>({ company: pre?.docs?.company, product: pre?.docs?.product });
   const registry = useLots((s) => s.registry);
-  const [name, setName] = useState('');
-  const [tagline, setTagline] = useState(profile?.headline ?? '');
-  const [category, setCategory] = useState('内容与传媒');
-  const [products, setProducts] = useState<Product[]>([
-    { id: 'p1', opcId: '', name: profile?.capabilities[0]?.label ?? '我的服务', description: '', priceFrom: profile?.priceRange?.min, unit: '项目', priceConfirmed: !!profile?.priceRange },
-  ]);
-  const [needs, setNeeds] = useState<string[]>(['客户']);
+  const [name, setName] = useState(pre?.name ?? '');
+  const [tagline, setTagline] = useState(pre?.tagline ?? profile?.headline ?? '');
+  const [category, setCategory] = useState(pre?.category ?? '内容与传媒');
+  const [products, setProducts] = useState<Product[]>(pre?.products?.length
+    ? pre.products.slice(0, 4).map((p, i) => ({ id: `p${i + 1}`, opcId: '', name: p.name, description: p.description, unit: '项目', priceConfirmed: false }))
+    : [{ id: 'p1', opcId: '', name: profile?.capabilities[0]?.label ?? '我的服务', description: '', priceFrom: profile?.priceRange?.min, unit: '项目', priceConfirmed: !!profile?.priceRange }]);
+  const [needs, setNeeds] = useState<string[]>(pre?.needs ?? ['客户']);
   const [stage, setStage] = useState<StartupStage>('has_product');
   const [l2, setL2] = useState(true);
   const shopName = name.trim() || `${avatar?.nickname ?? '我'}的小店`;
   const draft = draftAgentKnowledge({ name: shopName, tagline: tagline || '一人公司，用心做好每件事', products, openNeeds: needs });
   const [faqs, setFaqs] = useState<{ q: string; a: string }[] | null>(null);
 
-  const close = () => { setWizard(false); setStep(0); };
+  const close = () => { setWizard(false); setStep(0); useQuick.getState().setPrefill(undefined); };
   /** 每一步的校验：第 1 步实名（姓名 + 手机号唯一 + 验证码），第 3 步营业执照 */
   const check = (k: number): string[] => {
     if (k === 0 && online) {
@@ -271,11 +273,10 @@ function WizardInner() {
   );
 }
 
-interface DocState { id: string; filename: string; status: 'uploading' | 'parsing' | 'done' | 'failed'; summary?: Intro; error?: string; method?: string }
 
 /** 上传一份资料并轮询解析结果，展示提炼出的内容供确认 */
-function DocUpload({ kind, state, onChange }: { kind: 'company' | 'product'; state?: DocState; onChange: (d: DocState | undefined) => void }) {
-  const label = kind === 'company' ? '公司简介' : '产品简介';
+export function DocUpload({ kind, state, onChange, label: labelOverride }: { kind: 'company' | 'product'; state?: DocState; onChange: (d: DocState | undefined) => void; label?: string }) {
+  const label = labelOverride ?? (kind === 'company' ? '公司简介' : '产品简介');
   const upload = async (file: File) => {
     onChange({ id: '', filename: file.name, status: 'uploading' });
     const fd = new FormData();

@@ -4,15 +4,20 @@
  */
 import { useEffect, useState } from 'react';
 
+/** 离线演示时由游戏注入一个演示数据适配器（界面与正式版完全一致，数据是演示数据） */
+let adapter: ((url: string, init?: RequestInit) => Promise<unknown>) | null = null;
+export function setAdminAdapter(f: typeof adapter) { adapter = f; }
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  if (adapter) return (await adapter(url, init)) as T;
   const r = await fetch(url, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...init });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error((j as { error?: string }).error ?? `HTTP ${r.status}`), { status: r.status });
   return j as T;
 }
 
-type Tab = 'overview' | 'modules' | 'clicks' | 'wechat' | 'messages' | 'users' | 'shops' | 'docs' | 'audit';
-const TABS: [Tab, string][] = [['overview', '概览'], ['modules', '模块 PV/UV'], ['clicks', '点击 PV/UV'], ['wechat', '留微信号按钮'], ['messages', '消息审查'], ['users', '用户'], ['shops', '店铺'], ['docs', '上传资料'], ['audit', '审计日志']];
+type Tab = 'overview' | 'governance' | 'modules' | 'clicks' | 'wechat' | 'messages' | 'users' | 'shops' | 'docs' | 'audit';
+const TABS: [Tab, string][] = [['overview', '概览'], ['governance', '店铺治理'], ['modules', '模块 PV/UV'], ['clicks', '点击 PV/UV'], ['wechat', '留微信号按钮'], ['messages', '消息审查'], ['users', '用户'], ['shops', '店铺'], ['docs', '上传资料'], ['audit', '审计日志']];
 const MODULE_LABEL: Record<string, string> = { city: '我的上海（街区）', biz: '我的生意', chain: '产业链', opps: '需求大厅', center: '服务中心', community: '我的社区', messages: '消息', me: '我的', login: '登录页', shop: '店铺', onboarding: '新手引导' };
 const fmt = (ts?: number | null) => (ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '—');
 
@@ -33,6 +38,7 @@ export function AdminApp() {
       </header>
       <main className="mx-auto max-w-6xl p-4">
         {tab === 'overview' && <Overview />}
+        {tab === 'governance' && <Governance />}
         {tab === 'modules' && <Modules />}
         {tab === 'clicks' && <Clicks />}
         {tab === 'wechat' && <Wechat />}
@@ -291,6 +297,77 @@ function Table({ url, pick, cols }: { url: string; pick: string; cols: [string, 
         <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-[var(--border)]">{cols.map(([k]) => <td key={k} className="p-2">{show(k, r[k])}</td>)}</tr>)}</tbody>
       </table>
       {!rows.length && <div className="p-3 text-sm text-[var(--text-secondary)]">暂无数据</div>}
+    </div>
+  );
+}
+
+/** 违规处理的常用理由（会写进给店主的整改提醒里，语气委婉） */
+const REASONS = ['包含与经营无关的内容', '可能涉及夸大或误导的宣传', '资料中含有他人的联系方式或隐私信息', '可能涉及侵权（图片 / 视频 / 商标）', '内容不太适合在公共街区展示'];
+
+interface GovShop { id: string; name: string; lotId: string; status: string; closedReason: string | null; owner: string | null; createdAt: number; products: { idx: number; name: string; description: string; removed: string | null }[]; media: { id: string; kind: string; title: string | null; filename: string; size: number; status: string; removedReason: string | null; url: string }[] }
+
+/** 店铺治理：下架商品 / 视频 / 演讲稿、关店整改、恢复营业；处理后店主会收到一条委婉友善的整改提醒 */
+function Governance() {
+  const [rows, setRows] = useState<GovShop[] | null>(null);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState('');
+  const load = () => api<{ shops: GovShop[] }>('/api/admin/governance').then((r) => setRows(r.shops));
+  useEffect(() => { void load(); }, []);
+  const act = async (key: string, url: string, needReason = true) => {
+    let reason = '';
+    if (needReason) {
+      const pick = window.prompt(`处理理由（会写进给店主的整改提醒里）：\n${REASONS.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n输入序号，或直接写理由`, '1');
+      if (!pick) return;
+      reason = REASONS[Number(pick) - 1] ?? pick;
+    }
+    setBusy(key);
+    try { await api(url, { method: 'POST', body: JSON.stringify(needReason ? { reason } : {}) }); await load(); } catch (e) { alert((e as Error).message); } finally { setBusy(''); }
+  };
+  if (!rows) return <div className="text-sm text-[var(--text-secondary)]">加载中…</div>;
+  const list = rows.filter((r) => !q || r.name.includes(q) || (r.owner ?? '').includes(q));
+  const kindName: Record<string, string> = { video: '🎬 视频', deck: '📑 演讲稿', product: '📄 产品资料' };
+  return (
+    <div data-testid="admin-governance">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <b>店铺治理</b>
+        <span className="text-[var(--text-secondary)]">共 {rows.length} 家 · 整改中 {rows.filter((r) => r.status !== 'active').length} 家。下架 / 关店后，店主会在「消息」里收到委婉友善的整改提醒，所有操作写入审计日志。</span>
+        <input className="ml-auto rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1" placeholder="搜店名 / 店主" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="space-y-3">
+        {list.map((r) => (
+          <div key={r.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 text-sm" data-testid="gov-shop">
+            <div className="flex flex-wrap items-center gap-2">
+              <b>{r.name}</b>
+              <span className="text-xs text-[var(--text-secondary)]">{r.owner ?? '店主'} · {r.lotId} · {fmt(r.createdAt)}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs ${r.status === 'active' ? 'bg-[#e3f1e6] text-[#2d6b3c]' : 'bg-[#fde7e2] text-[#a0371e]'}`}>{r.status === 'active' ? '营业中' : `整改中：${r.closedReason ?? ''}`}</span>
+              <span className="ml-auto">
+                {r.status === 'active'
+                  ? <button disabled={!!busy} className="rounded-lg bg-[#a0371e] px-2 py-1 text-xs text-white" data-testid="gov-close" onClick={() => act(r.id, `/api/admin/shops/${r.id}/close`)}>关店整改</button>
+                  : <button disabled={!!busy} className="rounded-lg bg-[var(--series-1)] px-2 py-1 text-xs text-white" onClick={() => act(r.id, `/api/admin/shops/${r.id}/reopen`, false)}>恢复营业</button>}
+              </span>
+            </div>
+            <div className="mt-2 grid gap-1 md:grid-cols-2">
+              {r.products.map((p) => (
+                <div key={p.idx} className="flex items-center gap-2 rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs">
+                  <span className="truncate">🛍️ {p.name}{p.removed ? <span className="text-[#a0371e]">（已下架：{p.removed}）</span> : null}</span>
+                  {p.removed
+                    ? <button className="ml-auto underline" onClick={() => act(`${r.id}p${p.idx}`, `/api/admin/shops/${r.id}/products/${p.idx}/restore`, false)}>恢复</button>
+                    : <button className="ml-auto text-[#a0371e] underline" data-testid="gov-product-takedown" onClick={() => act(`${r.id}p${p.idx}`, `/api/admin/shops/${r.id}/products/${p.idx}/takedown`)}>下架</button>}
+                </div>
+              ))}
+              {r.media.map((m) => (
+                <div key={m.id} className="flex items-center gap-2 rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs">
+                  <span className="truncate">{kindName[m.kind] ?? m.kind} {m.title ?? m.filename}{m.status === 'removed' ? <span className="text-[#a0371e]">（已下架：{m.removedReason}）</span> : m.status === 'converting' ? '（转换中）' : null}</span>
+                  <a className="ml-auto underline" href={m.url} target="_blank" rel="noreferrer">查看</a>
+                  {m.status !== 'removed' && <button className="text-[#a0371e] underline" data-testid="gov-media-takedown" onClick={() => act(m.id, `/api/admin/media/${m.id}/takedown`)}>下架</button>}
+                </div>
+              ))}
+              {!r.products.length && !r.media.length && <div className="text-xs text-[var(--text-secondary)]">还没有商品和资料</div>}
+            </div>
+          </div>
+        ))}
+        {!list.length && <div className="text-sm text-[var(--text-secondary)]">没有符合条件的店铺</div>}
+      </div>
     </div>
   );
 }

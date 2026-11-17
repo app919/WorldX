@@ -92,6 +92,90 @@ export async function adminRoutes(app: FastifyInstance) {
       (s.company_intro_json IS NOT NULL) hasCompanyIntro, (s.product_intro_json IS NOT NULL) hasProductIntro FROM shops s JOIN users u ON u.id = s.owner_id ORDER BY s.created_at DESC LIMIT 500`) };
   });
 
+  // —— 店铺治理：下架商品 / 资料、关店整改、恢复营业；每次处理都给店主发一条委婉友善的整改提醒，并写审计日志 ——
+  const notify = (userId: string, title: string, body: string) =>
+    db.prepare('INSERT INTO notices (id, user_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(`ntc_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, userId, 'moderation', title, body, Date.now());
+  const Reason = z.object({ reason: z.string().trim().min(2).max(200) });
+  const shopOwner = (id: string) => one<{ owner_id: string; name: string; products_json: string; status: string } | undefined>('SELECT owner_id, name, products_json, status FROM shops WHERE id = ?', id);
+  const kindName: Record<string, string> = { video: '公司介绍视频', deck: '演讲稿', product: '产品资料' };
+
+  app.get('/api/admin/governance', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const shops = all<{ id: string; name: string; lotId: string; status: string; closedReason: string | null; owner: string | null; products_json: string; createdAt: number }>(
+      `SELECT s.id, s.name, s.lot_id lotId, s.status, s.closed_reason closedReason, s.products_json, s.created_at createdAt, u.nickname owner FROM shops s JOIN users u ON u.id = s.owner_id ORDER BY s.created_at DESC LIMIT 500`);
+    const media = all<{ id: string; shopId: string; kind: string; title: string | null; filename: string; size: number; status: string; removedReason: string | null; createdAt: number }>(
+      `SELECT id, shop_id shopId, kind, title, filename, size, status, removed_reason removedReason, created_at createdAt FROM shop_media ORDER BY created_at DESC LIMIT 1000`);
+    return {
+      shops: shops.map(({ products_json, ...x }) => ({ ...x, products: (JSON.parse(products_json) as { name: string; description?: string; removed?: { reason: string } }[]).map((p, i) => ({ idx: i, name: p.name, description: p.description ?? '', removed: p.removed?.reason ?? null })),
+        media: media.filter((m) => m.shopId === x.id).map((m) => ({ ...m, url: `/api/media/${m.id}` })) })),
+    };
+  });
+
+  app.post('/api/admin/shops/:id/products/:idx/takedown', async (req, reply) => {
+    const me = requireAdmin(req, reply); if (!me) return;
+    const { id, idx } = z.object({ id: z.string(), idx: z.coerce.number().int().min(0) }).parse(req.params);
+    const { reason } = Reason.parse(req.body);
+    const s = shopOwner(id);
+    if (!s) return reply.code(404).send({ error: '店铺不存在' });
+    const products = JSON.parse(s.products_json) as { name: string; removed?: { reason: string; at: number } }[];
+    if (!products[idx]) return reply.code(404).send({ error: '商品不存在' });
+    products[idx].removed = { reason, at: Date.now() };
+    db.prepare('UPDATE shops SET products_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(products), Date.now(), id);
+    audit(me.id, 'product.takedown', `${id}#${idx}:${reason}`);
+    notify(s.owner_id, '「' + products[idx].name + '」暂时下架了', `你好！感谢你在三邻邦经营「${s.name}」。我们在巡检中发现商品「${products[idx].name}」${reason}，为了保护你和其他邻居，先帮你暂时下架。修改好后可以重新上架；如果你觉得我们判断有误，也欢迎直接回复说明，我们会尽快复核。祝生意兴隆！`);
+    return { ok: true };
+  });
+
+  app.post('/api/admin/shops/:id/products/:idx/restore', async (req, reply) => {
+    const me = requireAdmin(req, reply); if (!me) return;
+    const { id, idx } = z.object({ id: z.string(), idx: z.coerce.number().int().min(0) }).parse(req.params);
+    const s = shopOwner(id);
+    if (!s) return reply.code(404).send({ error: '店铺不存在' });
+    const products = JSON.parse(s.products_json) as { name: string; removed?: unknown }[];
+    if (!products[idx]) return reply.code(404).send({ error: '商品不存在' });
+    delete products[idx].removed;
+    db.prepare('UPDATE shops SET products_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(products), Date.now(), id);
+    audit(me.id, 'product.restore', `${id}#${idx}`);
+    notify(s.owner_id, '「' + products[idx].name + '」已恢复上架', `你好！商品「${products[idx].name}」已经恢复上架，感谢配合。`);
+    return { ok: true };
+  });
+
+  app.post('/api/admin/media/:id/takedown', async (req, reply) => {
+    const me = requireAdmin(req, reply); if (!me) return;
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const { reason } = Reason.parse(req.body);
+    const m = one<{ user_id: string; kind: string; title: string | null; filename: string; shop_id: string } | undefined>('SELECT user_id, kind, title, filename, shop_id FROM shop_media WHERE id = ?', id);
+    if (!m) return reply.code(404).send({ error: '资料不存在' });
+    db.prepare("UPDATE shop_media SET status = 'removed', removed_reason = ? WHERE id = ?").run(reason, id);
+    audit(me.id, 'media.takedown', `${id}:${reason}`);
+    const name = m.title ?? m.filename;
+    notify(m.user_id, `${kindName[m.kind] ?? '资料'}「${name}」暂时下架了`, `你好！感谢你认真经营小店。你上传的${kindName[m.kind] ?? '资料'}「${name}」${reason}，我们先帮你暂时下架。调整后重新上传就可以了；如有疑问，欢迎回复说明，我们会尽快复核。`);
+    return { ok: true };
+  });
+
+  app.post('/api/admin/shops/:id/close', async (req, reply) => {
+    const me = requireAdmin(req, reply); if (!me) return;
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const { reason } = Reason.parse(req.body);
+    const s = shopOwner(id);
+    if (!s) return reply.code(404).send({ error: '店铺不存在' });
+    db.prepare("UPDATE shops SET status = 'closed', closed_reason = ?, closed_at = ?, updated_at = ? WHERE id = ?").run(reason, Date.now(), Date.now(), id);
+    audit(me.id, 'shop.close', `${id}:${reason}`);
+    notify(s.owner_id, `「${s.name}」暂停营业整改`, `你好！我们在巡检中发现小店「${s.name}」${reason}。为了让街区保持安心的氛围，小店先暂停营业整改（铺位为你保留）。整改完成后回复我们，审核通过就会恢复营业。如果是误会，也请直接告诉我们，谢谢理解！`);
+    return { ok: true };
+  });
+
+  app.post('/api/admin/shops/:id/reopen', async (req, reply) => {
+    const me = requireAdmin(req, reply); if (!me) return;
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const s = shopOwner(id);
+    if (!s) return reply.code(404).send({ error: '店铺不存在' });
+    db.prepare("UPDATE shops SET status = 'active', closed_reason = NULL, closed_at = NULL, updated_at = ? WHERE id = ?").run(Date.now(), id);
+    audit(me.id, 'shop.reopen', id);
+    notify(s.owner_id, `「${s.name}」恢复营业啦`, `你好！小店「${s.name}」已经恢复营业，感谢你的配合，祝生意兴隆！`);
+    return { ok: true };
+  });
+
   app.get('/api/admin/docs', async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
     return { docs: all<Record<string, unknown>>('SELECT d.id, d.kind, d.filename, d.size, d.status, d.method, d.error, d.created_at createdAt, u.nickname owner FROM shop_docs d JOIN users u ON u.id = d.user_id ORDER BY d.created_at DESC LIMIT 200') };

@@ -26,13 +26,28 @@ export function navOf(id: DistrictKey): NavGrid {
   return navs.get(id)!;
 }
 
-/** 所有铺位（门上绑定了 lotId 的位置） */
+type LotRef = { district: DistrictKey; door: ReturnType<typeof compiledOf>['doors'][number]; street: string };
+const lotsCache = new Map<DistrictKey, LotRef[]>();
+/** 某个街区的铺位（只编译这一个街区，启动更快） */
+export function lotsOf(d: DistrictKey): LotRef[] {
+  if (!lotsCache.has(d)) lotsCache.set(d, compiledOf(d).doors.filter((x) => x.lotId).map((x) => ({ district: d, door: x, street: streetOfDoor(d, x.p) })));
+  return lotsCache.get(d)!;
+}
+
+/** 所有铺位（会编译全部街区，只在确实需要全城数据时用） */
 export function allLots() {
-  return DISTRICT_ORDER.flatMap((d) => compiledOf(d).doors.filter((x) => x.lotId).map((x) => ({ district: d, door: x, street: streetOfDoor(d, x.p) })));
+  return DISTRICT_ORDER.flatMap((d) => lotsOf(d));
+}
+
+/** 铺位编号前缀 → 街区（不用编译全城就能定位） */
+const LOT_PREFIX: [string, DistrictKey][] = [['wk_', 'wukang'], ['yj_', 'yangjing'], ['sc_', 'sichuan_n'], ...DISTRICT_ORDER.map((d) => [`${d}_`, d] as [string, DistrictKey])];
+export function districtOfLot(lotId: string): DistrictKey | undefined {
+  return LOT_PREFIX.filter(([p]) => lotId.startsWith(p)).sort((a, b) => b[0].length - a[0].length)[0]?.[1];
 }
 
 export function lotById(lotId: string) {
-  return allLots().find((l) => l.door.lotId === lotId);
+  const d = districtOfLot(lotId);
+  return (d ? lotsOf(d) : allLots()).find((l) => l.door.lotId === lotId) ?? (d ? allLots().find((l) => l.door.lotId === lotId) : undefined);
 }
 
 export function streetOfDoor(d: DistrictKey, p: { x: number; z: number }): string {

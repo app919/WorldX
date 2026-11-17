@@ -1,3 +1,4 @@
+import { REAL_BLUE } from '../domain/palette';
 /**
  * 用户之间的私信（正式模式，连接后端）：
  * - 会话列表（消息页顶部「私信」）、聊天窗口（任意页面都可以打开）；
@@ -30,7 +31,7 @@ export function DmList() {
       {list?.map((c) => (
         <button key={c.id} data-testid="dm-item" onClick={() => useServer.setState({ dm: { id: c.id, peer: c.peer } })} className="flex w-full items-center justify-between gap-2 rounded-2xl bg-cream-100 px-3 py-2 text-left text-xs">
           <span className="min-w-0">
-            <b className="text-cocoa-800">{c.peer.nickname}</b>{c.peer.shopName && <span className="text-stone-500"> · {c.peer.shopName}</span>}
+            <b style={{ color: REAL_BLUE }}>{c.peer.nickname}</b>{c.peer.shopName && <span className="text-stone-500"> · {c.peer.shopName}</span>}
             <div className="truncate text-stone-500">{c.last ? `${c.last.mine ? '我：' : ''}${c.last.body}` : '（还没有消息）'}</div>
           </span>
           {c.unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brick-400 px-1 text-[10px] font-bold text-white">{c.unread}</span>}
@@ -81,7 +82,7 @@ export function DmPanel() {
   };
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-3 md:items-center md:justify-end">
-      <Panel testId="dm-panel" title={<span>💬 {dm.peer.nickname}</span>} subtitle={dm.peer.shopName ? `「${dm.peer.shopName}」店主 · 站内私信` : '站内私信'} onClose={close} className="h-[70vh] w-full max-w-md">
+      <Panel testId="dm-panel" title={<span>💬 <span style={{ color: REAL_BLUE }}>{dm.peer.nickname}</span></span>} subtitle={dm.peer.shopName ? `「${dm.peer.shopName}」店主 · 站内私信` : '站内私信'} onClose={close} className="h-[70vh] w-full max-w-md">
         <div className="flex h-full flex-col">
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto" data-testid="dm-messages">
             {msgs.length === 0 && <div className="text-xs text-stone-400">打个招呼吧：说明你是谁、想合作什么。</div>}

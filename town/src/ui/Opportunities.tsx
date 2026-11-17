@@ -14,6 +14,7 @@ import { useTown } from '../store/useTown';
 import { useMyChain } from './Chain';
 import { Btn, Disclaimer, Drawer, Pill } from './kit';
 import { IdeasPlaza } from './Ideas';
+import { REAL_BLUE } from '../domain/palette';
 
 const KIND_ICON: Record<OppKind, string> = { tender: '📣', promo: '📢', gig: '🧰' };
 const STATUS_TONE: Record<DealStatus, 'cream' | 'almond' | 'sage' | 'haze' | 'sakura'> = {
@@ -70,7 +71,7 @@ function Hall() {
     .filter((o) => budget === 'all' || (o.budget && (budget === 'lt5' ? o.budget.max <= 5000 : budget === '5to10' ? o.budget.max > 5000 && o.budget.min <= 10000 : o.budget.max > 10000)))
     .map((o) => ({ o, score: oppScore(o, myTags, myStages) }))
     .filter((x) => !fitOnly || x.score > 0)
-    .sort((a, b) => (sort === 'match' ? b.score - a.score : sort === 'new' ? b.o.postedAt - a.o.postedAt : (b.o.budget?.max ?? 0) - (a.o.budget?.max ?? 0)));
+    .sort((a, b) => Number(!!b.o.mine) - Number(!!a.o.mine) || (sort === 'match' ? b.score - a.score : sort === 'new' ? b.o.postedAt - a.o.postedAt : (b.o.budget?.max ?? 0) - (a.o.budget?.max ?? 0)));
   const fitCount = list.filter((x) => x.score > 0 && !x.o.mine).length;
   useEffect(() => {
     if (fitCount && !alerted) { alerted = true; useTown.getState().toast(`有 ${fitCount} 条需求与你的能力 / 产业链环节匹配，已排在前面`, 'info'); }
@@ -126,7 +127,7 @@ function OppCard({ o, score }: { o: Opp; score: number }) {
   return (
     <div className="rounded-2xl bg-cream-100 p-3 text-xs" data-testid={`opp-${o.id}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="font-black text-cocoa-800">{KIND_ICON[o.kind]} {o.title}</div>
+        <div className="font-black text-cocoa-800" style={o.mine ? { color: REAL_BLUE } : undefined}>{KIND_ICON[o.kind]} {o.title}</div>
         {score > 0 && <span className="shrink-0"><Pill tone="sage">与你匹配 {score}%</Pill></span>}
       </div>
       <div className="text-stone-500">{o.poster}{o.mine ? '（我发布的）' : ''}</div>

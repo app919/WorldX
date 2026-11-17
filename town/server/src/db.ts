@@ -159,6 +159,35 @@ const MIGRATIONS: string[] = [
   );`,
   // 6：智能生态位的补充问答（只给店主自己，用于匹配，不公开）
   `ALTER TABLE shops ADD COLUMN eco_json TEXT;`,
+  // 7：公司主页式店铺（视频 / 演讲稿 / 产品资料）、店铺治理（下架 / 关店）、给店主的整改通知
+  `CREATE TABLE shop_media (
+    id TEXT PRIMARY KEY,
+    shop_id TEXT NOT NULL REFERENCES shops(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    kind TEXT NOT NULL,                 -- video | deck | product
+    title TEXT,
+    filename TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    view_path TEXT,                     -- 演讲稿统一转成 PDF 在线翻看
+    status TEXT NOT NULL DEFAULT 'live', -- live | converting | removed | failed
+    removed_reason TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_media_shop ON shop_media(shop_id, status);
+  ALTER TABLE shops ADD COLUMN closed_reason TEXT;
+  ALTER TABLE shops ADD COLUMN closed_at INTEGER;
+  CREATE TABLE notices (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    kind TEXT NOT NULL,                 -- moderation | system
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    read_at INTEGER
+  );
+  CREATE INDEX idx_notices_user ON notices(user_id, created_at);`,
 ];
 
 // 通过 createRequire 加载内置的 node:sqlite（测试运行器对较新的内置模块识别不全）

@@ -18,6 +18,7 @@ import { trackRoutes } from './routes/track.js';
 import { adminRoutes } from './routes/admin.js';
 import { weatherRoutes } from './routes/weather.js';
 import { ecoRoutes } from './routes/eco.js';
+import { mediaRoutes } from './routes/media.js';
 
 export interface UserRow { id: string; role: string; status: string; nickname: string | null; phone_mask: string | null; phone_hash: string | null; wechat_hash: string | null; life_tag: string | null; look_json: string | null; created_at: number; last_seen_at: number | null; agreed_terms_at: number | null }
 
@@ -34,7 +35,7 @@ export function buildApp(opts: { db?: DB; logger?: boolean } = {}) {
   const db = opts.db ?? openDb();
   app.decorate('db', db);
   app.register(cookie, { secret: config.sessionSecret });
-  app.register(multipart, { limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 1 } });
+  app.register(multipart, { limits: { fileSize: Math.max(config.maxUploadMb, config.maxVideoMb) * 1024 * 1024, files: 1 } });
 
   app.addHook('onRequest', async (req, reply) => {
     // 匿名设备 id：用于 UV 统计（不含个人信息）
@@ -83,6 +84,7 @@ export function buildApp(opts: { db?: DB; logger?: boolean } = {}) {
   app.register(adminRoutes);
   app.register(weatherRoutes);
   app.register(ecoRoutes);
+  app.register(mediaRoutes);
 
   // 前端页面（构建产物）
   if (existsSync(config.webDist)) {

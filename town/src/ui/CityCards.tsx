@@ -8,7 +8,7 @@ import { placeOfLot, useWork } from '../store/useWork';
 import { COUNTERPARTIES, entityById, residentById, shopOfEntity } from '../data/seed';
 import { BIZ_LABEL, ENTITY_KIND_LABEL, relationsWith } from '../domain/commerce';
 import { capLabel, industryLabel } from '../domain/taxonomy';
-import { allLots, districtName } from '../world';
+import { lotById, districtName } from '../world';
 import { streetOfDistrict, useTown } from '../store/useTown';
 import { LIFE_TAG_LABEL, identityOf } from '../domain/identity';
 import { Btn, Chip, Disclaimer, Pill, Panel } from './kit';
@@ -159,7 +159,7 @@ function LandmarkCard({ id }: { id: string }) {
 }
 
 function LotCard({ id }: { id: string }) {
-  const lot = allLots().find((l) => l.door.lotId === id)!;
+  const lot = lotById(id)!;
   const openCard = useTown((s) => s.openCard);
   const myOpc = useTown((s) => s.myOpc);
   const setWizard = useTown((s) => s.setWizard);
@@ -180,7 +180,7 @@ function LotCard({ id }: { id: string }) {
 
 /** 黄金位：赞助商专属，OPC 不能在这里开店 */
 function GoldenCard({ id }: { id: string }) {
-  const lot = allLots().find((l) => l.door.lotId === id)!;
+  const lot = lotById(id)!;
   const openCard = useTown((s) => s.openCard);
   const sponsor = useLots((s) => s.sponsorOf(id));
   const apply = useLots((s) => s.applySponsor);

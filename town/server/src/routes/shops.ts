@@ -12,6 +12,7 @@ import { encrypt, hmac, redactContacts } from '../lib/crypto.js';
 import { requireUser } from '../app.js';
 import { isGolden, takenByDemo, validUSCC } from '../../../src/domain/lots';
 import { lotById } from '../../../src/world';
+import { publicMedia, type MediaRow } from './media.js';
 
 const Product = z.object({ name: z.string().trim().min(1).max(30), description: z.string().max(200).default(''), priceFrom: z.number().nonnegative().max(1e8).optional(), unit: z.string().max(10).optional(), priceConfirmed: z.boolean().default(false) });
 const ShopInput = z.object({
@@ -39,7 +40,7 @@ export function publicShop(s: ShopRow, ownerNickname: string | null) {
   return {
     id: s.id, lotId: s.lot_id, name: s.name, tagline: s.tagline, category: s.category, facade: s.facade,
     licensed: !!s.licensed, licenseCompany: s.license_company, ownerUserId: s.owner_id, ownerNickname: ownerNickname ?? '店主',
-    products: JSON.parse(s.products_json), needs: JSON.parse(s.needs_json), faqs: JSON.parse(s.faqs_json),
+    products: (JSON.parse(s.products_json) as { removed?: unknown }[]).filter((p) => !p.removed), needs: JSON.parse(s.needs_json), faqs: JSON.parse(s.faqs_json),
     companyIntro: s.company_intro_json ? JSON.parse(s.company_intro_json) : null, productIntro: s.product_intro_json ? JSON.parse(s.product_intro_json) : null,
     createdAt: s.created_at,
   };
@@ -57,7 +58,11 @@ const clean = <T>(v: T): T => JSON.parse(redactContacts(JSON.stringify(v)));
 
 export async function shopRoutes(app: FastifyInstance) {
   const db = app.db;
-  const withOwner = (s: ShopRow) => publicShop(s, (db.prepare('SELECT nickname FROM users WHERE id = ?').get(s.owner_id) as { nickname: string | null } | undefined)?.nickname ?? null);
+  const withOwner = (s: ShopRow) => ({
+    ...publicShop(s, (db.prepare('SELECT nickname FROM users WHERE id = ?').get(s.owner_id) as { nickname: string | null } | undefined)?.nickname ?? null),
+    // 公司主页：上线中的视频 / 演讲稿 / 产品资料
+    media: (db.prepare("SELECT * FROM shop_media WHERE shop_id = ? AND status = 'live' ORDER BY created_at").all(s.id) as unknown as MediaRow[]).map(publicMedia),
+  });
 
   app.get('/api/shops', async () => ({ shops: (db.prepare("SELECT * FROM shops WHERE status = 'active' ORDER BY created_at DESC LIMIT 500").all() as unknown as ShopRow[]).map(withOwner) }));
   app.get('/api/shops/:id', async (req, reply) => {
@@ -69,7 +74,8 @@ export async function shopRoutes(app: FastifyInstance) {
   app.get('/api/shops/mine', async (req, reply) => {
     const me = requireUser(req, reply); if (!me) return;
     const s = db.prepare('SELECT * FROM shops WHERE owner_id = ?').get(me.id) as ShopRow | undefined;
-    return { shop: s ? withOwner(s) : null, eco: s?.eco_json ? JSON.parse(s.eco_json) : null };
+    const extra = s as unknown as { status?: string; closed_reason?: string | null } | undefined;
+    return { shop: s ? withOwner(s) : null, eco: s?.eco_json ? JSON.parse(s.eco_json) : null, status: extra?.status ?? null, closedReason: extra?.closed_reason ?? null };
   });
 
   /** 校验并写入解析好的文档简介 */

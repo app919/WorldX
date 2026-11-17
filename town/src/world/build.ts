@@ -348,30 +348,38 @@ export function compileDistrict(raw: DistrictDef): CompiledDistrict {
       }
     }
   }
-  // 路名牌：每条斑马线两端各一块（标出“正在过的路”和“脚下这条路”），以及路段中间每 70 个单位一块
+  // 路名牌（与真实街道一致，不过密）：只在路口斑马线旁立一块（标出“正在过的路 | 脚下这条路”），
+  // 路口路牌至少相隔 30 米、其他至少 45 米；路段中间每 140 米一块，60 米内已有路牌就不再立
   const roadAt = (p: V2, except?: RoadDef) => sidewalks.find((x) => x.road !== except && inOBB(x.box, p))?.road;
   const signOk = (p: V2) => !inCarriage(p, 0.2) && !inCrosswalk(p, 0.6) && !inBuilding(p, 0.6) && !nearDoor(p, 1.4)
     && !props.some((q) => dist(q.p, p) < 1.3);
+  const signNear = (p: V2, r: number) => props.some((q) => q.kind === 'street_sign' && dist(q.p, p) < r);
   for (const cw of crosswalks) {
     const u = roadDir(cw.road), n = leftOf(u);
+    let done = false;
     for (const sg of [1, -1]) {
       for (const along of [cw.box.w / 2 + 0.9, -(cw.box.w / 2 + 0.9)]) {
         const p = add(add(cw.center, mul(n, sg * (cw.road.carriage / 2 + 0.45))), mul(u, along));
-        if (!signOk(p)) continue;
         const walking = roadAt(p, cw.road);
+        if (!signOk(p) || signNear(p, walking ? 30 : 45)) continue; // 路口间隔 30 米，路段中间的斑马线间隔 45 米
         props.push({ kind: 'street_sign', p, rot: Math.atan2(u.x, u.z), text: walking ? `${cw.road.name}|${walking.name}` : cw.road.name });
+        done = true;
         break;
+      }
+      if (done) break;
+    }
+  }
+  for (const r of def.roads) {
+    const u = roadDir(r), L = roadLen(r);
+    for (let s = 50; s < L - 20; s += 140) {
+      for (const side of [1, -1]) {
+        const p = add(roadPoint(r, s), mul(leftOf(u), side * (r.carriage / 2 + 0.45)));
+        if (signOk(p) && !signNear(p, 60)) { props.push({ kind: 'street_sign', p, rot: Math.atan2(u.x, u.z), text: r.name }); break; }
       }
     }
   }
   for (const r of def.roads) {
     const u = roadDir(r), L = roadLen(r);
-    for (let s = 35; s < L - 20; s += 70) {
-      for (const side of [1, -1]) {
-        const p = add(roadPoint(r, s), mul(leftOf(u), side * (r.carriage / 2 + 0.45)));
-        if (signOk(p) && !props.some((q) => q.kind === 'street_sign' && dist(q.p, p) < 25)) { props.push({ kind: 'street_sign', p, rot: Math.atan2(u.x, u.z), text: r.name }); break; }
-      }
-    }
     // 井盖：车道中线附近，每 38 个单位一个
     for (let s = 19; s < L - 5 && !r.pedestrian; s += 38) {
       const p = add(roadPoint(r, s), mul(leftOf(u), r.carriage / 4));

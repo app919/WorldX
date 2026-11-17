@@ -20,8 +20,9 @@ import { CityCards } from './ui/CityCards';
 import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
-import { Confetti, FlyOverlay, LiveChat, preloadFlyScene } from './ui/LiveChat';
+import { Confetti, FlyOverlay, LiveChat } from './ui/LiveChat';
 import { StrollCard, StrollDriver } from './ui/Stroll';
+import { QuickStart } from './ui/QuickStart';
 import { FeedPanel, LivePanel } from './ui/Buzz';
 import { AutoClose } from './ui/AutoClose';
 import { OpcWizard } from './ui/OpcWizard';
@@ -33,7 +34,14 @@ import { OppPanel } from './ui/Opportunities';
 import { CenterPanel } from './ui/Center';
 import { ActiveJobBar, Counter, JobBoard, ShiftGame } from './ui/Work';
 
-const CityScene = lazy(() => import('./scene/CityScene').then((m) => ({ default: m.CityScene })));
+const loadScene = () => import('./scene/CityScene');
+const CityScene = lazy(() => loadScene().then((m) => ({ default: m.CityScene })));
+/** 选身份的时候就在后台把 3D 场景代码下载好、把默认街区编译好，点「出发」几乎立即进入 */
+function prewarm() {
+  const idle = (f: () => void) => ('requestIdleCallback' in window ? (window as unknown as { requestIdleCallback(f: () => void): void }).requestIdleCallback(f) : setTimeout(f, 300));
+  idle(() => { void loadScene(); });
+  idle(() => { void import('./world').then((w) => { w.compiledOf('wukang'); idle(() => w.navOf('wukang')); }); });
+}
 
 /** 三个核心界面：我的上海（城市）· 我的生意（商业引擎）· 我的社区（关系孵化器）。城市地图始终是视觉主体。 */
 export default function App() {
@@ -43,7 +51,7 @@ export default function App() {
   const me = useServer((s) => s.me);
   const [ready, setReady] = useState(false);
   useEffect(() => { boot().then(() => setReady(true)); }, []);
-  useEffect(() => { if (phase === 'playing') { const t = setTimeout(preloadFlyScene, 4000); return () => clearTimeout(t); } }, [phase]);
+  useEffect(() => { if (phase === 'onboarding') prewarm(); }, [phase]);
   if (!ready || mode === 'checking') return <Loading text="正在连接三邻邦…" />;
   if (mode === 'online' && !me) return <div className="relative h-full w-full"><Backdrop /><Login onLoggedIn={(u) => afterLogin(u).then(() => setReady(true))} /></div>;
   return (
@@ -73,6 +81,7 @@ export default function App() {
             <LiveChat />
             <AutoClose />
             <ReturnSummaryCard />
+            <QuickStart />
             <StrollDriver />
             <StrollCard />
             <FlyOverlay />

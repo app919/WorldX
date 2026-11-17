@@ -315,3 +315,59 @@ describe('智能生态位（后台生成）', () => {
     expect(JSON.stringify(mine.shop)).not.toContain('想接婚礼');
   });
 });
+
+describe('公司主页资料与店铺治理', () => {
+  const upload = async (cookie: string, kind: string, name: string, buf: Buffer) => {
+    const boundary = '----med' + Math.random().toString(16).slice(2);
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="kind"\r\n\r\n${kind}\r\n--${boundary}\r\nContent-Disposition: form-data; name="title"\r\n\r\n公司介绍 微信 abc12345\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
+      buf, Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    return app.inject({ method: 'POST', url: '/api/shops/mine/media', headers: { cookie, 'content-type': `multipart/form-data; boundary=${boundary}` }, payload: body });
+  };
+
+  it('店主上传视频与 PDF 演讲稿 → 店铺公开信息里出现，可以分段播放；格式不对被拒；管理员下架商品 / 资料、关店整改，店主收到友善提醒', async () => {
+    const owner = await login('13866661234', '10.0.0.91');
+    const open = await app.inject({ method: 'POST', url: '/api/shops', ...req(owner.cookie), payload: shopBody({ lotId: freeOpcLot(9), ownerName: '赵治理', name: '治理测试店' }) });
+    expect(open.statusCode, open.body).toBe(200);
+    const shopId = open.json().shop.id;
+    const video = Buffer.alloc(4096, 7);
+    const v = await upload(owner.cookie, 'video', 'intro.mp4', video);
+    expect(v.statusCode, v.body).toBe(200);
+    expect(v.json().media.title).not.toContain('abc12345'); // 标题里的联系方式被隐藏
+    const d = await upload(owner.cookie, 'deck', 'deck.pdf', Buffer.from('%PDF-1.4 fake'));
+    expect(d.statusCode).toBe(200);
+    expect((await upload(owner.cookie, 'video', 'virus.exe', Buffer.from('x'))).statusCode).toBe(400);
+    const pub = (await app.inject({ method: 'GET', url: `/api/shops/${shopId}` })).json().shop;
+    expect(pub.media.map((m: { kind: string }) => m.kind).sort()).toEqual(['deck', 'video']);
+    const vid = pub.media.find((m: { kind: string }) => m.kind === 'video');
+    const part = await app.inject({ method: 'GET', url: vid.url, headers: { range: 'bytes=0-99' } });
+    expect(part.statusCode).toBe(206);
+    expect(part.headers['content-range']).toBe('bytes 0-99/4096');
+
+    const admin = await login('13900000000', '10.0.0.92');
+    expect((await app.inject({ method: 'POST', url: `/api/admin/shops/${shopId}/close`, ...req(owner.cookie), payload: { reason: '测试' } })).statusCode).toBe(403);
+    const gov = (await app.inject({ method: 'GET', url: '/api/admin/governance', ...req(admin.cookie) })).json();
+    const row = gov.shops.find((x: { id: string }) => x.id === shopId);
+    expect(row.media).toHaveLength(2);
+    // 下架商品
+    expect((await app.inject({ method: 'POST', url: `/api/admin/shops/${shopId}/products/0/takedown`, ...req(admin.cookie), payload: { reason: '价格描述可能误导消费者' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/api/shops/${shopId}` })).json().shop.products).toHaveLength(0);
+    // 下架视频
+    expect((await app.inject({ method: 'POST', url: `/api/admin/media/${vid.id}/takedown`, ...req(admin.cookie), payload: { reason: '包含与经营无关的内容' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: vid.url })).statusCode).toBe(404);
+    // 关店整改 → 不在公开店铺里；恢复营业
+    expect((await app.inject({ method: 'POST', url: `/api/admin/shops/${shopId}/close`, ...req(admin.cookie), payload: { reason: '上传的资料涉嫌侵权' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/shops' })).json().shops.some((x: { id: string }) => x.id === shopId)).toBe(false);
+    const mine = (await app.inject({ method: 'GET', url: '/api/shops/mine', ...req(owner.cookie) })).json();
+    expect(mine.status).toBe('closed');
+    expect(mine.closedReason).toContain('侵权');
+    const notices = (await app.inject({ method: 'GET', url: '/api/me/notices', ...req(owner.cookie) })).json().notices;
+    expect(notices.length).toBe(3);
+    expect(notices.every((n: { body: string }) => /你好|感谢/.test(n.body))).toBe(true);
+    expect((await app.inject({ method: 'POST', url: `/api/admin/shops/${shopId}/reopen`, ...req(admin.cookie) })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/shops' })).json().shops.some((x: { id: string }) => x.id === shopId)).toBe(true);
+    const auditRows = (await app.inject({ method: 'GET', url: '/api/admin/audit', ...req(admin.cookie) })).json().audit;
+    expect(auditRows.some((a: { action: string }) => a.action === 'shop.close')).toBe(true);
+  });
+});

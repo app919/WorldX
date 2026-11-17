@@ -19,7 +19,6 @@ import { useWeather } from '../store/useWeather';
 import { WEATHER_ICON, WEATHER_LABEL } from '../domain/weather';
 import { Btn } from './kit';
 import { NeedBox } from './NeedBox';
-import { PurseChip } from './Work';
 import { APP_BUILD_NOTE, APP_VERSION } from '../version';
 import { getPref, setPref } from './uiPrefs';
 import { toggleStroll } from './Stroll';
@@ -72,11 +71,13 @@ export function TopBar() {
 
       <div className="pointer-events-auto relative flex flex-col items-end gap-2">
         <div className="glass flex items-center gap-1.5 rounded-blob py-1.5 pl-1.5 pr-2">
-          <button onClick={toggleNight} title="昼夜切换" data-testid="daynight" className="jelly grid h-8 w-8 place-items-center bg-cream-100 text-lg">{isNight(hour) ? '🌙' : '☀️'}</button>
+          {/* 一个图标：当地天气（晴天夜里显示月亮）；点一下预览昼夜 */}
+          <button onClick={toggleNight} title={`今天${city.name}${WEATHER_LABEL[weather]} · 点一下预览昼夜`} data-testid="daynight" className="jelly grid h-8 w-8 place-items-center bg-cream-100 text-lg">
+            <span data-testid="weather">{weather === 'sunny' ? (isNight(hour) ? '🌙' : '☀️') : WEATHER_ICON[weather]}<span className="sr-only">{WEATHER_LABEL[weather]}</span></span>
+          </button>
           <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '正在跟随当地时间（点一下可暂停预览）' : '预览中，点一下回到当地时间'} className="whitespace-nowrap text-xs font-bold tabular-nums text-cocoa-600 md:text-sm">
             <span className="hidden md:inline">{city.name} </span>{hourLabel(hour)} {timeFlow ? '' : '⏸'}
           </button>
-          <span data-testid="weather" title={`今天${city.name}的天气（按当地天气预报）：${WEATHER_LABEL[weather]}`} className="text-base">{weather === 'sunny' && isNight(hour) ? '✨' : WEATHER_ICON[weather]}<span className="sr-only">{WEATHER_LABEL[weather]}</span></span>
           <span className="mx-0.5 h-5 w-px bg-cream-300" />
           {/* 一个数字看懂自己的进度：等级 + 星星（成长值折算进等级里） */}
           <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="flex items-center gap-1.5 text-xs font-bold" data-testid="wallet" title={`Lv.${lvl.lv} ${lvl.name} · 我的等级与星星`}>
@@ -84,7 +85,6 @@ export function TopBar() {
             <span>⭐ {wallet.stars}</span>
           </button>
         </div>
-        <PurseChip />
         {pop === 'wallet' && (
           <div className="glass absolute right-0 top-full mt-2 w-72 rounded-2xl p-3 text-xs" data-testid="wallet-pop">
             <div className="font-black">Lv.{lvl.lv} {lvl.name} · 经验 {lvl.xp}{lvl.next ? ` / ${lvl.next.need}` : ''}</div>

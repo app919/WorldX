@@ -3,13 +3,98 @@
  * 点击小地图上的位置，角色会沿人行道寻路走过去。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { allLots, compiledOf } from '../world';
+import { lotsOf, compiledOf } from '../world';
 import { lotPlan } from '../domain/lots';
 import { playerRuntime, useTown } from '../store/useTown';
 import { placeOfLot, useWork } from '../store/useWork';
 import { jobTargetLot } from '../scene/JobTarget';
 import { ROLE_COLORS, ROLE_LABEL } from '../domain/palette';
 import { getPref, setPref } from './uiPrefs';
+import { overviewAll, overviewOf, type RealShop } from '../domain/overview';
+import { REAL_BLUE, REAL_NOTE } from '../domain/palette';
+import { useServer } from '../store/useServer';
+import { useLots } from '../store/useLots';
+import { useLive } from '../store/useLive';
+import { DISTRICTS } from '../world';
+import { create } from 'zustand';
+
+/** 小地图上被“标出”的铺位（来自纵览里的本周新增） */
+export const useMapHighlight = create<{ lots: string[]; set(l: string[]): void }>()((set) => ({ lots: [], set: (lots) => set({ lots }) }));
+
+/** 真实用户开的店：后端的店铺 + 我自己的店（离线演示里只有我自己的） */
+function useRealShops(): RealShop[] {
+  const remote = useServer((s) => s.shops);
+  const me = useServer((s) => s.me);
+  const myOpc = useTown((s) => s.myOpc);
+  return useMemo(() => {
+    const out: RealShop[] = remote.map((r) => ({ id: r.id, lotId: r.lotId, name: r.name, createdAt: r.createdAt, mine: r.ownerUserId === me?.id }));
+    if (myOpc && !myOpc.isDemo && !out.some((o) => o.lotId === myOpc.lotId)) out.push({ id: myOpc.id, lotId: myOpc.lotId, name: myOpc.name, createdAt: myOpc.createdAt || Date.now(), mine: true });
+    return out;
+  }, [remote, me, myOpc]);
+}
+
+function useSponsorLots() {
+  const sponsors = useLots((s) => s.sponsors);
+  return useMemo(() => new Set(sponsors.filter((x) => x.status === 'live').map((x) => x.lotId)), [sponsors]);
+}
+
+/** 纵览按钮：本街区 OPC 数量 + 本周新增（红点），点开看全城纵览 */
+export function OverviewChip({ district }: { district: Parameters<typeof overviewOf>[0] }) {
+  const real = useRealShops();
+  const sp = useSponsorLots();
+  const [open, setOpen] = useState(false);
+  const ov = useMemo(() => overviewOf(district, real, sp), [district, real, sp]);
+  const total = ov.real + ov.demo + ov.examples;
+  return (
+    <>
+      <button data-testid="overview-open" onClick={() => setOpen(true)} className="glass flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-cocoa-700" title="地图纵览：这里有多少 OPC、本周新增">
+        🏪 {total}
+        {ov.newThisWeek.length > 0 && <span className="rounded-full px-1.5 text-[10px] font-black text-white" style={{ background: REAL_BLUE }} data-testid="overview-new-badge">新 +{ov.newThisWeek.length}</span>}
+      </button>
+      {open && <OverviewPanel district={district} real={real} sp={sp} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function OverviewPanel({ district, real, sp, onClose }: { district: Parameters<typeof overviewOf>[0]; real: RealShop[]; sp: Set<string>; onClose(): void }) {
+  const all = useMemo(() => overviewAll(real, sp), [real, sp]);
+  const cur = all.find((x) => x.district === district)!;
+  const newAll = all.flatMap((x) => x.newThisWeek.map((n) => ({ ...n, district: x.district })));
+  const hl = useMapHighlight((s) => s.lots);
+  const sum = (k: 'real' | 'demo' | 'examples' | 'sponsors' | 'vacant') => all.reduce((a, x) => a + x[k], 0);
+  const Row = ({ label, v, color }: { label: string; v: number; color?: string }) => (
+    <div className="flex items-center justify-between rounded-lg bg-cream-50 px-2 py-1"><span className="text-stone-600">{label}</span><b style={color ? { color } : undefined}>{v}</b></div>
+  );
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-[58] grid place-items-center bg-cocoa-800/20 p-3" onClick={onClose}>
+      <div className="wobble-in max-h-[80vh] w-full max-w-md overflow-y-auto rounded-3xl bg-cream-50 p-4 text-xs shadow-soft" data-testid="overview-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><div className="text-base font-black text-cocoa-800">🗺️ 地图纵览</div><button aria-label="关闭" onClick={onClose}>✕</button></div>
+        <div className="mt-0.5 text-[11px]" style={{ color: REAL_BLUE }}>{REAL_NOTE}</div>
+        <div className="mt-2 font-black text-cocoa-800">{DISTRICTS[district].name}（{cur.lots} 个铺位）</div>
+        <div className="mt-1 grid grid-cols-2 gap-1" data-testid="overview-district">
+          <Row label="真实用户 OPC" v={cur.real} color={REAL_BLUE} /><Row label="演示店铺" v={cur.demo} />
+          <Row label="【例】示范店" v={cur.examples} /><Row label="黄金位赞助" v={cur.sponsors} />
+          <Row label="空铺可租" v={cur.vacant} />
+        </div>
+        <div className="mt-3 font-black text-cocoa-800">全部 5 座城市</div>
+        <div className="mt-1 grid grid-cols-2 gap-1"><Row label="真实用户 OPC" v={sum('real')} color={REAL_BLUE} /><Row label="演示店铺" v={sum('demo')} /><Row label="【例】示范店" v={sum('examples')} /><Row label="空铺可租" v={sum('vacant')} /></div>
+        <div className="mt-3 flex items-center gap-2 font-black text-cocoa-800">📈 本周新增 <span className="rounded-full px-1.5 text-[10px] text-white" style={{ background: REAL_BLUE }}>+{newAll.length}</span>
+          {newAll.length > 0 && <button className="chip ml-auto bg-cream-100" data-testid="overview-highlight" onClick={() => { useMapHighlight.getState().set(hl.length ? [] : newAll.map((n) => n.lotId)); onClose(); }}>{hl.length ? '取消标出' : '📍 在小地图上标出'}</button>}
+        </div>
+        <div className="mt-1 space-y-1" data-testid="overview-new-list">
+          {newAll.length === 0 && <div className="rounded-lg bg-cream-100 p-2 text-stone-500">本周还没有新开的真实店铺。开放内测后，新开的店会在这里按时间排列（蓝字）。</div>}
+          {newAll.map((n) => (
+            <div key={n.id} className="flex items-center gap-2 rounded-lg bg-cream-100 px-2 py-1.5">
+              <b className="truncate" style={{ color: REAL_BLUE }}>{n.name}</b>
+              <span className="text-[10px] text-stone-500">{DISTRICTS[n.district].name} · {new Date(n.createdAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}{n.mine ? ' · 我的店' : ''}</span>
+              <button className="chip ml-auto bg-almond-300" onClick={() => { onClose(); useTown.getState().setTab('city'); useLive.getState().fly({ title: n.name, lotId: n.lotId }); }}>✈️ 去看看</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const W = 200, H = 168;
 
@@ -24,10 +109,13 @@ export function MiniMap() {
   const svg = useRef<SVGSVGElement>(null);
   const cd = useMemo(() => compiledOf(district), [district]);
   const active = useWork((s) => s.active);
-  const lots = useMemo(() => allLots().filter((l) => l.district === district), [district]);
+  const lots = useMemo(() => lotsOf(district), [district]);
   const goldenSet = useMemo(() => new Set(lotPlan(district).golden), [district]);
   const exampleSet = useMemo(() => new Set(lotPlan(district).examples), [district]);
   const tl = jobTargetLot(active);
+  const realShops = useRealShops();
+  const realLots = useMemo(() => new Set(realShops.map((r) => r.lotId)), [realShops]);
+  const hlLots = useMapHighlight((s) => s.lots);
   const target = tl ? placeOfLot(tl) : undefined;
   const b = cd.def.bounds;
   const scale = Math.min(W / (b.maxX - b.minX), H / (b.maxZ - b.minZ));
@@ -56,6 +144,7 @@ export function MiniMap() {
     return (
       <div className="pointer-events-auto absolute right-3 top-[7.4rem] z-20 flex gap-1 md:bottom-24 md:left-3 md:right-auto md:top-auto">
         <button data-testid="minimap-open" onClick={() => setOpen(true)} className="glass rounded-full px-3 py-1 text-xs font-bold text-cocoa-600">🗺️ 小地图</button>
+        <OverviewChip district={district} />
         <button data-testid="find-me" title="找到我（F）" onClick={() => { playerRuntime.locateAt = performance.now(); }} className="glass rounded-full px-2 py-1 text-xs font-bold text-cocoa-600">📍</button>
       </div>
     );
@@ -63,12 +152,13 @@ export function MiniMap() {
   return (
     <div className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 overflow-hidden rounded-2xl p-1.5 md:bottom-24 md:left-3 md:right-auto md:top-auto" data-testid="minimap">
       <div className="flex items-center justify-between px-1 pb-1 text-[10px] font-bold text-stone-600">
-        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span> <span style={{ color: ROLE_COLORS.example }}>●例</span></span>
+        <span>{cd.def.name} · 上北下南 · <span className="text-[#5E8C6A]">●OPC</span> <span className="text-[#D4A017]">●黄金位</span> <span style={{ color: ROLE_COLORS.example }}>●例</span> <span style={{ color: REAL_BLUE }}>●真实</span></span>
         <span className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-full bg-cream-100">
             <button data-testid="minimap-zoom-in" aria-label="放大小地图" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z * 2))} className="px-1.5 font-black disabled:opacity-30">＋</button>
             <button data-testid="minimap-zoom-out" aria-label="缩小小地图" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z / 2))} className="px-1.5 font-black disabled:opacity-30">－</button>
           </span>
+          <OverviewChip district={district} />
           <button data-testid="find-me" onClick={() => { playerRuntime.locateAt = performance.now(); }} className="rounded-full bg-[#FF8A3D] px-2 py-0.5 text-[10px] font-black text-white">📍 找到我 (F)</button>
           <button onClick={() => setOpen(false)} aria-label="收起小地图">✕</button>
         </span>
@@ -114,6 +204,12 @@ export function MiniMap() {
         {/* 铺位：金色 = 黄金赞助位（40%），绿色 = OPC 招租位（60%） */}
         {lots.map((l) => (
           <circle key={l.door.lotId} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={(exampleSet.has(l.door.lotId!) ? 2 : 1.5) / Math.sqrt(zoom)} fill={exampleSet.has(l.door.lotId!) ? ROLE_COLORS.example : goldenSet.has(l.door.lotId!) ? '#D4A017' : '#5E8C6A'} opacity={0.9} />
+        ))}
+        {lots.filter((l) => realLots.has(l.door.lotId!)).map((l) => (
+          <circle key={`r${l.door.lotId}`} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={2.8 / Math.sqrt(zoom)} fill={REAL_BLUE} stroke="#fff" strokeWidth={0.8 / Math.sqrt(zoom)} data-real="1" />
+        ))}
+        {lots.filter((l) => hlLots.includes(l.door.lotId!)).map((l) => (
+          <circle key={`h${l.door.lotId}`} cx={sx(l.door.p.x)} cy={sz(l.door.p.z)} r={6 / Math.sqrt(zoom)} fill="none" stroke={REAL_BLUE} strokeWidth={1.6 / Math.sqrt(zoom)} className="animate-ping" style={{ transformOrigin: `${sx(l.door.p.x)}px ${sz(l.door.p.z)}px` }} data-testid="map-highlight" />
         ))}
         {cd.tunnels.map((t, i) => (
           <circle key={`tn${i}`} cx={sx(t.box.cx)} cy={sz(t.box.cz)} r={2.2} fill="#3E4048" />

@@ -68,10 +68,8 @@ export function EcoView() {
   return (
     <div data-testid="eco-view">
       <div className="rounded-2xl bg-cream-100 p-3 text-xs text-stone-600">
-        <div className="font-black text-cocoa-800">✨ 智能生态位 · 帮你找多元化经营路线</div>
-        <div className="mt-1">根据{input.sources.length ? `「${input.sources.join('、')}」` : '你的资料'}，从生态位知识库里生成上游、下游、供应链与跨界方向，
-          按 <b>核心实力 · 赛道机会 · 一人适配 · 地域</b> 打分，匹配度从高到低给 6 个。每个方向都经过审核，并估算市场价值（年营收，人民币）。</div>
-        {res.profile.caps.length > 0 && <div className="mt-1">识别到的能力：{res.profile.caps.length} 项 · 计算城市：{cityLabel(input.city)}</div>}
+        <div className="font-black text-cocoa-800">✨ 根据你的资料，找 6 条多元化经营路线</div>
+        <div className="mt-0.5 text-[11px] text-stone-500">已审核 · 按匹配度排序 · 附市场价值{res.profile.caps.length > 0 ? ` · 计算城市：${cityLabel(input.city)}` : ''}</div>
       </div>
 
       <Questions answers={input.answers!} detected={res.profile.caps} />

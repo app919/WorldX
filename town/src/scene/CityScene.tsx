@@ -23,7 +23,9 @@ import { ConnectionLines, Effects } from './Effects';
 import { lightingFor } from './lighting';
 import { applyNight } from './materials';
 import { compiledOf } from '../world';
-import { LOW_GFX } from './quality';
+import { DRAW_DIST, LOW_GFX, ULTRA_GFX } from './quality';
+import { Sky, Stars } from '@react-three/drei';
+import { cam } from './input';
 import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { playerRuntime, useTown } from '../store/useTown';
@@ -99,9 +101,44 @@ function DayNight() {
     <>
       <ambientLight ref={amb} intensity={0.5} />
       <hemisphereLight ref={hemi} args={['#FFF8EC', '#E3D9C9', 0.6]} />
-      <directionalLight ref={sun} castShadow intensity={2} shadow-mapSize={[2048, 2048]}
+      <directionalLight ref={sun} castShadow intensity={2} shadow-mapSize={ULTRA_GFX ? [4096, 4096] : [2048, 2048]}
         shadow-camera-left={-48} shadow-camera-right={48} shadow-camera-top={48} shadow-camera-bottom={-48}
         shadow-camera-near={1} shadow-camera-far={160} shadow-bias={-0.0005} shadow-normalBias={0.04} />
+    </>
+  );
+}
+
+/**
+ * 天空：物理大气散射（瑞利 + 米氏散射），太阳位置跟当地时间走；夜里换成星空。
+ * 跟随 / 第一人称视角能看到地平线，雾的距离也跟着调整（远处的楼淡入雾里，不会突然出现）。
+ */
+function Atmosphere() {
+  const sky = useRef<{ material: { uniforms: Record<string, { value: unknown }> } } | null>(null);
+  const stars = useRef<{ visible: boolean } | null>(null);
+  useFrame((state) => {
+    const s = useTown.getState();
+    const L = lightingFor(s.hour);
+    const W = WEATHER_LIGHT[weatherNow(cityOfDistrict(s.district).id)];
+    const dayAngle = ((s.hour - 6) / 12) * Math.PI;
+    const u = sky.current?.material.uniforms;
+    if (u) {
+      (u.sunPosition.value as { set(x: number, y: number, z: number): void }).set(Math.cos(dayAngle) * 100, Math.sin(dayAngle) * 100, 40);
+      u.turbidity.value = 4 + W.mix * 10;
+      u.rayleigh.value = 1.2 + L.night * 0.4 - W.mix * 0.6;
+      u.mieCoefficient.value = 0.004 + W.mix * 0.01;
+    }
+    if (stars.current) stars.current.visible = L.night > 0.55 && W.mix < 0.5;
+    const fog = state.scene.fog as Fog | null;
+    if (fog) {
+      const top = cam.mode === 'top';
+      const near = top ? (LOW_GFX ? 50 : ULTRA_GFX ? 95 : 75) : 30, far = top ? (LOW_GFX ? 95 : ULTRA_GFX ? 200 : 150) : DRAW_DIST - 6;
+      fog.near += (near - fog.near) * 0.1; fog.far += (far - fog.far) * 0.1;
+    }
+  });
+  return (
+    <>
+      <Sky ref={sky as never} distance={4500} sunPosition={[60, 40, 30]} turbidity={4} rayleigh={1.2} mieCoefficient={0.004} mieDirectionalG={0.85} />
+      <group ref={stars as never}><Stars radius={300} depth={60} count={LOW_GFX ? 1200 : 3000} factor={5} saturation={0.2} fade speed={0.4} /></group>
     </>
   );
 }
@@ -136,7 +173,7 @@ export function CityScene() {
   return (
     <Canvas
       shadows={LOW_GFX ? false : 'soft'}
-      dpr={LOW_GFX ? 0.75 : [1, 2]}
+      dpr={LOW_GFX ? 0.75 : ULTRA_GFX ? [1.25, 2] : [1, 2]}
       camera={{ fov: 30, near: 0.5, far: 500, position: [0, 30, 30] }}
       onPointerMissed={() => openCard(undefined)}
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: AgXToneMapping, toneMappingExposure: 1.15 }}
@@ -144,13 +181,14 @@ export function CityScene() {
       <color attach="background" args={['#DDEBF2']} />
       <fog attach="fog" args={['#DDEBF2', LOW_GFX ? 50 : 75, LOW_GFX ? 95 : 150]} />
       <Env />
+      <Atmosphere />
       <Stats />
       <DayNight />
       <District />
       {!LOW_GFX && (
         /* 画质：环境光遮蔽（墙角、屋檐、车底的自然阴影）+ 夜晚灯光的柔光 + 抗锯齿 */
         <EffectComposer multisampling={0} enableNormalPass={false}>
-          <N8AO aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality="medium" halfRes />
+          <N8AO aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality={ULTRA_GFX ? 'high' : 'medium'} halfRes={!ULTRA_GFX} />
           <Bloom luminanceThreshold={0.92} luminanceSmoothing={0.2} intensity={0.45} mipmapBlur />
           <ToneMapping mode={ToneMappingMode.NEUTRAL} />
           <SMAA />

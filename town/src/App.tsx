@@ -20,7 +20,7 @@ import { CityCards } from './ui/CityCards';
 import { MyBusiness } from './ui/MyBusiness';
 import { HelloComposer, MessagesPanel } from './ui/Connect';
 import { AgentChat } from './ui/AgentChat';
-import { Confetti, FlyOverlay, LiveChat } from './ui/LiveChat';
+import { Confetti, FlyOverlay, LiveChat, preloadFlyScene } from './ui/LiveChat';
 import { FeedPanel, LivePanel } from './ui/Buzz';
 import { AutoClose } from './ui/AutoClose';
 import { OpcWizard } from './ui/OpcWizard';
@@ -42,6 +42,7 @@ export default function App() {
   const me = useServer((s) => s.me);
   const [ready, setReady] = useState(false);
   useEffect(() => { boot().then(() => setReady(true)); }, []);
+  useEffect(() => { if (phase === 'playing') { const t = setTimeout(preloadFlyScene, 4000); return () => clearTimeout(t); } }, [phase]);
   if (!ready || mode === 'checking') return <Loading text="正在连接三邻邦…" />;
   if (mode === 'online' && !me) return <div className="relative h-full w-full"><Backdrop /><Login onLoggedIn={(u) => afterLogin(u).then(() => setReady(true))} /></div>;
   return (

@@ -44,7 +44,7 @@ export function shopDoorOf(ownerId: string) {
 export const chatStarted = (t: Thread) => t.msgs.some((m) => m.need) || (t.msgs.some((m) => m.from === 'me') && t.msgs.some((m) => m.from === 'them'));
 
 /** 打个飞的节奏（毫秒）：起飞 → 云层（至少这么久，等新地图渲染好）→ 降落 → 「我们到了」 */
-export const FLY = { up: 320, clouds: 750, down: 380, arrived: 2200 } as const;
+export const FLY = { up: 260, clouds: 600, down: 320, arrived: 2200 } as const;
 export const FLY_MS = FLY.up + FLY.clouds + FLY.down;
 
 /** 演示店主的模拟回复（不承诺价格，只做初步沟通） */

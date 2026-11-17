@@ -22,6 +22,9 @@ export class NavGrid {
   readonly zone: Uint8Array;
   /** 腐蚀后的可步行网格（考虑角色半径） */
   readonly walk: Uint8Array;
+  /** 圆形障碍（树、路灯、消防栓……）的空间索引：用于“贴着障碍滑过去” */
+  private circles = new Map<string, { p: V2; r: number }[]>();
+  private ckey(x: number, z: number) { return `${Math.floor(x / 4)},${Math.floor(z / 4)}`; }
 
   constructor(readonly cd: CompiledDistrict) {
     const b = cd.def.bounds;
@@ -51,6 +54,10 @@ export class NavGrid {
     for (const b of cd.def.buildings) {
       if (b.polygon) paint((p) => inPolygon(b.polygon!, p), bbOf(b.polygon), Zone.Building);
       else obb(b.box!, Zone.Building);
+    }
+    for (const o of cd.obstacles) if (o.p && o.r) {
+      const k = this.ckey(o.p.x, o.p.z);
+      (this.circles.get(k) ?? this.circles.set(k, []).get(k)!).push({ p: o.p, r: o.r });
     }
     // 角色半径约 0.35：一个格子的腐蚀
     this.walk = new Uint8Array(this.w * this.h);
@@ -108,6 +115,19 @@ export class NavGrid {
       if (near) { const d = dist(from, near), st = Math.max(step, 0.05); return { p: d <= st ? near : { x: from.x + ((near.x - from.x) / d) * st, z: from.z + ((near.z - from.z) / d) * st }, hit: false }; }
     }
     const ux = (to.x - from.x) / (step || 1), uz = (to.z - from.z) / (step || 1);
+    // 贴着圆形障碍（树、路灯）滑过去：沿障碍的切线方向走，像真实的身体碰撞一样不会“粘住”
+    const ob = this.nearestCircle(to, 1.3);
+    if (ob) {
+      const nx = from.x - ob.p.x, nz = from.z - ob.p.z, nl = Math.hypot(nx, nz) || 1;
+      let tx = -nz / nl, tz = nx / nl;
+      if (tx * ux + tz * uz < 0) { tx = -tx; tz = -tz; }
+      const along = tx * ux + tz * uz;
+      if (along > 0.15) {
+        // 切线方向再带一点点向外的分量，绕圆走而不是沿直线切出去再撞上
+        const q = { x: from.x + (tx * 0.92 + (nx / nl) * 0.08) * step, z: from.z + (tz * 0.92 + (nz / nl) * 0.08) * step };
+        if (this.walkable(q)) return { p: q, hit: true };
+      }
+    }
     // 小角度偏转就能过去的（擦着障碍边缘），直接走
     for (const a of [0.3, -0.3, 0.6, -0.6]) {
       const c = Math.cos(a), sn = Math.sin(a);
@@ -131,6 +151,24 @@ export class NavGrid {
     const sz = { x: from.x, z: to.z };
     if (this.walkable(sz)) return { p: sz, hit: true };
     return { p: from, hit: true };
+  }
+
+  /** 脱困：一直朝 (ux, uz) 走却被卡住时，找前方最近的可走点（找不到就找身边的） */
+  unstick(from: V2, ux: number, uz: number): V2 | null {
+    return this.nearestWalkable({ x: from.x + ux * 1.4, z: from.z + uz * 1.4 }, 1.6) ?? this.nearestWalkable(from, 3);
+  }
+
+  /** 离 p 最近、且边缘在 reach 以内的圆形障碍 */
+  nearestCircle(p: V2, reach: number): { p: V2; r: number } | null {
+    let best: { p: V2; r: number } | null = null, bd = Infinity;
+    const cx = Math.floor(p.x / 4), cz = Math.floor(p.z / 4);
+    for (let i = cx - 1; i <= cx + 1; i++) for (let j = cz - 1; j <= cz + 1; j++) {
+      for (const c of this.circles.get(`${i},${j}`) ?? []) {
+        const d = dist(c.p, p) - c.r;
+        if (d < reach && d < bd) { bd = d; best = c; }
+      }
+    }
+    return best;
   }
 
   /** 局部 A*：只在起点周围 (2R+1)² 个格子里搜索，开销很小 */

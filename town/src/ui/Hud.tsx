@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTown, vitality, type Tab } from '../store/useTown';
 import { hourLabel, isNight } from '../scene/clock';
 import { ECONOMY_NOTICE } from '../domain/economy';
-import { input, zoomBy } from '../scene/input';
+import { VIEW_LABEL, cam, cycleView, input, zoomBy } from '../scene/input';
+import { playerRuntime } from '../store/useTown';
 import { DISTRICTS, navOf } from '../world';
 import { CITIES } from '../domain/cities';
 import { emitGame } from '../store/gameEvents';
@@ -20,6 +21,8 @@ import { Btn } from './kit';
 import { NeedBox } from './NeedBox';
 import { PurseChip } from './Work';
 import { APP_BUILD_NOTE, APP_VERSION } from '../version';
+import { getPref, setPref } from './uiPrefs';
+import { useWork } from '../store/useWork';
 
 export function TopBar() {
   const hour = useTown((s) => s.hour);
@@ -42,14 +45,13 @@ export function TopBar() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 p-3">
-      <div className="pointer-events-auto glass relative flex items-center gap-3 rounded-blob px-4 py-2">
+      <div className="pointer-events-auto glass relative flex items-center gap-3 rounded-blob px-3 py-1.5 md:px-4 md:py-2" title="三邻邦（OPC Town）" data-testid="brand">
         <div>
-          <div className="text-[10px] font-black tracking-wide text-almond-600" data-testid="brand">三邻邦（OPC Town）</div>
-          <div className="text-base font-black leading-tight text-cocoa-800">{DISTRICTS[district].name} <span title={APP_BUILD_NOTE} data-testid="version" className="rounded-full bg-cocoa-800 px-1.5 py-0.5 align-middle text-[9px] font-bold text-cream-50">v{APP_VERSION}</span></div>
-          <div className="text-[11px] text-stone-600" data-testid="status-line">{tag?.emoji} 正在{street}散步</div>
+          <div className="whitespace-nowrap text-sm font-black leading-tight text-cocoa-800 md:text-base">{DISTRICTS[district].name} <span title={APP_BUILD_NOTE} data-testid="version" className="rounded-full bg-cocoa-800 px-1.5 py-0.5 align-middle text-[9px] font-bold text-cream-50">v{APP_VERSION}</span></div>
+          <div className="hidden text-[11px] text-stone-600 md:block" data-testid="status-line">{tag?.emoji} 正在{street}散步</div>
         </div>
-        <div className="h-8 w-px bg-cream-300" />
-        <button onClick={() => setPop(pop === 'vital' ? null : 'vital')} className="text-center" data-testid="vitality">
+        <div className="hidden h-8 w-px bg-cream-300 md:block" />
+        <button onClick={() => setPop(pop === 'vital' ? null : 'vital')} className="hidden text-center md:block" data-testid="vitality">
           <div className="text-[10px] text-stone-400">街区活力 ⓘ</div>
           <div className="text-sm font-black text-sage-700">{v.score}</div>
         </button>
@@ -67,24 +69,20 @@ export function TopBar() {
       </div>
 
       <div className="pointer-events-auto relative flex flex-col items-end gap-2">
-        <div className="glass flex items-center gap-2 rounded-blob px-3 py-2">
+        <div className="glass flex items-center gap-1.5 rounded-blob py-1.5 pl-1.5 pr-2">
           <button onClick={toggleNight} title="昼夜切换" data-testid="daynight" className="jelly grid h-8 w-8 place-items-center bg-cream-100 text-lg">{isNight(hour) ? '🌙' : '☀️'}</button>
-          <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '正在跟随当地时间（点一下可暂停预览）' : '预览中，点一下回到当地时间'} className="text-sm font-bold tabular-nums text-cocoa-600">
-            {city.name} {hourLabel(hour)} {timeFlow ? '' : '⏸ 预览'}
+          <button data-testid="timeflow" onClick={toggleTimeFlow} title={timeFlow ? '正在跟随当地时间（点一下可暂停预览）' : '预览中，点一下回到当地时间'} className="whitespace-nowrap text-xs font-bold tabular-nums text-cocoa-600 md:text-sm">
+            <span className="hidden md:inline">{city.name} </span>{hourLabel(hour)} {timeFlow ? '' : '⏸'}
           </button>
-          <span data-testid="weather" title={`今天${city.name}的天气（按当地天气预报）`} className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-bold text-cocoa-700">{WEATHER_ICON[weather]} {WEATHER_LABEL[weather]}</span>
+          <span data-testid="weather" title={`今天${city.name}的天气（按当地天气预报）：${WEATHER_LABEL[weather]}`} className="text-base">{weather === 'sunny' && isNight(hour) ? '✨' : WEATHER_ICON[weather]}<span className="sr-only">{WEATHER_LABEL[weather]}</span></span>
+          <span className="mx-0.5 h-5 w-px bg-cream-300" />
+          {/* 一个数字看懂自己的进度：等级 + 星星（成长值折算进等级里） */}
+          <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="flex items-center gap-1.5 text-xs font-bold" data-testid="wallet" title={`Lv.${lvl.lv} ${lvl.name} · 我的等级与星星`}>
+            <span className="rounded-full bg-cocoa-800 px-1.5 text-[10px] font-black text-cream-50">Lv.{lvl.lv}</span>
+            <span>⭐ {wallet.stars}</span>
+          </button>
         </div>
-        <div className="flex items-center gap-1.5">
-          <button data-testid="open-center" onClick={() => useTown.getState().setTab('center')} className="jelly bg-haze-300 px-3 py-1 text-xs font-black text-cocoa-800">🏛️ 服务中心</button>
-          <PurseChip />
-        </div>
-        {/* 一个数字看懂自己的进度：等级 + 星星（成长值折算进等级里） */}
-        <button onClick={() => setPop(pop === 'wallet' ? null : 'wallet')} className="glass flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold" data-testid="wallet" title="我的等级与星星">
-          <span className="rounded-full bg-cocoa-800 px-1.5 text-[10px] font-black text-cream-50">Lv.{lvl.lv}</span>
-          <span className="text-cocoa-700">{lvl.name}</span>
-          <span className="h-1.5 w-10 overflow-hidden rounded-full bg-cream-200"><i className="block h-full bg-almond-500" style={{ width: `${Math.round(lvl.pct * 100)}%` }} /></span>
-          <span>⭐ {wallet.stars}</span>
-        </button>
+        <PurseChip />
         {pop === 'wallet' && (
           <div className="glass absolute right-0 top-full mt-2 w-72 rounded-2xl p-3 text-xs" data-testid="wallet-pop">
             <div className="font-black">Lv.{lvl.lv} {lvl.name} · 经验 {lvl.xp}{lvl.next ? ` / ${lvl.next.need}` : ''}</div>
@@ -179,7 +177,8 @@ export function Coach() {
   const view = useQuests((s) => s.view);
   const checkins = useQuests((s) => s.checkins);
   useQuests((s) => s.startDay);
-  const [hidden, setHidden] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [hidden, setHiddenRaw] = useState(() => !getPref('coach', false));
+  const setHidden = (v: boolean) => { setHiddenRaw(v); setPref('coach', !v); };
   useEffect(() => { useQuests.getState().checkIn(); }, []);
   if (tab !== 'city' || card) return null;
   const cq = currentQuests();
@@ -191,10 +190,15 @@ export function Coach() {
   const ss = seasonOf(checkins.length);
   const streak = streakOf(checkins, questTodayStr());
   if (hidden) {
-    return <button data-testid="quest-open" onClick={() => setHidden(false)} className="pointer-events-auto glass absolute left-3 top-24 z-10 rounded-full px-3 py-1 text-xs font-black text-cocoa-700">🎯 {mode === 'newbie' ? `第 ${unlocked} 天任务` : '每日委托'} · 还剩 {left} · 🔥{streak}</button>;
+    return (
+      <button data-testid="quest-open" onClick={() => setHidden(false)} className="pointer-events-auto glass absolute left-3 top-[7.2rem] z-10 flex items-center gap-1.5 md:top-24 rounded-full px-3 py-1.5 text-xs font-black text-cocoa-700">
+        🎯 {mode === 'newbie' ? `第 ${unlocked} 天任务` : '今日委托'}
+        {left > 0 ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#FF8A3D] px-1 text-[10px] text-white">{left}</span> : <span>✅</span>}
+      </button>
+    );
   }
   return (
-    <div className="pointer-events-auto glass absolute left-3 top-24 z-10 w-72 rounded-blob p-3" data-testid="coach">
+    <div className="pointer-events-auto glass absolute left-3 top-[7.2rem] z-10 w-72 rounded-blob p-3 md:top-24" data-testid="coach">
       <div className="flex items-center justify-between text-xs font-black text-cocoa-800">
         <span>🎯 {mode === 'newbie' ? '新手 7 天' : '每日委托'} · {identityOf(tag).label}</span>
         <button onClick={() => setHidden(true)} className="text-stone-400">收起</button>
@@ -270,6 +274,23 @@ export function ReturnSummaryCard() {
 
 const questTodayStr = () => cnDate();
 
+/** 切到跟随 / 第一人称时，镜头朝向最开阔的方向（沿着街道看出去，而不是对着墙） */
+function openYaw(district: Parameters<typeof navOf>[0]): number {
+  const nav = navOf(district);
+  let best = playerRuntime.heading, bestLen = -1;
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    let len = 0;
+    for (let d = 0.5; d < 40; d += 0.5) {
+      const z = nav.zoneAt({ x: playerRuntime.x + Math.sin(a) * d, z: playerRuntime.z + Math.cos(a) * d });
+      if (z === 4 || z === 0) break; // 撞到建筑 / 地图外
+      len = d;
+    }
+    if (len > bestLen + 0.5) { bestLen = len; best = a; }
+  }
+  return best;
+}
+
 export function Controls() {
   const myOpc = useTown((s) => s.myOpc);
   const setWizard = useTown((s) => s.setWizard);
@@ -277,6 +298,9 @@ export function Controls() {
   const walkTo = useTown((s) => s.walkTo);
   const district = useTown((s) => s.district);
   const tab = useTown((s) => s.tab);
+  const workOn = useWork((s) => s.enabled);
+  const [view, setView] = useState(cam.mode);
+  useEffect(() => { const f = () => setView(cam.mode); cam.listeners.add(f); return () => { cam.listeners.delete(f); }; }, []);
   const pad = useRef<HTMLDivElement>(null);
   const knob = useRef<HTMLDivElement>(null);
   const move = (e: React.PointerEvent) => {
@@ -301,7 +325,16 @@ export function Controls() {
       <div className="pointer-events-auto absolute left-4 top-[40%] z-20 flex flex-col overflow-hidden rounded-2xl bg-cream-50/90 shadow-soft ring-1 ring-cream-200 md:bottom-4 md:left-3 md:top-auto md:flex-row" data-testid="zoom-controls">
         <button aria-label="拉近" data-testid="zoom-in" onClick={() => { zoomBy(0.8); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center text-lg font-black text-cocoa-700 hover:bg-almond-300">＋</button>
         <button aria-label="拉远" data-testid="zoom-out" onClick={() => { zoomBy(1.25); emitGame('zoom'); }} className="grid h-9 w-9 place-items-center border-cream-200 text-lg font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">－</button>
-        <button aria-label="街区动态" data-testid="feed-open" onClick={() => useFollow.getState().setFeed(true)} className="grid h-9 min-w-9 place-items-center border-cream-200 px-2 text-xs font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">📰<span className="hidden md:inline"> 街区动态</span></button>
+        <button aria-label="切换视角" title="切换视角：俯视 → 跟随 → 第一人称（V）" data-testid="view-toggle" onClick={() => {
+          const yaw = openYaw(useTown.getState().district);
+          cycleView(yaw);
+          if (cam.mode !== 'top') { cam.yaw = yaw; playerRuntime.heading = yaw; }
+          setView(cam.mode);
+          if (cam.mode !== 'top') useTown.getState().toast(cam.mode === 'fp' ? '👁️ 第一人称：拖动看四周，W / S 前后走，A / D 横移，Q / E 转身' : '🎥 跟随视角：拖动转镜头，W 朝镜头方向走', 'info');
+        }} className="grid h-9 min-w-9 place-items-center border-cream-200 px-2 text-xs font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">👁️<span className="hidden md:inline"> {VIEW_LABEL[view]}</span></button>
+        <button aria-label="街区动态" data-testid="feed-open" onClick={() => useFollow.getState().setFeed(true)} className="grid h-9 min-w-9 place-items-center border-cream-200 px-2 text-xs font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">📰<span className="hidden md:inline"> 动态</span></button>
+        <button aria-label="服务中心" title="服务中心：创业服务、信用保障、融资资源" data-testid="open-center" onClick={() => useTown.getState().setTab('center')} className="grid h-9 min-w-9 place-items-center border-cream-200 px-2 text-xs font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">🏛️<span className="hidden md:inline"> 服务</span></button>
+        {workOn && <button aria-label="打工" title="街区打工告示板" data-testid="open-jobs" onClick={() => useWork.getState().openBoard(true)} className="grid h-9 min-w-9 place-items-center border-cream-200 px-2 text-xs font-black text-cocoa-700 hover:bg-almond-300 max-md:border-t md:border-l">💼<span className="hidden md:inline"> 打工</span></button>}
       </div>
       <div ref={pad} className="pointer-events-auto absolute bottom-24 left-4 z-20 grid h-24 w-24 touch-none place-items-center rounded-full bg-cream-50/60 shadow-soft ring-2 ring-cream-200 md:hidden"
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={(e) => e.buttons && move(e)} onPointerUp={end} onPointerCancel={end}>
@@ -309,8 +342,10 @@ export function Controls() {
       </div>
       <div className="pointer-events-none absolute bottom-24 right-4 z-20 flex flex-col items-end gap-2">
         <NeedBox />
-        <Btn className="pointer-events-auto" tone={myOpc ? 'sakura' : 'cream'} onClick={() => (myOpc ? enterLot(myOpc.lotId) : setWizard(true))} data-testid="my-shop-btn">🏪 {myOpc ? '我的小店' : '开一家小店'}</Btn>
-        <Btn className="pointer-events-auto" size="lg" onClick={stroll} data-testid="autowalk">🚶 随便逛逛</Btn>
+        <div className="pointer-events-auto flex gap-1.5">
+          <Btn size="sm" tone={myOpc ? 'sakura' : 'cream'} onClick={() => (myOpc ? enterLot(myOpc.lotId) : setWizard(true))} data-testid="my-shop-btn">🏪 {myOpc ? '我的小店' : '开一家小店'}</Btn>
+          <Btn size="sm" onClick={stroll} data-testid="autowalk">🚶 随便逛逛</Btn>
+        </div>
       </div>
     </>
   );

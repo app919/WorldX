@@ -13,6 +13,7 @@ import { useOpp, type Deal } from '../store/useOpp';
 import { useTown } from '../store/useTown';
 import { useMyChain } from './Chain';
 import { Btn, Disclaimer, Drawer, Pill } from './kit';
+import { IdeasPlaza } from './Ideas';
 
 const KIND_ICON: Record<OppKind, string> = { tender: '📣', promo: '📢', gig: '🧰' };
 const STATUS_TONE: Record<DealStatus, 'cream' | 'almond' | 'sage' | 'haze' | 'sakura'> = {
@@ -28,9 +29,9 @@ export function OppPanel() {
   const [posting, setPosting] = useState(false);
   const taken = bids.filter((b) => b.mine).length + useOpp.getState().promos.length + useOpp.getState().apps.length;
   return (
-    <Drawer wide testId="opp-panel" title="📋 需求大厅 · 机会广场" subtitle="发布 → 审核 → 匹配 → 对接 → 成交 → 履约 → 评价" onClose={() => setTab('city')}>
+    <Drawer wide testId="opp-panel" title="📋 机会广场" subtitle={tab === 'ideas' ? '创意展示 · AI 教你从想法到真实 · 系统里的上下游资源' : '发布 → 审核 → 匹配 → 对接 → 成交 → 履约 → 评价'} onClose={() => setTab('city')}>
       <div className="flex flex-wrap gap-1.5">
-        {([['hall', '🏛️ 需求大厅'], ['posted', `📣 我发布的 ${myOpps.length || ''}`], ['taken', `🧾 我承接的 ${taken || ''}`]] as const).map(([k, label]) => (
+        {([['hall', '🏛️ 需求大厅'], ['ideas', '💡 创意广场'], ['posted', `📣 我发布的 ${myOpps.length || ''}`], ['taken', `🧾 我承接的 ${taken || ''}`]] as const).map(([k, label]) => (
           <button key={k} data-testid={`opp-tab-${k}`} onClick={() => setOppTab(k)}
             className={`rounded-full px-3 py-1 text-xs font-black ${tab === k ? 'bg-almond-400 text-cocoa-800' : 'bg-cream-100 text-stone-600'}`}>{label}</button>
         ))}
@@ -38,6 +39,7 @@ export function OppPanel() {
       </div>
       {posting && <PostForm onDone={() => { setPosting(false); setOppTab('posted'); }} />}
       {tab === 'hall' && <Hall />}
+      {tab === 'ideas' && <IdeasPlaza />}
       {tab === 'posted' && <Posted />}
       {tab === 'taken' && <Taken />}
     </Drawer>

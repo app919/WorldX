@@ -26,6 +26,25 @@ export function goNear(district: DistrictKey, p: { x: number; z: number }) {
   return q ? t.walkTo(q) : false;
 }
 
+/** 一键「打个飞的」：直接落在店门口，打开店铺 AI 分身（服务商 / 投资人打开服务中心；没有铺位的个人飞到常出没的地方） */
+export function goToHit(h: SearchHit) {
+  const t = useTown.getState();
+  if (h.kind === 'provider' || h.kind === 'contact') {
+    useCenter.getState().setSection(h.kind === 'provider' ? 'services' : 'funding');
+    t.setTab('center');
+    if (h.kind === 'contact') emitGame('view_investor'); else emitGame('center_service');
+    return;
+  }
+  if (h.lotId) { t.setTab('city'); useLive.getState().fly({ title: h.title, lotId: h.lotId }); return; }
+  const r = residentOfEntity(h.id.replace(/^ent_/, ''));
+  if (r) { t.setTab('city'); const a = residentAnchor(r); useLive.getState().fly({ title: h.title, at: { district: a.district, x: a.p.x, z: a.p.z }, then: () => t.openCard({ kind: 'resident', id: r.id }) }); }
+}
+
+/** 在全城搜索（演示店铺、真实用户的店、服务商、投资人） */
+export function searchAllTown(q: string, remote: { id: string; lotId: string; name: string; tagline?: string; category?: string; licensed?: boolean; ownerUserId?: string }[] = []) {
+  return searchTown(q, { lotOfExample, districtOfLot: (l) => lotById(l)?.district, remote });
+}
+
 export function NeedBox() {
   const [q, setQ] = useState('');
   const [asked, setAsked] = useState('');
@@ -39,25 +58,10 @@ export function NeedBox() {
 
   const ask = (text: string) => { setQ(text); setAsked(text); setOpen(true); emitGame('search'); track('action', 'need_box', 'search', { q: text.slice(0, 40) }); };
 
-  /** 一键「打个飞的」：直接落在店门口，打开店铺 AI 分身（示范店打开示范介绍） */
   const act = (h: SearchHit) => {
     track('action', 'need_box', `go_${h.kind}`, { q: q.slice(0, 40), id: h.id, rank: String(hits.indexOf(h) + 1) });
-    const t = useTown.getState();
     setOpen(false);
-    if (h.kind === 'provider' || h.kind === 'contact') {
-      useCenter.getState().setSection(h.kind === 'provider' ? 'services' : 'funding');
-      t.setTab('center');
-      if (h.kind === 'contact') emitGame('view_investor'); else emitGame('center_service');
-      return;
-    }
-    if (h.kind === 'remote' && h.lotId) {
-      useLive.getState().fly({ title: h.title, lotId: h.lotId });
-      return;
-    }
-    if (h.lotId) { useLive.getState().fly({ title: h.title, lotId: h.lotId }); return; }
-    // 没有铺位的个人：飞到 TA 常出没的地方，并打开名片
-    const r = residentOfEntity(h.id.replace(/^ent_/, ''));
-    if (r) { const a = residentAnchor(r); useLive.getState().fly({ title: h.title, at: { district: a.district, x: a.p.x, z: a.p.z }, then: () => t.openCard({ kind: 'resident', id: r.id }) }); }
+    goToHit(h);
   };
 
   return (

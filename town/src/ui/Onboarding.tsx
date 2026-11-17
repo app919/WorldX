@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { APP_BUILD_NOTE, APP_VERSION } from '../version';
+import { APP_VERSION } from '../version';
 import type { AvatarLook, LifeTag } from '../domain/types';
 import { IDENTITIES } from '../domain/identity';
 import { Chibi } from '../scene/Chibi';
@@ -46,7 +46,6 @@ export function Onboarding() {
         <div className="text-center">
           <div className="text-xs font-bold tracking-[0.3em] text-sage-700">OPC Town</div>
           <h1 className="mt-1 text-3xl font-black text-cocoa-800">三邻邦<span className="text-xl">（OPC Town）</span> <span className="align-middle text-xs font-bold text-stone-400">v{APP_VERSION}</span></h1>
-          <div className="mt-1 text-[11px] text-stone-500">本版更新：{APP_BUILD_NOTE}</div>
           <p className="mt-1 text-sm text-stone-600">在上海，逛着逛着，就可能找到下一位客户。</p>
         </div>
         {step === 0 ? (
@@ -77,7 +76,7 @@ export function Onboarding() {
                   <span className="text-xs text-stone-600">发色</span>
                   {HAIR_COLORS.map((c) => <button key={c} aria-label={`发色 ${c}`} onClick={() => setHair(c)} className={`h-6 w-6 rounded-full shadow-soft ${hair === c ? 'ring-2 ring-cocoa-600 ring-offset-2' : ''}`} style={{ background: c }} />)}
                 </div>
-                <div className="text-[11px] text-stone-500">着装：{preset.label}专属（街上【例】示范店主理人统一穿蓝色背带裤）</div>
+                <div className="text-[11px] text-stone-500">着装：{preset.label}专属，街上一眼就能认出你</div>
               </div>
             </div>
             <input className="input mt-3" placeholder="给小人起个昵称（可选）" value={name} maxLength={12} onChange={(e) => setName(e.target.value)} />

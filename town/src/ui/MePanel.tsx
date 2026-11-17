@@ -4,7 +4,7 @@ import { api, clearLocalState } from '../net/api';
 import { useCenter } from '../store/useCenter';
 import { useWork } from '../store/useWork';
 import { useTown } from '../store/useTown';
-import { LOW_GFX, setLowGfx } from '../scene/quality';
+import { LOW_GFX, ULTRA_GFX, setLowGfx, setUltraGfx } from '../scene/quality';
 import { LIFE_TAGS } from './Onboarding';
 import { Btn, Card, Chip, Disclaimer, Drawer } from './kit';
 
@@ -106,6 +106,7 @@ export function MePanel() {
         <Card className="!p-3">
           <div className="text-sm font-black">画质</div>
           <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={LOW_GFX} onChange={(e) => setLowGfx(e.target.checked)} /> 流畅模式（关闭阴影、降低分辨率，适合低端手机；切换后重新加载）</label>
+          <label className="mt-1 flex items-center gap-2 text-xs"><input type="checkbox" data-testid="ultra-gfx" checked={ULTRA_GFX} onChange={(e) => setUltraGfx(e.target.checked)} /> 极致画质（4K 阴影、高质量环境光遮蔽、更远视距与更高分辨率，建议电脑独显；切换后重新加载）</label>
         </Card>
         <Card className="!p-3">
           <div className="text-sm font-black">运营视角（平台运营人员）</div>

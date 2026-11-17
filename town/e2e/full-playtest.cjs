@@ -115,8 +115,8 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('timeflow').click();
     await page.waitForTimeout(1500);
     must(await evalTown(() => window.__town.useTown.getState().timeFlow), '没有回到当地时间');
-    must(/晴|阴|雨|雪/.test(await T('weather').innerText()), '没有显示天气');
-    return `当地 ${local.toFixed(2)} 时 · 天气 ${await T('weather').innerText()}`;
+    must(/晴|阴|雨|雪/.test(await T('weather').textContent()), '没有显示天气');
+    return `当地 ${local.toFixed(2)} 时 · 天气 ${await T('weather').textContent()}`;
   });
 
   // —— 走路与规则 ——
@@ -427,6 +427,55 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('chain-view-chain').click();
     await toCity();
     return `丢弃 ${before[0]} → 补 ${after.find((x) => !before.includes(x))}；收藏 ${favId}（#明年做）；${switched}；本城市标记 ${local} 个`;
+  });
+  await step('创意广场：发布创意（可选公开）→ AI 落地教练：定位、5 步、上下游与系统资源，一键打个飞的', async () => {
+    await closeAll();
+    await evalTown(() => window.__town.useTown.getState().setTab('opps'));
+    await T('opp-tab-ideas').click();
+    await T('ideas-plaza').waitFor();
+    const demo = await page.locator('[data-testid=idea-list] > div').count();
+    must(demo >= 6, `示范创意 ${demo} 条`);
+    await T('idea-post-open').click();
+    await T('idea-title').fill('直播间刷量');
+    await T('idea-desc').fill('帮商家直播间刷量提升排名，按场收费');
+    await T('idea-submit').click();
+    must((await T('idea-error').innerText()).includes('不符合'), '违规创意没有被拦截');
+    await T('idea-title').fill('宠物店的 AI 客服和会员写真');
+    await T('idea-desc').fill('给社区宠物店装 AI 客服回答洗护预约，每月给会员宠物拍一次写真');
+    await T('idea-submit').click();
+    await T('idea-coach-view').waitFor();
+    must((await T('idea-position').innerText()).includes('一句话定位'), '没有定位');
+    must(await page.locator('[data-testid=idea-steps] > div').count() === 5, '不是 5 步');
+    const chain = await T('idea-chain').innerText();
+    for (const k of ['上游', '下游', '同行']) must(chain.includes(k), `缺少 ${k}`);
+    const res = await T('idea-resource').count();
+    must(res > 0, '没有系统资源');
+    await page.screenshot({ path: path.join(OUT, '62-idea-coach.png') });
+    const name = await T('idea-resource').first().innerText();
+    await T('idea-resource').first().click();
+    await page.waitForTimeout(3500);
+    const tab = await evalTown(() => window.__town.useTown.getState().tab);
+    await toCity();
+    return `示范创意 ${demo} 条；系统资源 ${res} 个；点「${name.split('\n')[0]}」→ ${tab}`;
+  });
+  await step('视角：俯视 → 跟随 → 第一人称（V 键 / 👁️ 按钮），第一人称视线高度约 1.3 米，W 朝视线方向走', async () => {
+    await closeAll(); await toCity();
+    await T('view-toggle').click();
+    must((await T('view-toggle').innerText()).includes('跟随'), '没有切到跟随');
+    await T('view-toggle').click();
+    must((await T('view-toggle').innerText()).includes('第一人称'), '没有切到第一人称');
+    await page.waitForTimeout(2500);
+    const camY = await evalTown(() => window.__town.camPos().y);
+    must(camY > 1 && camY < 1.8, `第一人称视线高度 ${camY}`);
+    const yaw = await evalTown(() => window.__town.cam.yaw);
+    const p0 = await evalTown(() => ({ x: window.__town.playerRuntime.x, z: window.__town.playerRuntime.z }));
+    await page.keyboard.down('w'); await page.waitForTimeout(1500); await page.keyboard.up('w');
+    const p1 = await evalTown(() => ({ x: window.__town.playerRuntime.x, z: window.__town.playerRuntime.z }));
+    const along = (p1.x - p0.x) * Math.sin(yaw) + (p1.z - p0.z) * Math.cos(yaw);
+    await page.screenshot({ path: path.join(OUT, '63-first-person.png') });
+    await T('view-toggle').click();
+    must((await T('view-toggle').innerText()).includes('俯视'), '没有回到俯视');
+    return `视线高度 ${camY.toFixed(2)} 米；按 W 沿视线前进 ${along.toFixed(2)} 米`;
   });
   // —— v0.5：产业链黄页 + 上下游速配 + 服务商抢位 + 机会广场 ——
   for (const ind of ['ecommerce', 'heritage', 'education']) {
@@ -795,7 +844,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
   await step('版本号：顶栏显示当前版本（确认看到的是最新版）', async () => {
     await toCity();
     const v = await T('version').innerText();
-    must(v.includes('1.4.0'), `版本号是 ${v}`);
+    must(v.includes('1.6.0'), `版本号是 ${v}`);
     return v;
   });
   await step('找到我：点击后镜头回到角色、脚下光圈闪烁', async () => {
@@ -878,6 +927,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     const st = await evalTown(() => window.__town.useWork.getState().purse.stamina);
     await page.screenshot({ path: path.join(OUT, '16-park.png') });
     must(st > 30, `体力没有恢复：${st}`);
+    if (await T('minimap-open').count()) await T('minimap-open').click();
     const label = await T('minimap').innerText();
     must(label.includes('襄阳公园') || label.includes('徐家汇公园'), '小地图上没有公园名');
     return `${pk.label}：体力 30 → ${Math.round(st)}`;
@@ -938,6 +988,7 @@ const waitFor = async (pred, ms = 120000, every = 400) => { const t = Date.now()
     await T('zoom-out').click(); await T('zoom-out').click(); await T('zoom-out').click();
     const d2 = await evalTown(() => window.__town.cam.dist);
     must(d1 < d0 && d2 > d1, `${d0} → ${d1} → ${d2}`);
+    if (await T('minimap-open').count()) await T('minimap-open').click();
     await T('minimap-zoom-in').click();
     must(await page.locator('[data-testid=minimap] svg').getAttribute('data-zoom') === '2', '小地图没有放大');
     await T('minimap-zoom-out').click();

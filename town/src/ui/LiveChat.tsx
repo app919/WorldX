@@ -2,7 +2,7 @@
  * 「打个飞的」动画 + 「聊一聊」窗口。
  * 聊一聊：店主在线 → 直接聊；店主不在线 → 写下需求（做什么 / 预算 / 时间 / 线上线下）发给对方。
  */
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { FLY, chatStarted, useLive, type NeedNote } from '../store/useLive';
 import { useCelebrate } from '../store/useCelebrate';
 import { residentById } from '../data/seed';
@@ -13,6 +13,10 @@ import { WORK_HOURS, hourLabel, isWorkTime, localHour } from '../scene/clock';
  * 打个飞的：起飞后整屏穿越云层（小飞机飞过云海），云层挡住换地图 / 渲染 / 网络的时间；
  * 降落时云层散开，顶部出现「✈️ 我们到了！」。
  */
+const FlySceneLazy = lazy(() => import('./FlyScene').then((m) => ({ default: m.FlyScene })));
+/** 提前在后台加载穿云场景，第一次打飞的也不会卡 */
+export function preloadFlyScene() { void import('./FlyScene'); }
+
 export function FlyOverlay() {
   const f = useLive((s) => s.flying);
   if (!f) return null;
@@ -27,19 +31,19 @@ export function FlyOverlay() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[70] overflow-hidden" data-testid="fly-overlay">
       <style>{`
-        @keyframes cloud-rush { from { transform: translateX(60vw) } to { transform: translateX(-80vw) } }
-        @keyframes plane-cross { 0% { transform: translate(-30vw, 6vh) rotate(-6deg) } 50% { transform: translate(0, -2vh) rotate(-2deg) } 100% { transform: translate(30vw, 4vh) rotate(4deg) } }
         @keyframes clouds-in { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes clouds-out { from { opacity: 1 } to { opacity: 0 } }
+        @keyframes clouds-out { 0% { opacity: 1 } 60% { opacity: .85 } 100% { opacity: 0 } }
+        @keyframes flash { 0% { opacity: .9 } 100% { opacity: 0 } }
       `}</style>
       {show && (
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(#BFE0FF, #F2F8FF 70%)', animation: `${f.phase === 'down' ? 'clouds-out' : 'clouds-in'} ${f.phase === 'down' ? FLY.down : 180}ms ease both` }}>
-          {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="absolute select-none" style={{ top: `${(i * 37) % 90}%`, left: `${(i * 53) % 100}%`, fontSize: `${48 + (i % 4) * 28}px`, opacity: 0.85, animation: `cloud-rush ${700 + (i % 5) * 160}ms linear ${-(i * 90)}ms infinite` }}>☁️</div>
-          ))}
-          <div className="absolute left-1/2 top-1/2 -ml-8 -mt-8 text-6xl drop-shadow-lg" style={{ animation: `plane-cross ${FLY.clouds + FLY.down}ms ease-in-out both` }}>✈️</div>
-          <div className="absolute inset-x-0 bottom-[22%] flex justify-center">
-            <div className="rounded-full bg-cream-50/90 px-4 py-1.5 text-sm font-black text-cocoa-800 shadow-soft">打个飞的 → {f.title}</div>
+        <div className="absolute inset-0" style={{ animation: `${f.phase === 'down' ? 'clouds-out' : 'clouds-in'} ${f.phase === 'down' ? FLY.down : 140}ms ease both` }}>
+          {/* 天空：上深下浅，靠近云层顶部偏暖 */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(#5E9BE6 0%, #A9CDF5 38%, #E8F2FD 72%, #FFF6E6 100%)' }} />
+          <Suspense fallback={null}><FlySceneLazy phase={f.phase === 'down' ? 'down' : 'clouds'} /></Suspense>
+          {/* 进云的一瞬间：白色闪一下 */}
+          {f.phase === 'clouds' && <div className="absolute inset-0 bg-white" style={{ animation: 'flash 260ms ease-out both' }} />}
+          <div className="absolute inset-x-0 bottom-[18%] flex justify-center">
+            <div className="rounded-full bg-cream-50/85 px-4 py-1.5 text-sm font-black text-cocoa-800 shadow-soft backdrop-blur">✈️ 打个飞的 → {f.title}</div>
           </div>
         </div>
       )}

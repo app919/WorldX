@@ -10,11 +10,11 @@
  * - 地图边缘的道路尽头是隧道：车辆驶进隧道后，从另一个隧道口驶出（不会凭空出现或开出地图）。
  */
 import { TUNNEL, type CompiledDistrict } from './build';
-import { dist, inOBB, intersect, segmentOBB, type OBB, type V2 } from './geom';
+import { dist, inOBB, intersect, obbCorners, segmentOBB, type OBB, type V2 } from './geom';
 
 export const CAR_LEN = 4.4;
 export const CAR_W = 2.0;
-const MIN_GAP = 2.2; // 静止时的最小车距
+const MIN_GAP = 2.6; // 静止时的最小车距（留足余量：任何角度看都不会“贴”在一起）
 const ACCEL = 3.2;
 const BRAKE = 9;
 
@@ -252,6 +252,52 @@ function planTurn(tr: Traffic, c: Car, lane: number): { t0: number; turn: NonNul
 
 /** 推进仿真 dt 秒。peds：所有行人（含玩家）的位置 */
 export function stepTraffic(tr: Traffic, dt: number, peds: V2[]) {
+  // 安全网：记下每辆车这一步之前的状态，步进后若两车车身（含 0.15 米缓冲）相碰，就把“撞上去”的那辆退回原位并停住
+  const snap = tr.cars.map((c) => ({ c, lane: c.lane, t: c.t, v: c.v, turn: c.turn, hidden: c.hidden, committed: new Set(c.committed) }));
+  stepTrafficRaw(tr, dt, peds);
+  enforceNoContact(tr, snap);
+}
+
+const SAFE_PAD = 0.15;
+function obbOverlap(a: OBB, b: OBB) {
+  const axes = [a.rot, a.rot + Math.PI / 2, b.rot, b.rot + Math.PI / 2];
+  const ca = obbCorners(a), cb = obbCorners(b);
+  for (const r of axes) {
+    const ax = Math.sin(r), az = Math.cos(r);
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const p of ca) { const d = p.x * ax + p.z * az; if (d < a0) a0 = d; if (d > a1) a1 = d; }
+    for (const p of cb) { const d = p.x * ax + p.z * az; if (d < b0) b0 = d; if (d > b1) b1 = d; }
+    if (a1 <= b0 || b1 <= a0) return false;
+  }
+  return true;
+}
+function enforceNoContact(tr: Traffic, snap: { c: Car; lane: number; t: number; v: number; turn: Car['turn']; hidden: boolean; committed: Set<string> }[]) {
+  for (let pass = 0; pass < 3; pass++) {
+    const vis = snap.filter((x) => !x.c.hidden);
+    const pos = vis.map((x) => carPos(tr, x.c));
+    let fixed = 0;
+    for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) {
+      if (dist(pos[i], pos[j]) > CAR_LEN + 1) continue;
+      const A = vis[i], B = vis[j];
+      if (!obbOverlap(carBox(tr, A.c, SAFE_PAD), carBox(tr, B.c, SAFE_PAD))) continue;
+      // 之前就已经挨着（例如刚从隧道口驶出）不算本帧造成的，交给正常逻辑分开
+      const wasTouching = !A.hidden && !B.hidden && (() => {
+        const sa = { ...A.c, lane: A.lane, t: A.t, turn: A.turn }, sb = { ...B.c, lane: B.lane, t: B.t, turn: B.turn };
+        return obbOverlap(carBox(tr, sa, SAFE_PAD), carBox(tr, sb, SAFE_PAD));
+      })();
+      if (wasTouching) continue;
+      // 退回这一帧移动得更多的那辆（它是“撞上去”的一方）
+      const mover = A.c.v * 1 + Math.abs(A.c.t - A.t) >= B.c.v * 1 + Math.abs(B.c.t - B.t) ? A : B;
+      mover.c.lane = mover.lane; mover.c.t = mover.t; mover.c.turn = mover.turn; mover.c.hidden = mover.hidden; mover.c.committed = new Set(mover.committed);
+      mover.c.v = 0; mover.c.braking = true; mover.c.why = 'safety';
+      pos[mover === A ? i : j] = carPos(tr, mover.c);
+      fixed++;
+    }
+    if (!fixed) break;
+  }
+}
+
+function stepTrafficRaw(tr: Traffic, dt: number, peds: V2[]) {
   tr.time += dt;
   const occ = tr.occupancy;
   // 1) 重新计算路口占用（车身与路口区间重叠即占用）

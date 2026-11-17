@@ -9,6 +9,7 @@ import { playerRuntime, useTown } from '../store/useTown';
 import { placeOfLot, useWork } from '../store/useWork';
 import { jobTargetLot } from '../scene/JobTarget';
 import { ROLE_COLORS, ROLE_LABEL } from '../domain/palette';
+import { getPref, setPref } from './uiPrefs';
 
 const W = 200, H = 168;
 
@@ -16,7 +17,8 @@ export function MiniMap() {
   const district = useTown((s) => s.district);
   const tab = useTown((s) => s.tab);
   const walkTo = useTown((s) => s.walkTo);
-  const [open, setOpen] = useState(true);
+  const [open, setOpenRaw] = useState(() => getPref('minimap', false));
+  const setOpen = (v: boolean) => { setOpenRaw(v); setPref('minimap', v); };
   const [zoom, setZoom] = useState(1);
   const me = useRef<SVGGElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -51,7 +53,12 @@ export function MiniMap() {
 
   if (tab !== 'city') return null;
   if (!open) {
-    return <button data-testid="minimap-open" onClick={() => setOpen(true)} className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 rounded-full px-3 py-1 text-xs font-bold text-cocoa-600 md:bottom-24 md:left-3 md:right-auto md:top-auto">🗺️ 小地图</button>;
+    return (
+      <div className="pointer-events-auto absolute right-3 top-[7.4rem] z-20 flex gap-1 md:bottom-24 md:left-3 md:right-auto md:top-auto">
+        <button data-testid="minimap-open" onClick={() => setOpen(true)} className="glass rounded-full px-3 py-1 text-xs font-bold text-cocoa-600">🗺️ 小地图</button>
+        <button data-testid="find-me" title="找到我（F）" onClick={() => { playerRuntime.locateAt = performance.now(); }} className="glass rounded-full px-2 py-1 text-xs font-bold text-cocoa-600">📍</button>
+      </div>
+    );
   }
   return (
     <div className="pointer-events-auto glass absolute right-3 top-[7.4rem] z-20 overflow-hidden rounded-2xl p-1.5 md:bottom-24 md:left-3 md:right-auto md:top-auto" data-testid="minimap">

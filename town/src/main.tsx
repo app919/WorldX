@@ -1,3 +1,4 @@
+import { useLive } from './store/useLive';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -6,10 +7,11 @@ import { playerRuntime, useTown } from './store/useTown';
 import { useWork } from './store/useWork';
 import { useLots } from './store/useLots';
 import { useCenter } from './store/useCenter';
-import { trafficRuntime } from './world/traffic';
+import { carBox, trafficRuntime } from './world/traffic';
+import { obbCorners, type OBB } from './world/geom';
 import { lotPlan } from './domain/lots';
 import { allLots, compiledOf, navOf, DISTRICT_ORDER } from './world';
-import { cam } from './scene/input';
+import { cam, camRef } from './scene/input';
 import { useQuests } from './store/useQuests';
 import { signFor } from './scene/Buildings';
 
@@ -27,10 +29,23 @@ if (typeof location !== 'undefined' && location.search.includes('e2e')) {
     useWork,
     useLots,
     useCenter,
+    /** 调试：当前画面上互相重叠的车辆（分离轴定理） */
+    carOverlaps: () => {
+      const tr = trafficRuntime.tr; if (!tr) return [];
+      const ov = (a: OBB, b: OBB) => [a.rot, a.rot + Math.PI / 2, b.rot, b.rot + Math.PI / 2].map((r) => ({ x: Math.sin(r), z: Math.cos(r) })).every((ax) => {
+        const pa = obbCorners(a).map((p) => p.x * ax.x + p.z * ax.z), pb = obbCorners(b).map((p) => p.x * ax.x + p.z * ax.z);
+        return Math.max(...pa) > Math.min(...pb) && Math.max(...pb) > Math.min(...pa);
+      });
+      const vis = tr.cars.filter((c) => !c.hidden); const out: string[] = [];
+      for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) if (ov(carBox(tr, vis[i], -0.05), carBox(tr, vis[j], -0.05))) out.push(`${vis[i].id}x${vis[j].id} ${vis[i].why ?? ''}/${vis[j].why ?? ''}`);
+      return out;
+    },
     signals: () => { const tr = trafficRuntime.tr; return tr ? { junctions: [...tr.signals.values()].filter((s) => s.roads.length > 1).length, pedCrossings: tr.cwSignal.filter(Boolean).length, centers: [...tr.signals.values()].filter((s) => s.roads.length > 1).map((s) => s.center) } : null; },
     lotPlan: (d: string) => lotPlan(d as 'wukang'),
     cam,
+    camPos: () => { const c = camRef.current; return c ? { x: c.position.x, y: c.position.y, z: c.position.z } : { x: 0, y: 0, z: 0 }; },
     useQuests,
+    useLive,
     roofs: () => { const out: Record<string, number> = {}; for (const d of DISTRICT_ORDER) for (const l of allLots().filter((x) => x.district === d)) { const c = signFor(l.door.lotId)?.cat; if (c) out[c] = (out[c] ?? 0) + 1; } return out; },
     playerRuntime,
     props: (d: string) => compiledOf(d as 'wukang').props.map((p) => ({ kind: p.kind, x: p.p.x, z: p.p.z })),

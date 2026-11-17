@@ -29,7 +29,7 @@ interface OppState {
   teams: Record<string, TeamMember[]>;
   industry: 'ecommerce' | 'heritage' | 'education';
   stage?: string;
-  oppTab: 'hall' | 'posted' | 'taken';
+  oppTab: 'hall' | 'ideas' | 'posted' | 'taken';
   focusOpp?: string;
 
   setIndustry(i: OppState['industry'], stage?: string): void;

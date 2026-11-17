@@ -41,7 +41,11 @@ export class NavGrid {
       }
     };
     const bbOf = (pts: V2[], pad = 0) => ({ x0: Math.min(...pts.map((p) => p.x)) - pad, x1: Math.max(...pts.map((p) => p.x)) + pad, z0: Math.min(...pts.map((p) => p.z)) - pad, z1: Math.max(...pts.map((p) => p.z)) + pad });
-    const obb = (o: OBB, z: Zone) => paint((p) => inOBB(o, p), bbOf(obbCorners(o)), z);
+    // 每个矩形的 cos / sin 只算一次，逐格判断只做乘加（首屏构建导航网格的主要开销）
+    const obb = (o: OBB, z: Zone) => {
+      const c = Math.cos(o.rot), sn = Math.sin(o.rot), hw = o.w / 2, hd = o.d / 2;
+      paint((p) => { const dx = p.x - o.cx, dz = p.z - o.cz; return Math.abs(dx * c - dz * sn) <= hw && Math.abs(dx * sn + dz * c) <= hd; }, bbOf(obbCorners(o)), z);
+    };
     cd.sidewalks.forEach((x) => obb(x.box, Zone.Walk));
     cd.def.areas.filter((a) => a.kind === 'plaza' && a.box).forEach((a) => obb(a.box!, Zone.Walk));
     cd.paths.forEach((o) => obb(o, Zone.Walk));

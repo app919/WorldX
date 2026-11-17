@@ -2,7 +2,7 @@
 export interface V2 { x: number; z: number }
 
 /** 有向矩形：中心 + 尺寸 + 绕 Y 轴旋转（rot=0 时 w 沿 x、d 沿 z） */
-export interface OBB { cx: number; cz: number; w: number; d: number; rot: number }
+export interface OBB { cx: number; cz: number; w: number; d: number; rot: number; /** 内部缓存：cos / sin(rot)（对象创建后 rot 不会再改） */ _c?: number; _s?: number }
 
 export const v = (x: number, z: number): V2 => ({ x, z });
 export const add = (a: V2, b: V2): V2 => ({ x: a.x + b.x, z: a.z + b.z });
@@ -15,25 +15,19 @@ export const dist = (a: V2, b: V2) => Math.hypot(a.x - b.x, a.z - b.z);
 /** 左法线（沿方向前进时的左侧；在 x 东 z 南坐标系中 = (dz, -dx)） */
 export const leftOf = (d: V2): V2 => ({ x: d.z, z: -d.x });
 
-/** 每个 OBB 的 cos / sin 缓存（导航网格、碰撞每帧要调用上百万次，三角函数与临时对象是主要开销） */
-const trig = new WeakMap<OBB, { rot: number; c: number; s: number }>();
-function cs(o: OBB) {
-  let t = trig.get(o);
-  if (!t || t.rot !== o.rot) { t = { rot: o.rot, c: Math.cos(o.rot), s: Math.sin(o.rot) }; trig.set(o, t); }
-  return t;
-}
-
 /** 把世界点变换到 OBB 局部坐标 */
 export function toLocal(o: OBB, p: V2): V2 {
   const dx = p.x - o.cx, dz = p.z - o.cz;
-  const { c, s } = cs(o);
+  const c = Math.cos(o.rot), s = Math.sin(o.rot);
   // three.js rotation.y = rot：局部 (x,z) → 世界 (x c + z s, -x s + z c)
   return { x: dx * c - dz * s, z: dx * s + dz * c };
 }
 
+/** 点是否在 OBB 内（热点函数：导航网格、碰撞每帧调用上百万次，不创建临时对象；轴对齐时跳过三角函数） */
 export function inOBB(o: OBB, p: V2, pad = 0): boolean {
   const dx = p.x - o.cx, dz = p.z - o.cz;
-  const { c, s } = cs(o);
+  // 长期存在的矩形（建筑、人行道）第一次用时把 cos / sin 记在自己身上，之后只做乘加
+  const c = o._c ?? (o._c = Math.cos(o.rot)), s = o._s ?? (o._s = Math.sin(o.rot));
   return Math.abs(dx * c - dz * s) <= o.w / 2 + pad && Math.abs(dx * s + dz * c) <= o.d / 2 + pad;
 }
 

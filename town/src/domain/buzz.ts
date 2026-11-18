@@ -35,7 +35,15 @@ export const eventDetail = (e: LiveEvent) => (e.eventId ? EVENTS.find((x) => x.i
 const DANMU = ['来了来了！', '这个想合作，怎么报名？', '主理人好会讲 👍', '求链接～', '现场人好多', '有没有做剪辑的朋友？', '下次一定来现场', '求带我一个', '这个价格可以聊吗', '已报名！', '想认识做包装设计的', '刚从隔壁街飞过来 ✈️'];
 export const danmuAt = (now: number, n = 6) => Array.from({ length: n }, (_, i) => DANMU[(Math.floor(now / 3000) + i * 5) % DANMU.length]);
 
-export interface FeedItem { id: string; at: number; icon: string; text: string; who: string; district: DistrictKey; lotId?: string; liveId?: string; example?: boolean }
+export interface FeedItem { id: string; at: number; icon: string; text: string; who: string; district: DistrictKey; lotId?: string; liveId?: string; example?: boolean; kind?: 'new' | 'example' | 'live'; tone?: string; cta?: string }
+
+const LIVE_SCENE: Record<LiveEvent['kind'], { icon: string; tone: string; text: (e: LiveEvent) => string; cta: string }> = {
+  市集: { icon: '🎪', tone: '#F4A259', text: (e) => `门口摆起了市集「${e.title}」，${e.signed} 个摊位已经开张`, cta: '去逛逛' },
+  路演: { icon: '🎤', tone: '#8C6BD6', text: (e) => `正在路演「${e.title}」，台下还有空位`, cta: '去听听' },
+  对接会: { icon: '🤝', tone: '#3D7BD8', text: (e) => `「${e.title}」正在对接，${e.signed} 人已经坐下`, cta: '去对接' },
+  直播: { icon: '🔴', tone: '#E0453A', text: (e) => `正在直播「${e.title}」，弹幕刷得飞快`, cta: '去围观' },
+  门诊: { icon: '🩺', tone: '#5FA37A', text: (e) => `开了「${e.title}」，排队的人不多`, cta: '去问问' },
+};
 
 /** 街区动态：按时间生成“此刻大家在做什么”（每 10 分钟换一批，跨城市） */
 export function feedAt(now: number, lotOfExample: (id: string) => string | undefined): FeedItem[] {
@@ -45,16 +53,17 @@ export function feedAt(now: number, lotOfExample: (id: string) => string | undef
   for (let k = 0; k < 4; k++) {
     const s = pick(SHOPS, k);
     const p = s.products[k % s.products.length];
-    out.push({ id: `f_shop_${k}`, at: now - (k * 7 + 3) * 60000, icon: '🆕', text: `上新了「${p.name}」`, who: s.name, district: districtOfLot(s.lotId), lotId: s.lotId });
+    out.push({ id: `f_shop_${k}`, at: now - (k * 7 + 3) * 60000, icon: '🆕', text: [`刚把「${p.name}」摆上橱窗`, `上新了「${p.name}」，门口的人停下来看`, `挂出了新招牌：「${p.name}」`][(slot + k) % 3], who: s.name, district: districtOfLot(s.lotId), lotId: s.lotId, kind: 'new', tone: '#5FA37A', cta: '去看看' });
   }
   for (let k = 0; k < 5; k++) {
     const e = pick(EXAMPLE_OPCS, k + 3);
-    const verbs = [`交付了一单「${e.products[0].name}」`, '更新了案例', `开放了本周的预约`, '正在找合作伙伴', '上传了新作品'];
-    out.push({ id: `f_ex_${k}`, at: now - (k * 11 + 5) * 60000, icon: '例', text: verbs[(slot + k) % verbs.length], who: e.name, district: e.district, lotId: lotOfExample(e.id), example: true });
+    const verbs = [`刚交付一单「${e.products[0].name}」，店主松了口气`, '把新案例贴到了墙上', '开放了本周的预约，还剩几个空档', `在门口挂了块牌子：找合作伙伴`, '上传了新作品，橱窗换了样子'];
+    out.push({ id: `f_ex_${k}`, at: now - (k * 11 + 5) * 60000, icon: '例', text: verbs[(slot + k) % verbs.length], who: e.name, district: e.district, lotId: lotOfExample(e.id), example: true, kind: 'example', cta: '去看看' });
   }
   for (const [k, e] of LIVE_EVENTS.entries()) {
     if ((slot + k) % 2) continue;
-    out.push({ id: `f_live_${e.id}`, at: now - (k + 1) * 60000, icon: e.kind === '直播' ? '🔴' : '🎪', text: `${e.kind}进行中：${e.title}`, who: e.host, district: e.district, liveId: e.id });
+    const sc = LIVE_SCENE[e.kind];
+    out.push({ id: `f_live_${e.id}`, at: now - (k + 1) * 60000, icon: sc.icon, text: sc.text(e), who: e.host, district: e.district, liveId: e.id, kind: 'live', tone: sc.tone, cta: sc.cta });
   }
   return out.sort((a, b) => b.at - a.at);
 }

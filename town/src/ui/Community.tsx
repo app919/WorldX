@@ -26,7 +26,7 @@ export function CommunityPanel() {
   const list = all.filter((e) => space === 'all' || e.space === space);
 
   return (
-    <Drawer wide testId="community-panel" title="☕ 我的社区" subtitle="我可以认识谁？和谁见面？" onClose={() => setTab('city')}>
+    <Drawer wide testId="community-panel" title="☕ 我的社区" subtitle="一个人做公司，也要有地方坐下来聊聊。今天想见谁？" onClose={() => setTab('city')}>
       <div className="space-y-3">
         {recommended && (
           <div className="rounded-2xl bg-almond-300/50 p-3 ring-2 ring-almond-400" data-testid="event-reco">
@@ -41,7 +41,8 @@ export function CommunityPanel() {
               <SpaceArt kind={k} />
               <div className="bg-cream-50 px-2 py-1.5">
                 <div className="text-xs font-black">{SPACE_INFO[k].name}</div>
-                <div className="text-[10px] text-stone-600">{SPACE_INFO[k].purpose} · {SPACE_INFO[k].typical}</div>
+                <div className="text-[10px] font-bold text-cocoa-600">{SPACE_INFO[k].scene}</div>
+                <div className="text-[10px] text-stone-500">{SPACE_INFO[k].purpose} · {all.filter((e) => e.space === k).length} 场活动</div>
               </div>
             </button>
           ))}

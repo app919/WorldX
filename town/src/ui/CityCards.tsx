@@ -1,4 +1,5 @@
 import { archiveById } from '../data/archives';
+import { StoreFront } from './StoreFront';
 import { useState } from 'react';
 import { SPONSOR_TIERS, isGolden, lotPlan } from '../domain/lots';
 import { exampleById } from '../data/examples';
@@ -20,7 +21,7 @@ export function CityCards() {
   const tab = useTown((s) => s.tab);
   if (tab !== 'city' || !card) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-24 z-20 flex justify-center md:inset-x-auto md:bottom-auto md:right-3 md:top-[10.5rem] md:max-h-[calc(100vh-17rem)] md:w-96">
+    <div className="pointer-events-none absolute inset-x-3 bottom-24 top-[4.25rem] z-20 flex flex-col items-center justify-end md:inset-x-auto md:bottom-auto md:right-3 md:top-[10.5rem] md:max-h-[calc(100vh-17rem)] md:w-96 md:justify-start">
       {card.kind === 'resident' && <ResidentCard id={card.id} />}
       {card.kind === 'entity' && <EntityCard id={card.id} />}
       {card.kind === 'landmark' && <LandmarkCard id={card.id} />}
@@ -110,8 +111,9 @@ function ExampleCard({ id }: { id: string }) {
   );
   return (
     <Panel testId="example-card" title={<span><span data-testid="example-badge" className="mr-1 rounded px-1 align-middle text-xs font-black text-white" style={{ background: ROLE_COLORS.example }}>例</span>{e.name}</span>}
-      subtitle={`${e.direction} · ${e.tagline}`} onClose={() => openCard(undefined)} className="max-h-[60vh] w-full max-w-md md:max-h-[calc(100vh-17rem)]">
-      <div className="flex flex-wrap gap-1.5"><Pill tone="haze">示范 OPC · 虚构示例</Pill><Pill tone="cream">主理人 {e.owner.nickname}</Pill><Pill tone="cream">{e.direction}</Pill></div>
+      subtitle={`${e.direction} · ${e.tagline}`} onClose={() => openCard(undefined)} className="w-full max-w-md">
+      <StoreFront name={e.name} category={`${e.direction} ${e.tagline}`} color={ROLE_COLORS.example} owner={e.owner.nickname} tint={ROLE_TINT.example} note="这是一家示范店：照着它，看看一家完整的小店该怎么摆" />
+      <div className="mt-2 flex flex-wrap gap-1.5"><Pill tone="haze">示范 OPC · 虚构示例</Pill><Pill tone="cream">主理人 {e.owner.nickname}</Pill><Pill tone="cream">{e.direction}</Pill></div>
       <div className="mt-2 rounded-2xl p-2 text-[11px]" style={{ background: ROLE_TINT.example, color: ROLE_DARK.example }}>这是一家【例】示范店（粉色 = 系统设置，无法交易），用来展示一家完整的 OPC 小店应该写清楚哪些内容。店名、主理人、案例与数据都是虚构的，不进入产业链，也不能下单。</div>
       <Sec t="公司简介"><p>{e.about}</p><p className="mt-1 text-stone-500">{e.status}</p></Sec>
       <Sec t="主理人">{e.owner.nickname} · {e.owner.title}</Sec>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode, ButtonHTMLAttributes } from 'react';
 
 type Tone = 'almond' | 'sage' | 'cream' | 'sakura' | 'haze' | 'brick';
@@ -48,8 +49,15 @@ export function Modal({ children, onClose }: { children: ReactNode; onClose?: ()
   );
 }
 
+/** 说明文字：默认只露两行，点一下展开（规则要有，但不要压住内容） */
 export function Disclaimer({ children }: { children: ReactNode }) {
-  return <div className="rounded-xl bg-haze-200/70 px-3 py-2 text-[11px] leading-relaxed text-haze-600">ⓘ {children}</div>;
+  const [open, setOpen] = useState(false);
+  return (
+    <div role="button" tabIndex={0} onClick={() => setOpen(!open)} className="cursor-pointer rounded-xl bg-haze-200/60 px-3 py-1.5 text-[11px] leading-relaxed text-haze-600">
+      <div className={open ? '' : 'line-clamp-2'}>ⓘ {children}</div>
+      {!open && <div className="text-right text-[10px] font-bold text-haze-600/80">展开规则 ▾</div>}
+    </div>
+  );
 }
 
 export function Avatar({ color, hair, label, size = 36 }: { color: string; hair?: string; label?: string; size?: number }) {

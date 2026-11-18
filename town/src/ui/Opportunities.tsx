@@ -30,7 +30,7 @@ export function OppPanel() {
   const [posting, setPosting] = useState(false);
   const taken = bids.filter((b) => b.mine).length + useOpp.getState().promos.length + useOpp.getState().apps.length;
   return (
-    <Drawer wide testId="opp-panel" title="📋 机会广场" subtitle={tab === 'ideas' ? '创意展示 · AI 教你从想法到真实 · 系统里的上下游资源' : '发布 → 审核 → 匹配 → 对接 → 成交 → 履约 → 评价'} onClose={() => setTab('city')}>
+    <Drawer wide testId="opp-panel" title="📋 机会广场" subtitle={tab === 'ideas' ? '创意展示 · AI 教你从想法到真实 · 系统里的上下游资源' : '有人正在找你能做的事：投个标、接一单，第一笔合作可能就在这里'} onClose={() => setTab('city')}>
       <div className="flex flex-wrap gap-1.5">
         {([['hall', '🏛️ 需求大厅'], ['ideas', '💡 创意广场'], ['posted', `📣 我发布的 ${myOpps.length || ''}`], ['taken', `🧾 我承接的 ${taken || ''}`]] as const).map(([k, label]) => (
           <button key={k} data-testid={`opp-tab-${k}`} onClick={() => setOppTab(k)}
@@ -74,8 +74,10 @@ function Hall() {
     .sort((a, b) => Number(!!b.o.mine) - Number(!!a.o.mine) || (sort === 'match' ? b.score - a.score : sort === 'new' ? b.o.postedAt - a.o.postedAt : (b.o.budget?.max ?? 0) - (a.o.budget?.max ?? 0)));
   const fitCount = list.filter((x) => x.score > 0 && !x.o.mine).length;
   useEffect(() => {
-    if (fitCount && !alerted) { alerted = true; useTown.getState().toast(`有 ${fitCount} 条需求与你的能力 / 产业链环节匹配，已排在前面`, 'info'); }
+    if (fitCount && !alerted) alerted = true;
   }, [fitCount]);
+  const [more, setMore] = useState(false);
+  const active = [industry, area, mode, budget].filter((v) => v !== 'all').length;
   const sel = 'input !w-auto !py-1 text-[11px]';
   return (
     <div data-testid="opp-hall">
@@ -84,14 +86,20 @@ function Hall() {
           <button key={k} data-testid={`opp-kind-${k}`} onClick={() => setKind(k)} className={`rounded-full px-2 py-0.5 ${kind === k ? 'bg-cocoa-800 text-cream-50' : 'bg-cream-100'}`}>{k === 'all' ? '全部' : `${KIND_ICON[k]} ${OPP_LABEL[k]}`}</button>
         ))}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        <select className={sel} value={industry} onChange={(e) => setIndustry(e.target.value)}><option value="all">全部行业</option>{INDUSTRY_CHAINS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-        <select className={sel} value={area} onChange={(e) => setArea(e.target.value)}><option value="all">全部地区</option>{['徐汇', '浦东', '虹口', '线上'].map((a) => <option key={a} value={a}>{a}</option>)}</select>
-        <select className={sel} value={mode} onChange={(e) => setMode(e.target.value as never)}><option value="all">合作方式</option>{(Object.keys(MODE_LABEL) as WorkMode[]).map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}</select>
-        <select className={sel} value={budget} onChange={(e) => setBudget(e.target.value)}><option value="all">预算不限</option><option value="lt5">≤ ¥5000</option><option value="5to10">¥5000–10000</option><option value="gt10">&gt; ¥10000</option></select>
+      {fitCount > 0 && <div className="mt-2 rounded-xl bg-almond-300/50 px-3 py-1.5 text-[11px] font-bold text-cocoa-700" data-testid="fit-banner">✨ 有 {fitCount} 条和你的能力对得上，已经排在最前面</div>}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <select className={sel} value={sort} onChange={(e) => setSort(e.target.value as never)}><option value="match">按匹配度</option><option value="new">最新发布</option><option value="budget">预算最高</option></select>
         <label className="flex items-center gap-1 text-[11px]"><input type="checkbox" data-testid="fit-only" checked={fitOnly} onChange={(e) => setFitOnly(e.target.checked)} />只看适合我</label>
+        <button className={`ml-auto rounded-full px-2.5 py-0.5 text-[11px] font-bold ${active ? 'bg-cocoa-800 text-cream-50' : 'bg-cream-100 text-stone-600'}`} data-testid="opp-more-filters" onClick={() => setMore(!more)}>筛选{active ? ` · ${active}` : ''} {more ? '▴' : '▾'}</button>
       </div>
+      {more && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <select className={sel} value={industry} onChange={(e) => setIndustry(e.target.value)}><option value="all">全部行业</option>{INDUSTRY_CHAINS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+          <select className={sel} value={area} onChange={(e) => setArea(e.target.value)}><option value="all">全部地区</option>{['徐汇', '浦东', '虹口', '线上'].map((a) => <option key={a} value={a}>{a}</option>)}</select>
+          <select className={sel} value={mode} onChange={(e) => setMode(e.target.value as never)}><option value="all">合作方式</option>{(Object.keys(MODE_LABEL) as WorkMode[]).map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}</select>
+          <select className={sel} value={budget} onChange={(e) => setBudget(e.target.value)}><option value="all">预算不限</option><option value="lt5">≤ ¥5000</option><option value="5to10">¥5000–10000</option><option value="gt10">&gt; ¥10000</option></select>
+        </div>
+      )}
       <div className="mt-2"><Disclaimer>{(kind === 'all' ? RULES.tender : RULES[kind]).join('；')}</Disclaimer></div>
       <div className="mt-2 space-y-2">
         {list.map(({ o, score }) => <OppCard key={o.id} o={o} score={score} />)}

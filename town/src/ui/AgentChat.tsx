@@ -9,6 +9,8 @@ import { Btn, Chip, Disclaimer, Panel } from './kit';
 import { placeOfLot, useWork } from '../store/useWork';
 import { useLive } from '../store/useLive';
 import { emitGame } from '../store/gameEvents';
+import { StoreFront } from './StoreFront';
+import { ROLE_COLORS } from '../domain/palette';
 
 const ENTITY_LABEL = { personal_page: '个人创业主页（未注册主体）', opc_entity: 'OPC 经营主体（自述，未核验）', verified_company: '已认证企业' } as const;
 const LEVEL_TONE = { L1: 'sage', L2: 'almond', L3: 'sakura' } as const;
@@ -55,7 +57,8 @@ export function AgentChat() {
         onClose={() => close(undefined)}
         className="h-[78vh] w-full max-w-md"
       >
-        <div className="flex flex-wrap gap-1.5">
+        <StoreFront name={opc.name} category={`${opc.category} ${opc.tagline}`} color={opc.license || opc.entityStatus === 'verified_company' ? ROLE_COLORS.company : ROLE_COLORS.personal} online={ownerOnline} owner={owner?.nickname} />
+        <div className="mt-2 flex flex-wrap gap-1.5">
           <Chip tone="haze">{opc.license ? `营业执照：${opc.license.company}` : ENTITY_LABEL[opc.entityStatus]}</Chip>
           {opc.owner && <Chip tone="cream">店主 {opc.owner.name} · {opc.owner.phoneMasked}</Chip>}
           <Chip tone={ownerOnline ? 'sage' : 'cream'}>{ownerOnline ? '主理人在线' : '主理人离线 · AI 分身托管中'}</Chip>
@@ -76,19 +79,19 @@ export function AgentChat() {
         )}
         {credit && (
           <div className="mt-2 text-xs" data-testid="shop-credit">
-            <b>信用记录：</b>{credit.done ? `★${credit.rating} · 完成 ${credit.done} 单 · 准时 ${Math.round(credit.onTime * 100)}%` : '新入驻，暂无成交记录'}{credit.certified ? ' · ✔ 已认证' : ''}
+            <b>口碑：</b>{credit.done ? `★${credit.rating} · 完成 ${credit.done} 单 · 准时 ${Math.round(credit.onTime * 100)}%` : '🌱 新店开张，还没有成交记录——第一位合作者会被记住'}{credit.certified ? ' · ✔ 已认证' : ''}
             <span className="text-stone-400">（只来自双方确认完成的合作）</span>
           </div>
         )}
         {chainPos.length > 0 && (
           <div className="mt-2 flex flex-wrap items-center gap-1 text-xs" data-testid="shop-chain">
-            <b>产业链位置：</b>
+            <b>在产业链的位置：</b>
             {chainPos.map((m) => (
               <button key={m.id} className="chip bg-haze-300 !py-0 text-[10px]" onClick={() => { close(undefined); setIndustry(m.ind, m.stage); setTab('chain'); }}>🔗 {m.label}</button>
             ))}
           </div>
         )}
-        {opc.openNeeds.length > 0 && <div className="mt-2 text-xs"><b>正在寻找：</b>{opc.openNeeds.join('、')}</div>}
+        {opc.openNeeds.length > 0 && <div className="mt-2 rounded-xl bg-almond-300/40 px-3 py-1.5 text-xs"><b>🔎 店主正在找：</b>{opc.openNeeds.join('、')}<span className="text-stone-500">（你能帮上忙，就是最好的开场白）</span></div>}
         {!mine && owner && (
           <div className="mt-2 flex flex-wrap gap-2">
             <Btn size="sm" tone={ownerOnline ? 'sage' : 'almond'} data-testid="live-chat-btn" onClick={() => useLive.getState().openLive(owner.id)}>

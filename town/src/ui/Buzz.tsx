@@ -12,6 +12,7 @@ import { navOf, DISTRICTS } from '../world';
 import { cityOfDistrict } from '../domain/cities';
 import { ROLE_COLORS } from '../domain/palette';
 import { Btn, Panel } from './kit';
+import { catIcon, timeScene } from './StoreFront';
 
 const ago = (ms: number) => (ms < 60000 ? '刚刚' : `${Math.round(ms / 60000)} 分钟前`);
 
@@ -27,24 +28,35 @@ export function FeedPanel() {
   const open = useFollow((s) => s.feedOpen);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { if (!open) return; const t = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(t); }, [open]);
-  const items = useMemo(() => feedAt(now, lotOfExample), [now]);
+  const district = useTown((s) => s.district);
+  const hour = useTown((s) => s.hour);
+  const items = useMemo(() => { const all = feedAt(now, lotOfExample); return [...all.filter((x) => x.district === district), ...all.filter((x) => x.district !== district)]; }, [now, district]);
   if (!open) return null;
+  const sc = timeScene(hour);
   const close = () => useFollow.getState().setFeed(false);
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center p-3 md:items-center md:justify-start md:pl-20">
-      <Panel testId="feed-panel" title="📰 街区动态" subtitle="此刻各个城市的街上在发生什么（演示数据）· 点一下打个飞的过去" onClose={close} className="max-h-[70vh] w-full max-w-sm">
+      <Panel testId="feed-panel" title="📰 街区动态" subtitle={`${cityOfDistrict(district).name}${sc.label} · 此刻街上正在发生的事，点一下打个飞的过去（演示数据）`} onClose={close} className="max-h-[70vh] w-full max-w-sm">
         <div className="space-y-1.5">
-          {items.map((it) => (
-            <button key={it.id} data-testid="feed-item" onClick={() => { close(); if (it.liveId) flyToLive(it.liveId); else if (it.lotId) useLive.getState().fly({ title: it.who, lotId: it.lotId }); }}
-              className="flex w-full items-start gap-2 rounded-2xl bg-cream-100 px-3 py-2 text-left hover:bg-almond-300/60">
-              <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-black" style={it.example ? { background: ROLE_COLORS.example, color: '#fff' } : undefined}>{it.icon}</span>
-              <span className="min-w-0 flex-1 text-xs">
-                <b className="text-cocoa-800">{it.who}</b> {it.text}
-                <span className="block text-[10px] text-stone-500">{cityOfDistrict(it.district).name} · {DISTRICTS[it.district].name} · {ago(now - it.at)}</span>
-              </span>
-              <span className="shrink-0 text-[10px] font-bold text-cocoa-600">✈️ 打个飞的</span>
-            </button>
-          ))}
+          {items.map((it, i) => {
+            const here = it.district === district;
+            const icon = it.kind === 'new' ? catIcon(`${it.who} ${it.text}`) : it.icon;
+            return (
+              <button key={it.id} data-testid="feed-item" onClick={() => { close(); if (it.liveId) flyToLive(it.liveId); else if (it.lotId) useLive.getState().fly({ title: it.who, lotId: it.lotId }); }}
+                className={`flex w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left ring-1 transition hover:bg-almond-300/60 ${here ? 'bg-almond-300/35 ring-almond-400/60' : 'bg-cream-100 ring-transparent'}`}>
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-lg font-black text-white shadow-sm" style={{ background: it.example ? ROLE_COLORS.example : it.tone ?? '#C9A57A' }}>
+                  {it.example ? '例' : icon}
+                  {it.kind === 'live' && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-[#E0453A] ring-2 ring-cream-50" />}
+                </span>
+                <span className="min-w-0 flex-1 text-xs leading-snug">
+                  <b className="text-cocoa-800">{it.who}</b> <span className="text-stone-700">{it.text}</span>
+                  <span className="mt-0.5 block text-[10px] text-stone-500">{here ? <b className="text-cocoa-600">📍 就在你这条街 · </b> : `${cityOfDistrict(it.district).name} · `}{DISTRICTS[it.district].name} · {ago(now - it.at)}</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-cream-50 px-2 py-1 text-[10px] font-black text-cocoa-600 ring-1 ring-cream-200">{here ? '🚶' : '✈️'} {it.cta ?? '打个飞的'}</span>
+                {i === 0 && <span className="sr-only">最新</span>}
+              </button>
+            );
+          })}
         </div>
       </Panel>
     </div>

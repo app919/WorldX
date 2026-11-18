@@ -349,9 +349,9 @@ export function Controls() {
 export function Toasts() {
   const toasts = useTown((s) => s.toasts);
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[3.7rem] z-[60] flex flex-col items-center gap-1.5 px-3 md:top-24">
-      {toasts.slice(-2).map((t) => (
-        <div key={t.id} className={`wobble-in line-clamp-2 max-w-[min(92vw,30rem)] rounded-2xl px-3.5 py-1.5 text-center text-xs font-bold leading-snug shadow-soft ring-1 ring-white/60 backdrop-blur md:text-sm ${t.tone === 'ok' ? 'bg-sage-300/95 text-sage-700' : t.tone === 'warn' ? 'bg-sakura-300/95 text-brick-500' : 'bg-cream-50/95 text-cocoa-600'}`}>{t.text}</div>
+    <div className="pointer-events-none absolute inset-x-0 top-28 z-[60] flex flex-col items-center gap-2">
+      {toasts.map((t) => (
+        <div key={t.id} className={`wobble-in rounded-full px-4 py-2 text-sm font-bold shadow-soft ${t.tone === 'ok' ? 'bg-sage-300 text-sage-700' : t.tone === 'warn' ? 'bg-sakura-300 text-brick-500' : 'bg-cream-50 text-cocoa-600'}`}>{t.text}</div>
       ))}
     </div>
   );

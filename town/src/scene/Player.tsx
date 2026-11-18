@@ -11,7 +11,7 @@ import { Html } from '@react-three/drei';
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { Chibi, GhostChibi } from './Chibi';
 import { useServer } from '../store/useServer';
-import { cam, camRef, cycleView, zoomBy, CAM_DEFAULT } from './input';
+import { cam, camRef, cycleView, zoomBy } from './input';
 import { useStroll } from '../store/useStroll';
 import { dress } from '../domain/identity';
 import { compiledOf, navOf, streetOfDoor } from '../world';
@@ -218,7 +218,7 @@ export function Player() {
 
     // 「找到我」：镜头立即回到角色身上，脚下光圈放大闪烁，头顶出现大箭头
     const sinceLocate = (performance.now() - playerRuntime.locateAt) / 1000;
-    if (sinceLocate < 0.1) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); cam.dist = CAM_DEFAULT; }
+    if (sinceLocate < 0.1) { camTarget.current.set(playerRuntime.x, 0, playerRuntime.z); cam.dist = 1; }
     const pulse = sinceLocate < 3 ? 1 + Math.abs(Math.sin(sinceLocate * 6)) * 1.6 : 1 + Math.sin(now * 3) * 0.08;
     if (ring.current) ring.current.visible = cam.mode === 'top' || sinceLocate < 3;
     if (ring.current) { ring.current.scale.setScalar(pulse); (ring.current.material as MeshBasicMaterial).opacity = sinceLocate < 3 ? 1 : 0.85; }

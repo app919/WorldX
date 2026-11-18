@@ -6,10 +6,10 @@ import type { DistrictKey } from '../domain/commerce';
 
 export type SpaceKind = 'coffee_lounge' | 'startup_lounge' | 'street_market';
 
-export const SPACE_INFO: Record<SpaceKind, { name: string; purpose: string; typical: string; scene: string; features: string[] }> = {
-  coffee_lounge: { name: '咖啡客厅', purpose: '兴趣与社交', typical: 'CityWalk、兴趣聊天、生活分享', scene: '手冲正香，靠窗还有空位', features: ['长桌与咖啡机', '落地窗', '自由入座'] },
-  startup_lounge: { name: '创业会客厅', purpose: '商务交流', typical: 'OPC 路演、产品发布、资源对接', scene: '大屏亮着，有人在讲第一单', features: ['产品展示屏', '主理人介绍', '商务需求墙', '线上会议室', 'AI 会议主持人'] },
-  street_market: { name: '街区小市集', purpose: '商业展示', typical: '产品体验、品牌展示、现场销售', scene: '遮阳棚撑起来了，摊位还剩几个', features: ['遮阳棚摊位', '产品陈列', '现场支付需商家自备'] },
+export const SPACE_INFO: Record<SpaceKind, { name: string; purpose: string; typical: string; features: string[] }> = {
+  coffee_lounge: { name: '咖啡客厅', purpose: '兴趣与社交', typical: 'CityWalk、兴趣聊天、生活分享', features: ['长桌与咖啡机', '落地窗', '自由入座'] },
+  startup_lounge: { name: '创业会客厅', purpose: '商务交流', typical: 'OPC 路演、产品发布、资源对接', features: ['产品展示屏', '主理人介绍', '商务需求墙', '线上会议室', 'AI 会议主持人'] },
+  street_market: { name: '街区小市集', purpose: '商业展示', typical: '产品体验、品牌展示、现场销售', features: ['遮阳棚摊位', '产品陈列', '现场支付需商家自备'] },
 };
 
 export interface TownEvent {
